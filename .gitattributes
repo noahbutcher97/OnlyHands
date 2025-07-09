@@ -1,0 +1,12 @@
+# Ensure consistent line endings
+*.cpp text=auto
+*.h text=auto
+*.uproject text=auto
+
+# Treat JSON and config files as text
+*.json text
+*.ini text
+*.md text
+
+# Optional: Force LF endings
+# * text eol=lf
