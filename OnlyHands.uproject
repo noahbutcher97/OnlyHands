@@ -1,0 +1,10 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.3",
+  "Category": "",
+  "Description": "",
+  "Modules": [
+    { "Name": "OnlyHands", "Type": "Runtime", "LoadingPhase": "Default" },
+    { "Name": "OnlyHandsEditor", "Type": "Editor", "LoadingPhase": "Default" }
+  ]
+}
