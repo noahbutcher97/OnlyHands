@@ -2,1168 +2,1398 @@
 #include "Data/Maps/OHSkeletalMappings.h"
 #include "FunctionLibrary/OHAlgoUtils.h"
 
-namespace OHSkeletalMappings
-{
-	// ==========================================
-	// Core String Conversions
-	// ==========================================
-	
-	// SkeletalBone → FName mapping
-	const TMap<EOHSkeletalBone, FName> SkeletalBoneToFNameMap = {
-		{EOHSkeletalBone::None, FName("None")},
-		{EOHSkeletalBone::Root, FName("root")},
-		{EOHSkeletalBone::Spine_01, FName("spine_01")},
-		{EOHSkeletalBone::Spine_02, FName("spine_02")},
-		{EOHSkeletalBone::Spine_03, FName("spine_03")},
-		{EOHSkeletalBone::Pelvis, FName("pelvis")},
-		{EOHSkeletalBone::Neck_01, FName("neck_01")},
-		{EOHSkeletalBone::Head, FName("head")},
-
-		{EOHSkeletalBone::Clavicle_L, FName("clavicle_l")},
-		{EOHSkeletalBone::UpperArm_L, FName("upperarm_l")},
-		{EOHSkeletalBone::LowerArm_L, FName("lowerarm_l")},
-		{EOHSkeletalBone::Hand_L, FName("hand_l")},
-
-		{EOHSkeletalBone::Clavicle_R, FName("clavicle_r")},
-		{EOHSkeletalBone::UpperArm_R, FName("upperarm_r")},
-		{EOHSkeletalBone::LowerArm_R, FName("lowerarm_r")},
-		{EOHSkeletalBone::Hand_R, FName("hand_r")},
-
-		{EOHSkeletalBone::Thigh_L, FName("thigh_l")},
-		{EOHSkeletalBone::Calf_L, FName("calf_l")},
-		{EOHSkeletalBone::Foot_L, FName("foot_l")},
-		{EOHSkeletalBone::Ball_L, FName("ball_l")},
-
-		{EOHSkeletalBone::Thigh_R, FName("thigh_r")},
-		{EOHSkeletalBone::Calf_R, FName("calf_r")},
-		{EOHSkeletalBone::Foot_R, FName("foot_r")},
-		{EOHSkeletalBone::Ball_R, FName("ball_r")},
-
-		// Fingers - Left
-		{EOHSkeletalBone::Thumb_01_L, FName("thumb_01_l")},
-		{EOHSkeletalBone::Thumb_02_L, FName("thumb_02_l")},
-		{EOHSkeletalBone::Thumb_03_L, FName("thumb_03_l")},
-		{EOHSkeletalBone::Index_01_L, FName("index_01_l")},
-		{EOHSkeletalBone::Index_02_L, FName("index_02_l")},
-		{EOHSkeletalBone::Index_03_L, FName("index_03_l")},
-		{EOHSkeletalBone::Middle_01_L, FName("middle_01_l")},
-		{EOHSkeletalBone::Middle_02_L, FName("middle_02_l")},
-		{EOHSkeletalBone::Middle_03_L, FName("middle_03_l")},
-		{EOHSkeletalBone::Ring_01_L, FName("ring_01_l")},
-		{EOHSkeletalBone::Ring_02_L, FName("ring_02_l")},
-		{EOHSkeletalBone::Ring_03_L, FName("ring_03_l")},
-		{EOHSkeletalBone::Pinky_01_L, FName("pinky_01_l")},
-		{EOHSkeletalBone::Pinky_02_L, FName("pinky_02_l")},
-		{EOHSkeletalBone::Pinky_03_L, FName("pinky_03_l")},
-
-		// Fingers - Right
-		{EOHSkeletalBone::Thumb_01_R, FName("thumb_01_r")},
-		{EOHSkeletalBone::Thumb_02_R, FName("thumb_02_r")},
-		{EOHSkeletalBone::Thumb_03_R, FName("thumb_03_r")},
-		{EOHSkeletalBone::Index_01_R, FName("index_01_r")},
-		{EOHSkeletalBone::Index_02_R, FName("index_02_r")},
-		{EOHSkeletalBone::Index_03_R, FName("index_03_r")},
-		{EOHSkeletalBone::Middle_01_R, FName("middle_01_r")},
-		{EOHSkeletalBone::Middle_02_R, FName("middle_02_r")},
-		{EOHSkeletalBone::Middle_03_R, FName("middle_03_r")},
-		{EOHSkeletalBone::Ring_01_R, FName("ring_01_r")},
-		{EOHSkeletalBone::Ring_02_R, FName("ring_02_r")},
-		{EOHSkeletalBone::Ring_03_R, FName("ring_03_r")},
-		{EOHSkeletalBone::Pinky_01_R, FName("pinky_01_r")},
-		{EOHSkeletalBone::Pinky_02_R, FName("pinky_02_r")},
-		{EOHSkeletalBone::Pinky_03_R, FName("pinky_03_r")},
-
-		// IK Bones
-		{EOHSkeletalBone::IK_Root, FName("ik_root")},
-		{EOHSkeletalBone::IK_Hand_L, FName("ik_hand_l")},
-		{EOHSkeletalBone::IK_Hand_R, FName("ik_hand_r")},
-		{EOHSkeletalBone::IK_Foot_L, FName("ik_foot_l")},
-		{EOHSkeletalBone::IK_Foot_R, FName("ik_foot_r")},
-		{EOHSkeletalBone::IK_Hand_Gun, FName("ik_hand_gun")},
-		{EOHSkeletalBone::IK_Hand_Root, FName("ik_hand_root")},
-		{EOHSkeletalBone::IK_Foot_Root, FName("ik_foot_root")}
-	};
-
-	// FName → SkeletalBone mapping (reverse lookup)
-	const TMap<FName, EOHSkeletalBone> FNameToSkeletalBoneMap = {
-		{FName("None"), EOHSkeletalBone::None},
-		{FName("root"), EOHSkeletalBone::Root},
-		{FName("spine_01"), EOHSkeletalBone::Spine_01},
-		{FName("spine_02"), EOHSkeletalBone::Spine_02},
-		{FName("spine_03"), EOHSkeletalBone::Spine_03},
-		{FName("pelvis"), EOHSkeletalBone::Pelvis},
-		{FName("neck_01"), EOHSkeletalBone::Neck_01},
-		{FName("head"), EOHSkeletalBone::Head},
-
-		{FName("clavicle_l"), EOHSkeletalBone::Clavicle_L},
-		{FName("upperarm_l"), EOHSkeletalBone::UpperArm_L},
-		{FName("lowerarm_l"), EOHSkeletalBone::LowerArm_L},
-		{FName("hand_l"), EOHSkeletalBone::Hand_L},
-
-		{FName("clavicle_r"), EOHSkeletalBone::Clavicle_R},
-		{FName("upperarm_r"), EOHSkeletalBone::UpperArm_R},
-		{FName("lowerarm_r"), EOHSkeletalBone::LowerArm_R},
-		{FName("hand_r"), EOHSkeletalBone::Hand_R},
-
-		{FName("thigh_l"), EOHSkeletalBone::Thigh_L},
-		{FName("calf_l"), EOHSkeletalBone::Calf_L},
-		{FName("foot_l"), EOHSkeletalBone::Foot_L},
-		{FName("ball_l"), EOHSkeletalBone::Ball_L},
-
-		{FName("thigh_r"), EOHSkeletalBone::Thigh_R},
-		{FName("calf_r"), EOHSkeletalBone::Calf_R},
-		{FName("foot_r"), EOHSkeletalBone::Foot_R},
-		{FName("ball_r"), EOHSkeletalBone::Ball_R},
-
-		// Fingers - Left
-		{FName("thumb_01_l"), EOHSkeletalBone::Thumb_01_L},
-		{FName("thumb_02_l"), EOHSkeletalBone::Thumb_02_L},
-		{FName("thumb_03_l"), EOHSkeletalBone::Thumb_03_L},
-		{FName("index_01_l"), EOHSkeletalBone::Index_01_L},
-		{FName("index_02_l"), EOHSkeletalBone::Index_02_L},
-		{FName("index_03_l"), EOHSkeletalBone::Index_03_L},
-		{FName("middle_01_l"), EOHSkeletalBone::Middle_01_L},
-		{FName("middle_02_l"), EOHSkeletalBone::Middle_02_L},
-		{FName("middle_03_l"), EOHSkeletalBone::Middle_03_L},
-		{FName("ring_01_l"), EOHSkeletalBone::Ring_01_L},
-		{FName("ring_02_l"), EOHSkeletalBone::Ring_02_L},
-		{FName("ring_03_l"), EOHSkeletalBone::Ring_03_L},
-		{FName("pinky_01_l"), EOHSkeletalBone::Pinky_01_L},
-		{FName("pinky_02_l"), EOHSkeletalBone::Pinky_02_L},
-		{FName("pinky_03_l"), EOHSkeletalBone::Pinky_03_L},
-
-		// Fingers - Right
-		{FName("thumb_01_r"), EOHSkeletalBone::Thumb_01_R},
-		{FName("thumb_02_r"), EOHSkeletalBone::Thumb_02_R},
-		{FName("thumb_03_r"), EOHSkeletalBone::Thumb_03_R},
-		{FName("index_01_r"), EOHSkeletalBone::Index_01_R},
-		{FName("index_02_r"), EOHSkeletalBone::Index_02_R},
-		{FName("index_03_r"), EOHSkeletalBone::Index_03_R},
-		{FName("middle_01_r"), EOHSkeletalBone::Middle_01_R},
-		{FName("middle_02_r"), EOHSkeletalBone::Middle_02_R},
-		{FName("middle_03_r"), EOHSkeletalBone::Middle_03_R},
-		{FName("ring_01_r"), EOHSkeletalBone::Ring_01_R},
-		{FName("ring_02_r"), EOHSkeletalBone::Ring_02_R},
-		{FName("ring_03_r"), EOHSkeletalBone::Ring_03_R},
-		{FName("pinky_01_r"), EOHSkeletalBone::Pinky_01_R},
-		{FName("pinky_02_r"), EOHSkeletalBone::Pinky_02_R},
-		{FName("pinky_03_r"), EOHSkeletalBone::Pinky_03_R},
-
-		// IK Bones
-		{FName("ik_root"), EOHSkeletalBone::IK_Root},
-		{FName("ik_hand_l"), EOHSkeletalBone::IK_Hand_L},
-		{FName("ik_hand_r"), EOHSkeletalBone::IK_Hand_R},
-		{FName("ik_foot_l"), EOHSkeletalBone::IK_Foot_L},
-		{FName("ik_foot_r"), EOHSkeletalBone::IK_Foot_R},
-		{FName("ik_hand_gun"), EOHSkeletalBone::IK_Hand_Gun},
-		{FName("ik_hand_root"), EOHSkeletalBone::IK_Hand_Root},
-		{FName("ik_foot_root"), EOHSkeletalBone::IK_Foot_Root}
-	};
-
-	// Primary bones only (no fingers/IK)
-	const TMap<EOHSkeletalBone, FName> PrimaryBoneToFNameMap = {
-		{EOHSkeletalBone::Pelvis, FName("pelvis")},
-		{EOHSkeletalBone::Spine_01, FName("spine_01")},
-		{EOHSkeletalBone::Spine_02, FName("spine_02")},
-		{EOHSkeletalBone::Spine_03, FName("spine_03")},
-		{EOHSkeletalBone::Neck_01, FName("neck_01")},
-		{EOHSkeletalBone::Head, FName("head")},
-		{EOHSkeletalBone::Clavicle_L, FName("clavicle_l")},
-		{EOHSkeletalBone::UpperArm_L, FName("upperarm_l")},
-		{EOHSkeletalBone::LowerArm_L, FName("lowerarm_l")},
-		{EOHSkeletalBone::Hand_L, FName("hand_l")},
-		{EOHSkeletalBone::Clavicle_R, FName("clavicle_r")},
-		{EOHSkeletalBone::UpperArm_R, FName("upperarm_r")},
-		{EOHSkeletalBone::LowerArm_R, FName("lowerarm_r")},
-		{EOHSkeletalBone::Hand_R, FName("hand_r")},
-		{EOHSkeletalBone::Thigh_L, FName("thigh_l")},
-		{EOHSkeletalBone::Calf_L, FName("calf_l")},
-		{EOHSkeletalBone::Foot_L, FName("foot_l")},
-		{EOHSkeletalBone::Ball_L, FName("ball_l")},
-		{EOHSkeletalBone::Thigh_R, FName("thigh_r")},
-		{EOHSkeletalBone::Calf_R, FName("calf_r")},
-		{EOHSkeletalBone::Foot_R, FName("foot_r")},
-		{EOHSkeletalBone::Ball_R, FName("ball_r")}
-	};
-
-	// ==========================================
-	// EOHSkeletalBone <-> EOHBodyZone
-	// ==========================================
-	
-	// One-to-One: Bone → Zone
-	const TMap<EOHSkeletalBone, EOHBodyZone> BoneToZoneMap = {
-		{EOHSkeletalBone::Spine_02, EOHBodyZone::Torso_Upper},
-		{EOHSkeletalBone::Spine_03, EOHBodyZone::Torso_Upper},
-		{EOHSkeletalBone::Pelvis, EOHBodyZone::Torso_Lower},
-		{EOHSkeletalBone::Spine_01, EOHBodyZone::Torso_Lower},
-		{EOHSkeletalBone::Neck_01, EOHBodyZone::Cranial},
-		{EOHSkeletalBone::Head, EOHBodyZone::Cranial},
-
-		// Left Arm
-		{EOHSkeletalBone::Clavicle_L, EOHBodyZone::Arm_L_Upper},
-		{EOHSkeletalBone::UpperArm_L, EOHBodyZone::Arm_L_Upper},
-		{EOHSkeletalBone::LowerArm_L, EOHBodyZone::Arm_L_Lower},
-		{EOHSkeletalBone::Hand_L, EOHBodyZone::Hand_L},
-		
-		// Left Fingers
-		{EOHSkeletalBone::Thumb_01_L, EOHBodyZone::Hand_L},
-		{EOHSkeletalBone::Thumb_02_L, EOHBodyZone::Hand_L},
-		{EOHSkeletalBone::Thumb_03_L, EOHBodyZone::Hand_L},
-		{EOHSkeletalBone::Index_01_L, EOHBodyZone::Hand_L},
-		{EOHSkeletalBone::Index_02_L, EOHBodyZone::Hand_L},
-		{EOHSkeletalBone::Index_03_L, EOHBodyZone::Hand_L},
-		{EOHSkeletalBone::Middle_01_L, EOHBodyZone::Hand_L},
-		{EOHSkeletalBone::Middle_02_L, EOHBodyZone::Hand_L},
-		{EOHSkeletalBone::Middle_03_L, EOHBodyZone::Hand_L},
-		{EOHSkeletalBone::Ring_01_L, EOHBodyZone::Hand_L},
-		{EOHSkeletalBone::Ring_02_L, EOHBodyZone::Hand_L},
-		{EOHSkeletalBone::Ring_03_L, EOHBodyZone::Hand_L},
-		{EOHSkeletalBone::Pinky_01_L, EOHBodyZone::Hand_L},
-		{EOHSkeletalBone::Pinky_02_L, EOHBodyZone::Hand_L},
-		{EOHSkeletalBone::Pinky_03_L, EOHBodyZone::Hand_L},
-
-		// Right Arm
-		{EOHSkeletalBone::Clavicle_R, EOHBodyZone::Arm_R_Upper},
-		{EOHSkeletalBone::UpperArm_R, EOHBodyZone::Arm_R_Upper},
-		{EOHSkeletalBone::LowerArm_R, EOHBodyZone::Arm_R_Lower},
-		{EOHSkeletalBone::Hand_R, EOHBodyZone::Hand_R},
-		
-		// Right Fingers
-		{EOHSkeletalBone::Thumb_01_R, EOHBodyZone::Hand_R},
-		{EOHSkeletalBone::Thumb_02_R, EOHBodyZone::Hand_R},
-		{EOHSkeletalBone::Thumb_03_R, EOHBodyZone::Hand_R},
-		{EOHSkeletalBone::Index_01_R, EOHBodyZone::Hand_R},
-		{EOHSkeletalBone::Index_02_R, EOHBodyZone::Hand_R},
-		{EOHSkeletalBone::Index_03_R, EOHBodyZone::Hand_R},
-		{EOHSkeletalBone::Middle_01_R, EOHBodyZone::Hand_R},
-		{EOHSkeletalBone::Middle_02_R, EOHBodyZone::Hand_R},
-		{EOHSkeletalBone::Middle_03_R, EOHBodyZone::Hand_R},
-		{EOHSkeletalBone::Ring_01_R, EOHBodyZone::Hand_R},
-		{EOHSkeletalBone::Ring_02_R, EOHBodyZone::Hand_R},
-		{EOHSkeletalBone::Ring_03_R, EOHBodyZone::Hand_R},
-		{EOHSkeletalBone::Pinky_01_R, EOHBodyZone::Hand_R},
-		{EOHSkeletalBone::Pinky_02_R, EOHBodyZone::Hand_R},
-		{EOHSkeletalBone::Pinky_03_R, EOHBodyZone::Hand_R},
-
-		// Left Leg
-		{EOHSkeletalBone::Thigh_L, EOHBodyZone::Leg_L_Upper},
-		{EOHSkeletalBone::Calf_L, EOHBodyZone::Leg_L_Lower},
-		{EOHSkeletalBone::Foot_L, EOHBodyZone::Foot_L},
-		{EOHSkeletalBone::Ball_L, EOHBodyZone::Foot_L},
-
-		// Right Leg
-		{EOHSkeletalBone::Thigh_R, EOHBodyZone::Leg_R_Upper},
-		{EOHSkeletalBone::Calf_R, EOHBodyZone::Leg_R_Lower},
-		{EOHSkeletalBone::Foot_R, EOHBodyZone::Foot_R},
-		{EOHSkeletalBone::Ball_R, EOHBodyZone::Foot_R}
-	};
-
-	// One-to-One: Zone → Bone (representative bone for each zone)
-	const TMap<EOHBodyZone, EOHSkeletalBone> ZoneToBoneMap = {
-		{EOHBodyZone::Torso_Upper, EOHSkeletalBone::Spine_03},
-		{EOHBodyZone::Torso_Lower, EOHSkeletalBone::Pelvis},
-		{EOHBodyZone::Cranial, EOHSkeletalBone::Head},
-		{EOHBodyZone::Arm_L_Upper, EOHSkeletalBone::UpperArm_L},
-		{EOHBodyZone::Arm_L_Lower, EOHSkeletalBone::LowerArm_L},
-		{EOHBodyZone::Hand_L, EOHSkeletalBone::Hand_L},
-		{EOHBodyZone::Arm_R_Upper, EOHSkeletalBone::UpperArm_R},
-		{EOHBodyZone::Arm_R_Lower, EOHSkeletalBone::LowerArm_R},
-		{EOHBodyZone::Hand_R, EOHSkeletalBone::Hand_R},
-		{EOHBodyZone::Leg_L_Upper, EOHSkeletalBone::Thigh_L},
-		{EOHBodyZone::Leg_L_Lower, EOHSkeletalBone::Calf_L},
-		{EOHBodyZone::Foot_L, EOHSkeletalBone::Foot_L},
-		{EOHBodyZone::Leg_R_Upper, EOHSkeletalBone::Thigh_R},
-		{EOHBodyZone::Leg_R_Lower, EOHSkeletalBone::Calf_R},
-		{EOHBodyZone::Foot_R, EOHSkeletalBone::Foot_R}
-	};
-
-	// One-to-Many: Bone → Zones (bones that span multiple zones)
-	const TMap<EOHSkeletalBone, TArray<EOHBodyZone>> BoneToZonesMap = {
-		// Most bones map to single zone, but including for completeness
-		{EOHSkeletalBone::Spine_02, {EOHBodyZone::Torso_Upper}},
-		{EOHSkeletalBone::Spine_03, {EOHBodyZone::Torso_Upper}},
-		{EOHSkeletalBone::Pelvis, {EOHBodyZone::Torso_Lower}},
-		{EOHSkeletalBone::Spine_01, {EOHBodyZone::Torso_Lower}},
-		{EOHSkeletalBone::Neck_01, {EOHBodyZone::Cranial}},
-		{EOHSkeletalBone::Head, {EOHBodyZone::Cranial}},
-		
-		// Arms
-		{EOHSkeletalBone::Clavicle_L, {EOHBodyZone::Arm_L_Upper}},
-		{EOHSkeletalBone::UpperArm_L, {EOHBodyZone::Arm_L_Upper}},
-		{EOHSkeletalBone::LowerArm_L, {EOHBodyZone::Arm_L_Lower}},
-		{EOHSkeletalBone::Hand_L, {EOHBodyZone::Hand_L}},
-		
-		{EOHSkeletalBone::Clavicle_R, {EOHBodyZone::Arm_R_Upper}},
-		{EOHSkeletalBone::UpperArm_R, {EOHBodyZone::Arm_R_Upper}},
-		{EOHSkeletalBone::LowerArm_R, {EOHBodyZone::Arm_R_Lower}},
-		{EOHSkeletalBone::Hand_R, {EOHBodyZone::Hand_R}},
-		
-		// Legs
-		{EOHSkeletalBone::Thigh_L, {EOHBodyZone::Leg_L_Upper}},
-		{EOHSkeletalBone::Calf_L, {EOHBodyZone::Leg_L_Lower}},
-		{EOHSkeletalBone::Foot_L, {EOHBodyZone::Foot_L}},
-		{EOHSkeletalBone::Ball_L, {EOHBodyZone::Foot_L}},
-		
-		{EOHSkeletalBone::Thigh_R, {EOHBodyZone::Leg_R_Upper}},
-		{EOHSkeletalBone::Calf_R, {EOHBodyZone::Leg_R_Lower}},
-		{EOHSkeletalBone::Foot_R, {EOHBodyZone::Foot_R}},
-		{EOHSkeletalBone::Ball_R, {EOHBodyZone::Foot_R}}
-	};
-
-	// One-to-Many: Zone → Bones
-	const TMap<EOHBodyZone, TArray<EOHSkeletalBone>> ZoneToBonesMap = {
-		{EOHBodyZone::Torso_Upper, {EOHSkeletalBone::Spine_02, EOHSkeletalBone::Spine_03}},
-		{EOHBodyZone::Torso_Lower, {EOHSkeletalBone::Pelvis, EOHSkeletalBone::Spine_01}},
-		{EOHBodyZone::Cranial, {EOHSkeletalBone::Neck_01, EOHSkeletalBone::Head}},
-
-		{EOHBodyZone::Arm_L_Upper, {EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L}},
-		{EOHBodyZone::Arm_L_Lower, {EOHSkeletalBone::LowerArm_L}},
-		{EOHBodyZone::Hand_L, {
-			EOHSkeletalBone::Hand_L,
-			EOHSkeletalBone::Thumb_01_L, EOHSkeletalBone::Thumb_02_L, EOHSkeletalBone::Thumb_03_L,
-			EOHSkeletalBone::Index_01_L, EOHSkeletalBone::Index_02_L, EOHSkeletalBone::Index_03_L,
-			EOHSkeletalBone::Middle_01_L, EOHSkeletalBone::Middle_02_L, EOHSkeletalBone::Middle_03_L,
-			EOHSkeletalBone::Ring_01_L, EOHSkeletalBone::Ring_02_L, EOHSkeletalBone::Ring_03_L,
-			EOHSkeletalBone::Pinky_01_L, EOHSkeletalBone::Pinky_02_L, EOHSkeletalBone::Pinky_03_L
-		}},
-
-		{EOHBodyZone::Arm_R_Upper, {EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R}},
-		{EOHBodyZone::Arm_R_Lower, {EOHSkeletalBone::LowerArm_R}},
-		{EOHBodyZone::Hand_R, {
-			EOHSkeletalBone::Hand_R,
-			EOHSkeletalBone::Thumb_01_R, EOHSkeletalBone::Thumb_02_R, EOHSkeletalBone::Thumb_03_R,
-			EOHSkeletalBone::Index_01_R, EOHSkeletalBone::Index_02_R, EOHSkeletalBone::Index_03_R,
-			EOHSkeletalBone::Middle_01_R, EOHSkeletalBone::Middle_02_R, EOHSkeletalBone::Middle_03_R,
-			EOHSkeletalBone::Ring_01_R, EOHSkeletalBone::Ring_02_R, EOHSkeletalBone::Ring_03_R,
-			EOHSkeletalBone::Pinky_01_R, EOHSkeletalBone::Pinky_02_R, EOHSkeletalBone::Pinky_03_R
-		}},
-
-		{EOHBodyZone::Leg_L_Upper, {EOHSkeletalBone::Thigh_L}},
-		{EOHBodyZone::Leg_L_Lower, {EOHSkeletalBone::Calf_L}},
-		{EOHBodyZone::Foot_L, {EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L}},
-
-		{EOHBodyZone::Leg_R_Upper, {EOHSkeletalBone::Thigh_R}},
-		{EOHBodyZone::Leg_R_Lower, {EOHSkeletalBone::Calf_R}},
-		{EOHBodyZone::Foot_R, {EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R}}
-	};
-
-	// Primary: Bone → Zone (no fingers)
-	const TMap<EOHSkeletalBone, EOHBodyZone> PrimaryBoneToZoneMap = {
-		{EOHSkeletalBone::Pelvis, EOHBodyZone::Torso_Lower},
-		{EOHSkeletalBone::Spine_01, EOHBodyZone::Torso_Lower},
-		{EOHSkeletalBone::Spine_02, EOHBodyZone::Torso_Upper},
-		{EOHSkeletalBone::Spine_03, EOHBodyZone::Torso_Upper},
-		{EOHSkeletalBone::Neck_01, EOHBodyZone::Cranial},
-		{EOHSkeletalBone::Head, EOHBodyZone::Cranial},
-		{EOHSkeletalBone::Clavicle_L, EOHBodyZone::Arm_L_Upper},
-		{EOHSkeletalBone::UpperArm_L, EOHBodyZone::Arm_L_Upper},
-		{EOHSkeletalBone::LowerArm_L, EOHBodyZone::Arm_L_Lower},
-		{EOHSkeletalBone::Hand_L, EOHBodyZone::Hand_L},
-		{EOHSkeletalBone::Clavicle_R, EOHBodyZone::Arm_R_Upper},
-		{EOHSkeletalBone::UpperArm_R, EOHBodyZone::Arm_R_Upper},
-		{EOHSkeletalBone::LowerArm_R, EOHBodyZone::Arm_R_Lower},
-		{EOHSkeletalBone::Hand_R, EOHBodyZone::Hand_R},
-		{EOHSkeletalBone::Thigh_L, EOHBodyZone::Leg_L_Upper},
-		{EOHSkeletalBone::Calf_L, EOHBodyZone::Leg_L_Lower},
-		{EOHSkeletalBone::Foot_L, EOHBodyZone::Foot_L},
-		{EOHSkeletalBone::Ball_L, EOHBodyZone::Foot_L},
-		{EOHSkeletalBone::Thigh_R, EOHBodyZone::Leg_R_Upper},
-		{EOHSkeletalBone::Calf_R, EOHBodyZone::Leg_R_Lower},
-		{EOHSkeletalBone::Foot_R, EOHBodyZone::Foot_R},
-		{EOHSkeletalBone::Ball_R, EOHBodyZone::Foot_R}
-	};
-
-	// Primary: Zone → Primary Bone
-	const TMap<EOHBodyZone, EOHSkeletalBone> ZoneToPrimaryBoneMap = {
-		{EOHBodyZone::Torso_Upper, EOHSkeletalBone::Spine_03},
-		{EOHBodyZone::Torso_Lower, EOHSkeletalBone::Pelvis},
-		{EOHBodyZone::Cranial, EOHSkeletalBone::Head},
-		{EOHBodyZone::Arm_L_Upper, EOHSkeletalBone::UpperArm_L},
-		{EOHBodyZone::Arm_L_Lower, EOHSkeletalBone::LowerArm_L},
-		{EOHBodyZone::Hand_L, EOHSkeletalBone::Hand_L},
-		{EOHBodyZone::Arm_R_Upper, EOHSkeletalBone::UpperArm_R},
-		{EOHBodyZone::Arm_R_Lower, EOHSkeletalBone::LowerArm_R},
-		{EOHBodyZone::Hand_R, EOHSkeletalBone::Hand_R},
-		{EOHBodyZone::Leg_L_Upper, EOHSkeletalBone::Thigh_L},
-		{EOHBodyZone::Leg_L_Lower, EOHSkeletalBone::Calf_L},
-		{EOHBodyZone::Foot_L, EOHSkeletalBone::Foot_L},
-		{EOHBodyZone::Leg_R_Upper, EOHSkeletalBone::Thigh_R},
-		{EOHBodyZone::Leg_R_Lower, EOHSkeletalBone::Calf_R},
-		{EOHBodyZone::Foot_R, EOHSkeletalBone::Foot_R}
-	};
-
-	// Primary: Bone → Zones (primary bones only)
-	const TMap<EOHSkeletalBone, TArray<EOHBodyZone>> PrimaryBoneToZonesMap = {
-		{EOHSkeletalBone::Pelvis, {EOHBodyZone::Torso_Lower}},
-		{EOHSkeletalBone::Spine_01, {EOHBodyZone::Torso_Lower}},
-		{EOHSkeletalBone::Spine_02, {EOHBodyZone::Torso_Upper}},
-		{EOHSkeletalBone::Spine_03, {EOHBodyZone::Torso_Upper}},
-		{EOHSkeletalBone::Neck_01, {EOHBodyZone::Cranial}},
-		{EOHSkeletalBone::Head, {EOHBodyZone::Cranial}},
-		{EOHSkeletalBone::Clavicle_L, {EOHBodyZone::Arm_L_Upper}},
-		{EOHSkeletalBone::UpperArm_L, {EOHBodyZone::Arm_L_Upper}},
-		{EOHSkeletalBone::LowerArm_L, {EOHBodyZone::Arm_L_Lower}},
-		{EOHSkeletalBone::Hand_L, {EOHBodyZone::Hand_L}},
-		{EOHSkeletalBone::Clavicle_R, {EOHBodyZone::Arm_R_Upper}},
-		{EOHSkeletalBone::UpperArm_R, {EOHBodyZone::Arm_R_Upper}},
-		{EOHSkeletalBone::LowerArm_R, {EOHBodyZone::Arm_R_Lower}},
-		{EOHSkeletalBone::Hand_R, {EOHBodyZone::Hand_R}},
-		{EOHSkeletalBone::Thigh_L, {EOHBodyZone::Leg_L_Upper}},
-		{EOHSkeletalBone::Calf_L, {EOHBodyZone::Leg_L_Lower}},
-		{EOHSkeletalBone::Foot_L, {EOHBodyZone::Foot_L}},
-		{EOHSkeletalBone::Ball_L, {EOHBodyZone::Foot_L}},
-		{EOHSkeletalBone::Thigh_R, {EOHBodyZone::Leg_R_Upper}},
-		{EOHSkeletalBone::Calf_R, {EOHBodyZone::Leg_R_Lower}},
-		{EOHSkeletalBone::Foot_R, {EOHBodyZone::Foot_R}},
-		{EOHSkeletalBone::Ball_R, {EOHBodyZone::Foot_R}}
-	};
-
-	// Primary: Zone → Primary Bones
-	const TMap<EOHBodyZone, TArray<EOHSkeletalBone>> ZoneToPrimaryBonesMap = {
-		{EOHBodyZone::Torso_Upper, {EOHSkeletalBone::Spine_02, EOHSkeletalBone::Spine_03}},
-		{EOHBodyZone::Torso_Lower, {EOHSkeletalBone::Pelvis, EOHSkeletalBone::Spine_01}},
-		{EOHBodyZone::Cranial, {EOHSkeletalBone::Neck_01, EOHSkeletalBone::Head}},
-		{EOHBodyZone::Arm_L_Upper, {EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L}},
-		{EOHBodyZone::Arm_L_Lower, {EOHSkeletalBone::LowerArm_L}},
-		{EOHBodyZone::Hand_L, {EOHSkeletalBone::Hand_L}},
-		{EOHBodyZone::Arm_R_Upper, {EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R}},
-		{EOHBodyZone::Arm_R_Lower, {EOHSkeletalBone::LowerArm_R}},
-		{EOHBodyZone::Hand_R, {EOHSkeletalBone::Hand_R}},
-		{EOHBodyZone::Leg_L_Upper, {EOHSkeletalBone::Thigh_L}},
-		{EOHBodyZone::Leg_L_Lower, {EOHSkeletalBone::Calf_L}},
-		{EOHBodyZone::Foot_L, {EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L}},
-		{EOHBodyZone::Leg_R_Upper, {EOHSkeletalBone::Thigh_R}},
-		{EOHBodyZone::Leg_R_Lower, {EOHSkeletalBone::Calf_R}},
-		{EOHBodyZone::Foot_R, {EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R}}
-	};
-
-	const TMap<EOHBodyZone, TArray<EOHBodyPart>> ZoneToBodyPartsMap = {
-		{ EOHBodyZone::Torso_Upper, { EOHBodyPart::Torso } },
-		{ EOHBodyZone::Torso_Lower, { EOHBodyPart::Pelvis } },
-		{ EOHBodyZone::Cranial,     { EOHBodyPart::Head } },
-
-		{ EOHBodyZone::Arm_L_Upper, { EOHBodyPart::Arm_Left } },
-		{ EOHBodyZone::Arm_L_Lower, { EOHBodyPart::Arm_Left } },
-		{ EOHBodyZone::Hand_L,      { EOHBodyPart::Arm_Left } },
-
-		{ EOHBodyZone::Arm_R_Upper, { EOHBodyPart::Arm_Right } },
-		{ EOHBodyZone::Arm_R_Lower, { EOHBodyPart::Arm_Right } },
-		{ EOHBodyZone::Hand_R,      { EOHBodyPart::Arm_Right } },
-
-		{ EOHBodyZone::Leg_L_Upper, { EOHBodyPart::Leg_Left } },
-		{ EOHBodyZone::Leg_L_Lower, { EOHBodyPart::Leg_Left } },
-		{ EOHBodyZone::Foot_L,      { EOHBodyPart::Leg_Left } },
-
-		{ EOHBodyZone::Leg_R_Upper, { EOHBodyPart::Leg_Right } },
-		{ EOHBodyZone::Leg_R_Lower, { EOHBodyPart::Leg_Right } },
-		{ EOHBodyZone::Foot_R,      { EOHBodyPart::Leg_Right } }
-	};
-
-	const TMap<EOHBodyPart, TArray<EOHBodyZone>> BodyPartToZonesMap = {
-		{ EOHBodyPart::Torso,      { EOHBodyZone::Torso_Upper } },
-		{ EOHBodyPart::Pelvis,     { EOHBodyZone::Torso_Lower } },
-		{ EOHBodyPart::Head,       { EOHBodyZone::Cranial } },
-
-		{ EOHBodyPart::Arm_Left,   { EOHBodyZone::Arm_L_Upper, EOHBodyZone::Arm_L_Lower, EOHBodyZone::Hand_L } },
-		{ EOHBodyPart::Arm_Right,  { EOHBodyZone::Arm_R_Upper, EOHBodyZone::Arm_R_Lower, EOHBodyZone::Hand_R } },
-
-		{ EOHBodyPart::Leg_Left,   { EOHBodyZone::Leg_L_Upper, EOHBodyZone::Leg_L_Lower, EOHBodyZone::Foot_L } },
-		{ EOHBodyPart::Leg_Right,  { EOHBodyZone::Leg_R_Upper, EOHBodyZone::Leg_R_Lower, EOHBodyZone::Foot_R } }
-	};
-
-	const TMap<EOHFunctionalBoneGroup, TArray<EOHBodyZone>> FunctionalGroupToZonesMap = {
-		{ EOHFunctionalBoneGroup::Cranial,    { EOHBodyZone::Cranial } },
-		{ EOHFunctionalBoneGroup::Core,       { EOHBodyZone::Torso_Lower, EOHBodyZone::Torso_Upper } },
-
-		{ EOHFunctionalBoneGroup::LeftArm,    { EOHBodyZone::Arm_L_Upper, EOHBodyZone::Arm_L_Lower } },
-		{ EOHFunctionalBoneGroup::RightArm,   { EOHBodyZone::Arm_R_Upper, EOHBodyZone::Arm_R_Lower } },
-		{ EOHFunctionalBoneGroup::LeftHand,   { EOHBodyZone::Hand_L } },
-		{ EOHFunctionalBoneGroup::RightHand,  { EOHBodyZone::Hand_R } },
-
-		{ EOHFunctionalBoneGroup::LeftLeg,    { EOHBodyZone::Leg_L_Upper, EOHBodyZone::Leg_L_Lower } },
-		{ EOHFunctionalBoneGroup::RightLeg,   { EOHBodyZone::Leg_R_Upper, EOHBodyZone::Leg_R_Lower } },
-		{ EOHFunctionalBoneGroup::LeftFoot,   { EOHBodyZone::Foot_L } },
-		{ EOHFunctionalBoneGroup::RightFoot,  { EOHBodyZone::Foot_R } },
-
-		{ EOHFunctionalBoneGroup::UpperBody,  { EOHBodyZone::Cranial, EOHBodyZone::Torso_Upper, EOHBodyZone::Arm_L_Upper, EOHBodyZone::Arm_R_Upper } },
-		{ EOHFunctionalBoneGroup::LowerBody,  { EOHBodyZone::Torso_Lower, EOHBodyZone::Leg_L_Upper, EOHBodyZone::Leg_R_Upper } },
-		{ EOHFunctionalBoneGroup::LeftLimbs,  { EOHBodyZone::Arm_L_Upper, EOHBodyZone::Leg_L_Upper } },
-		{ EOHFunctionalBoneGroup::RightLimbs, { EOHBodyZone::Arm_R_Upper, EOHBodyZone::Leg_R_Upper } },
-		{ EOHFunctionalBoneGroup::FullBody,   {
-			EOHBodyZone::Cranial, EOHBodyZone::Torso_Upper, EOHBodyZone::Torso_Lower,
-			EOHBodyZone::Arm_L_Upper, EOHBodyZone::Arm_L_Lower, EOHBodyZone::Hand_L,
-			EOHBodyZone::Arm_R_Upper, EOHBodyZone::Arm_R_Lower, EOHBodyZone::Hand_R,
-			EOHBodyZone::Leg_L_Upper, EOHBodyZone::Leg_L_Lower, EOHBodyZone::Foot_L,
-			EOHBodyZone::Leg_R_Upper, EOHBodyZone::Leg_R_Lower, EOHBodyZone::Foot_R
-		} }
-	};
-
-	const TMap<EOHFunctionalBoneGroup, TArray<EOHBodyPart>> FunctionalGroupToBodyPartsMap = {
-		{ EOHFunctionalBoneGroup::Cranial,    { EOHBodyPart::Head } },
-		{ EOHFunctionalBoneGroup::Core,       { EOHBodyPart::Pelvis, EOHBodyPart::Torso } },
-		{ EOHFunctionalBoneGroup::LeftArm,    { EOHBodyPart::Arm_Left } },
-		{ EOHFunctionalBoneGroup::RightArm,   { EOHBodyPart::Arm_Right } },
-		{ EOHFunctionalBoneGroup::LeftHand,   { EOHBodyPart::Arm_Left } },
-		{ EOHFunctionalBoneGroup::RightHand,  { EOHBodyPart::Arm_Right } },
-		{ EOHFunctionalBoneGroup::LeftLeg,    { EOHBodyPart::Leg_Left } },
-		{ EOHFunctionalBoneGroup::RightLeg,   { EOHBodyPart::Leg_Right } },
-		{ EOHFunctionalBoneGroup::LeftFoot,   { EOHBodyPart::Leg_Left } },
-		{ EOHFunctionalBoneGroup::RightFoot,  { EOHBodyPart::Leg_Right } },
-		{ EOHFunctionalBoneGroup::UpperBody,  { EOHBodyPart::Head, EOHBodyPart::Torso, EOHBodyPart::Arm_Left, EOHBodyPart::Arm_Right } },
-		{ EOHFunctionalBoneGroup::LowerBody,  { EOHBodyPart::Pelvis, EOHBodyPart::Leg_Left, EOHBodyPart::Leg_Right } },
-		{ EOHFunctionalBoneGroup::LeftLimbs,  { EOHBodyPart::Arm_Left, EOHBodyPart::Leg_Left } },
-		{ EOHFunctionalBoneGroup::RightLimbs, { EOHBodyPart::Arm_Right, EOHBodyPart::Leg_Right } },
-		{ EOHFunctionalBoneGroup::FullBody,   {
-			EOHBodyPart::Pelvis, EOHBodyPart::Torso, EOHBodyPart::Head,
-			EOHBodyPart::Arm_Left, EOHBodyPart::Arm_Right,
-			EOHBodyPart::Leg_Left, EOHBodyPart::Leg_Right
-		} }
-	};
-	// ==========================================
-	// EOHSkeletalBone <-> EOHBodyPart
-	// ==========================================
-	
-	// One-to-One: Bone → BodyPart
-	const TMap<EOHSkeletalBone, EOHBodyPart> BoneToBodyPartMap = {
-		{EOHSkeletalBone::Spine_01, EOHBodyPart::Torso},
-		{EOHSkeletalBone::Spine_02, EOHBodyPart::Torso},
-		{EOHSkeletalBone::Spine_03, EOHBodyPart::Torso},
-		{EOHSkeletalBone::Pelvis, EOHBodyPart::Pelvis},
-		{EOHSkeletalBone::Neck_01, EOHBodyPart::Head},
-		{EOHSkeletalBone::Head, EOHBodyPart::Head},
-
-		// Left Arm
-		{EOHSkeletalBone::Clavicle_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::UpperArm_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::LowerArm_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Hand_L, EOHBodyPart::Arm_Left},
-		
-		// Left Fingers
-		{EOHSkeletalBone::Thumb_01_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Thumb_02_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Thumb_03_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Index_01_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Index_02_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Index_03_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Middle_01_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Middle_02_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Middle_03_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Ring_01_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Ring_02_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Ring_03_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Pinky_01_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Pinky_02_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Pinky_03_L, EOHBodyPart::Arm_Left},
-
-		// Right Arm
-		{EOHSkeletalBone::Clavicle_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::UpperArm_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::LowerArm_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Hand_R, EOHBodyPart::Arm_Right},
-		
-		// Right Fingers
-		{EOHSkeletalBone::Thumb_01_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Thumb_02_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Thumb_03_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Index_01_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Index_02_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Index_03_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Middle_01_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Middle_02_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Middle_03_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Ring_01_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Ring_02_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Ring_03_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Pinky_01_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Pinky_02_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Pinky_03_R, EOHBodyPart::Arm_Right},
-
-		// Left Leg
-		{EOHSkeletalBone::Thigh_L, EOHBodyPart::Leg_Left},
-		{EOHSkeletalBone::Calf_L, EOHBodyPart::Leg_Left},
-		{EOHSkeletalBone::Foot_L, EOHBodyPart::Leg_Left},
-		{EOHSkeletalBone::Ball_L, EOHBodyPart::Leg_Left},
-
-		// Right Leg
-		{EOHSkeletalBone::Thigh_R, EOHBodyPart::Leg_Right},
-		{EOHSkeletalBone::Calf_R, EOHBodyPart::Leg_Right},
-		{EOHSkeletalBone::Foot_R, EOHBodyPart::Leg_Right},
-		{EOHSkeletalBone::Ball_R, EOHBodyPart::Leg_Right}
-	};
-
-	// One-to-One: BodyPart → Bone (representative bone)
-	const TMap<EOHBodyPart, EOHSkeletalBone> BodyPartToBoneMap = {
-		{EOHBodyPart::Pelvis, EOHSkeletalBone::Pelvis},
-		{EOHBodyPart::Torso, EOHSkeletalBone::Spine_02},
-		{EOHBodyPart::Head, EOHSkeletalBone::Head},
-		{EOHBodyPart::Arm_Left, EOHSkeletalBone::UpperArm_L},
-		{EOHBodyPart::Arm_Right, EOHSkeletalBone::UpperArm_R},
-		{EOHBodyPart::Leg_Left, EOHSkeletalBone::Thigh_L},
-		{EOHBodyPart::Leg_Right, EOHSkeletalBone::Thigh_R}
-	};
-
-	// One-to-Many: Bone → BodyParts
-	const TMap<EOHSkeletalBone, TArray<EOHBodyPart>> BoneToBodyPartsMap = {
-		// Core bones
-		{EOHSkeletalBone::Pelvis, {EOHBodyPart::Pelvis}},
-		{EOHSkeletalBone::Spine_01, {EOHBodyPart::Torso}},
-		{EOHSkeletalBone::Spine_02, {EOHBodyPart::Torso}},
-		{EOHSkeletalBone::Spine_03, {EOHBodyPart::Torso}},
-		{EOHSkeletalBone::Neck_01, {EOHBodyPart::Head}},
-		{EOHSkeletalBone::Head, {EOHBodyPart::Head}},
-		
-		// Arms - all map to single part
-		{EOHSkeletalBone::Clavicle_L, {EOHBodyPart::Arm_Left}},
-		{EOHSkeletalBone::UpperArm_L, {EOHBodyPart::Arm_Left}},
-		{EOHSkeletalBone::LowerArm_L, {EOHBodyPart::Arm_Left}},
-		{EOHSkeletalBone::Hand_L, {EOHBodyPart::Arm_Left}},
-		
-		{EOHSkeletalBone::Clavicle_R, {EOHBodyPart::Arm_Right}},
-		{EOHSkeletalBone::UpperArm_R, {EOHBodyPart::Arm_Right}},
-		{EOHSkeletalBone::LowerArm_R, {EOHBodyPart::Arm_Right}},
-		{EOHSkeletalBone::Hand_R, {EOHBodyPart::Arm_Right}},
-		
-		// Legs
-		{EOHSkeletalBone::Thigh_L, {EOHBodyPart::Leg_Left}},
-		{EOHSkeletalBone::Calf_L, {EOHBodyPart::Leg_Left}},
-		{EOHSkeletalBone::Foot_L, {EOHBodyPart::Leg_Left}},
-		{EOHSkeletalBone::Ball_L, {EOHBodyPart::Leg_Left}},
-		
-		{EOHSkeletalBone::Thigh_R, {EOHBodyPart::Leg_Right}},
-		{EOHSkeletalBone::Calf_R, {EOHBodyPart::Leg_Right}},
-		{EOHSkeletalBone::Foot_R, {EOHBodyPart::Leg_Right}},
-		{EOHSkeletalBone::Ball_R, {EOHBodyPart::Leg_Right}}
-	};
-
-	// One-to-Many: BodyPart → Bones
-	const TMap<EOHBodyPart, TArray<EOHSkeletalBone>> BodyPartToBonesMap = {
-		{EOHBodyPart::Torso, {EOHSkeletalBone::Spine_01, EOHSkeletalBone::Spine_02, EOHSkeletalBone::Spine_03}},
-		{EOHBodyPart::Pelvis, {EOHSkeletalBone::Pelvis}},
-		{EOHBodyPart::Head, {EOHSkeletalBone::Neck_01, EOHSkeletalBone::Head}},
-
-		{EOHBodyPart::Arm_Left, {
-			EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L, EOHSkeletalBone::LowerArm_L,
-			EOHSkeletalBone::Hand_L,
-			EOHSkeletalBone::Thumb_01_L, EOHSkeletalBone::Thumb_02_L, EOHSkeletalBone::Thumb_03_L,
-			EOHSkeletalBone::Index_01_L, EOHSkeletalBone::Index_02_L, EOHSkeletalBone::Index_03_L,
-			EOHSkeletalBone::Middle_01_L, EOHSkeletalBone::Middle_02_L, EOHSkeletalBone::Middle_03_L,
-			EOHSkeletalBone::Ring_01_L, EOHSkeletalBone::Ring_02_L, EOHSkeletalBone::Ring_03_L,
-			EOHSkeletalBone::Pinky_01_L, EOHSkeletalBone::Pinky_02_L, EOHSkeletalBone::Pinky_03_L
-		}},
-
-		{EOHBodyPart::Arm_Right, {
-			EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R, EOHSkeletalBone::LowerArm_R,
-			EOHSkeletalBone::Hand_R,
-			EOHSkeletalBone::Thumb_01_R, EOHSkeletalBone::Thumb_02_R, EOHSkeletalBone::Thumb_03_R,
-			EOHSkeletalBone::Index_01_R, EOHSkeletalBone::Index_02_R, EOHSkeletalBone::Index_03_R,
-			EOHSkeletalBone::Middle_01_R, EOHSkeletalBone::Middle_02_R, EOHSkeletalBone::Middle_03_R,
-			EOHSkeletalBone::Ring_01_R, EOHSkeletalBone::Ring_02_R, EOHSkeletalBone::Ring_03_R,
-			EOHSkeletalBone::Pinky_01_R, EOHSkeletalBone::Pinky_02_R, EOHSkeletalBone::Pinky_03_R
-		}},
-
-		{EOHBodyPart::Leg_Left, {
-			EOHSkeletalBone::Thigh_L, EOHSkeletalBone::Calf_L,
-			EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L
-		}},
-
-		{EOHBodyPart::Leg_Right, {
-			EOHSkeletalBone::Thigh_R, EOHSkeletalBone::Calf_R,
-			EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R
-		}}
-	};
-
-	// Primary: Bone → BodyPart
-	const TMap<EOHSkeletalBone, EOHBodyPart> PrimaryBoneToBodyPartMap = {
-		{EOHSkeletalBone::Pelvis, EOHBodyPart::Pelvis},
-		{EOHSkeletalBone::Spine_01, EOHBodyPart::Torso},
-		{EOHSkeletalBone::Spine_02, EOHBodyPart::Torso},
-		{EOHSkeletalBone::Spine_03, EOHBodyPart::Torso},
-		{EOHSkeletalBone::Neck_01, EOHBodyPart::Head},
-		{EOHSkeletalBone::Head, EOHBodyPart::Head},
-		{EOHSkeletalBone::Clavicle_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::UpperArm_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::LowerArm_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Hand_L, EOHBodyPart::Arm_Left},
-		{EOHSkeletalBone::Clavicle_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::UpperArm_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::LowerArm_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Hand_R, EOHBodyPart::Arm_Right},
-		{EOHSkeletalBone::Thigh_L, EOHBodyPart::Leg_Left},
-		{EOHSkeletalBone::Calf_L, EOHBodyPart::Leg_Left},
-		{EOHSkeletalBone::Foot_L, EOHBodyPart::Leg_Left},
-		{EOHSkeletalBone::Ball_L, EOHBodyPart::Leg_Left},
-		{EOHSkeletalBone::Thigh_R, EOHBodyPart::Leg_Right},
-		{EOHSkeletalBone::Calf_R, EOHBodyPart::Leg_Right},
-		{EOHSkeletalBone::Foot_R, EOHBodyPart::Leg_Right},
-		{EOHSkeletalBone::Ball_R, EOHBodyPart::Leg_Right}
-	};
-
-	// Primary: BodyPart → Primary Bone
-	const TMap<EOHBodyPart, EOHSkeletalBone> BodyPartToPrimaryBoneMap = {
-		{EOHBodyPart::Pelvis, EOHSkeletalBone::Pelvis},
-		{EOHBodyPart::Torso, EOHSkeletalBone::Spine_02},
-		{EOHBodyPart::Head, EOHSkeletalBone::Head},
-		{EOHBodyPart::Arm_Left, EOHSkeletalBone::UpperArm_L},
-		{EOHBodyPart::Arm_Right, EOHSkeletalBone::UpperArm_R},
-		{EOHBodyPart::Leg_Left, EOHSkeletalBone::Thigh_L},
-		{EOHBodyPart::Leg_Right, EOHSkeletalBone::Thigh_R}
-	};
-
-	// Primary: Bone → BodyParts
-	const TMap<EOHSkeletalBone, TArray<EOHBodyPart>> PrimaryBoneToBodyPartsMap = {
-		{EOHSkeletalBone::Pelvis, {EOHBodyPart::Pelvis}},
-		{EOHSkeletalBone::Spine_01, {EOHBodyPart::Torso}},
-		{EOHSkeletalBone::Spine_02, {EOHBodyPart::Torso}},
-		{EOHSkeletalBone::Spine_03, {EOHBodyPart::Torso}},
-		{EOHSkeletalBone::Neck_01, {EOHBodyPart::Head}},
-		{EOHSkeletalBone::Head, {EOHBodyPart::Head}},
-		{EOHSkeletalBone::Clavicle_L, {EOHBodyPart::Arm_Left}},
-		{EOHSkeletalBone::UpperArm_L, {EOHBodyPart::Arm_Left}},
-		{EOHSkeletalBone::LowerArm_L, {EOHBodyPart::Arm_Left}},
-		{EOHSkeletalBone::Hand_L, {EOHBodyPart::Arm_Left}},
-		{EOHSkeletalBone::Clavicle_R, {EOHBodyPart::Arm_Right}},
-		{EOHSkeletalBone::UpperArm_R, {EOHBodyPart::Arm_Right}},
-		{EOHSkeletalBone::LowerArm_R, {EOHBodyPart::Arm_Right}},
-		{EOHSkeletalBone::Hand_R, {EOHBodyPart::Arm_Right}},
-		{EOHSkeletalBone::Thigh_L, {EOHBodyPart::Leg_Left}},
-		{EOHSkeletalBone::Calf_L, {EOHBodyPart::Leg_Left}},
-		{EOHSkeletalBone::Foot_L, {EOHBodyPart::Leg_Left}},
-		{EOHSkeletalBone::Ball_L, {EOHBodyPart::Leg_Left}},
-		{EOHSkeletalBone::Thigh_R, {EOHBodyPart::Leg_Right}},
-		{EOHSkeletalBone::Calf_R, {EOHBodyPart::Leg_Right}},
-		{EOHSkeletalBone::Foot_R, {EOHBodyPart::Leg_Right}},
-		{EOHSkeletalBone::Ball_R, {EOHBodyPart::Leg_Right}}
-	};
-
-	// Primary: BodyPart → Primary Bones
-	const TMap<EOHBodyPart, TArray<EOHSkeletalBone>> BodyPartToPrimaryBonesMap = {
-		{EOHBodyPart::Pelvis, {EOHSkeletalBone::Pelvis}},
-		{EOHBodyPart::Torso, {EOHSkeletalBone::Spine_01, EOHSkeletalBone::Spine_02, EOHSkeletalBone::Spine_03}},
-		{EOHBodyPart::Head, {EOHSkeletalBone::Neck_01, EOHSkeletalBone::Head}},
-		{EOHBodyPart::Arm_Left, {EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L, EOHSkeletalBone::LowerArm_L, EOHSkeletalBone::Hand_L}},
-		{EOHBodyPart::Arm_Right, {EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R, EOHSkeletalBone::LowerArm_R, EOHSkeletalBone::Hand_R}},
-		{EOHBodyPart::Leg_Left, {EOHSkeletalBone::Thigh_L, EOHSkeletalBone::Calf_L, EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L}},
-		{EOHBodyPart::Leg_Right, {EOHSkeletalBone::Thigh_R, EOHSkeletalBone::Calf_R, EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R}}
-	};
-
-	// ==========================================
-	// EOHSkeletalBone <-> EOHFunctionalBoneGroup
-	// ==========================================
-	
-	// One-to-One: Bone → FunctionalGroup (primary group for each bone)
-	const TMap<EOHSkeletalBone, EOHFunctionalBoneGroup> BoneToFunctionalGroupMap = {
-		// Core
-		{EOHSkeletalBone::Pelvis, EOHFunctionalBoneGroup::Core},
-		{EOHSkeletalBone::Spine_01, EOHFunctionalBoneGroup::Core},
-		{EOHSkeletalBone::Spine_02, EOHFunctionalBoneGroup::Core},
-		{EOHSkeletalBone::Spine_03, EOHFunctionalBoneGroup::Core},
-		
-		// Cranial
-		{EOHSkeletalBone::Neck_01, EOHFunctionalBoneGroup::Cranial},
-		{EOHSkeletalBone::Head, EOHFunctionalBoneGroup::Cranial},
-		
-		// Left Arm
-		{EOHSkeletalBone::Clavicle_L, EOHFunctionalBoneGroup::LeftArm},
-		{EOHSkeletalBone::UpperArm_L, EOHFunctionalBoneGroup::LeftArm},
-		{EOHSkeletalBone::LowerArm_L, EOHFunctionalBoneGroup::LeftArm},
-		{EOHSkeletalBone::Hand_L, EOHFunctionalBoneGroup::LeftHand},
-		
-		// Left Fingers
-		{EOHSkeletalBone::Thumb_01_L, EOHFunctionalBoneGroup::LeftHand},
-		{EOHSkeletalBone::Thumb_02_L, EOHFunctionalBoneGroup::LeftHand},
-		{EOHSkeletalBone::Thumb_03_L, EOHFunctionalBoneGroup::LeftHand},
-		{EOHSkeletalBone::Index_01_L, EOHFunctionalBoneGroup::LeftHand},
-		{EOHSkeletalBone::Index_02_L, EOHFunctionalBoneGroup::LeftHand},
-		{EOHSkeletalBone::Index_03_L, EOHFunctionalBoneGroup::LeftHand},
-		{EOHSkeletalBone::Middle_01_L, EOHFunctionalBoneGroup::LeftHand},
-		{EOHSkeletalBone::Middle_02_L, EOHFunctionalBoneGroup::LeftHand},
-		{EOHSkeletalBone::Middle_03_L, EOHFunctionalBoneGroup::LeftHand},
-		{EOHSkeletalBone::Ring_01_L, EOHFunctionalBoneGroup::LeftHand},
-		{EOHSkeletalBone::Ring_02_L, EOHFunctionalBoneGroup::LeftHand},
-		{EOHSkeletalBone::Ring_03_L, EOHFunctionalBoneGroup::LeftHand},
-		{EOHSkeletalBone::Pinky_01_L, EOHFunctionalBoneGroup::LeftHand},
-		{EOHSkeletalBone::Pinky_02_L, EOHFunctionalBoneGroup::LeftHand},
-		{EOHSkeletalBone::Pinky_03_L, EOHFunctionalBoneGroup::LeftHand},
-		
-		// Right Arm
-		{EOHSkeletalBone::Clavicle_R, EOHFunctionalBoneGroup::RightArm},
-		{EOHSkeletalBone::UpperArm_R, EOHFunctionalBoneGroup::RightArm},
-		{EOHSkeletalBone::LowerArm_R, EOHFunctionalBoneGroup::RightArm},
-		{EOHSkeletalBone::Hand_R, EOHFunctionalBoneGroup::RightHand},
-		
-		// Right Fingers
-		{EOHSkeletalBone::Thumb_01_R, EOHFunctionalBoneGroup::RightHand},
-		{EOHSkeletalBone::Thumb_02_R, EOHFunctionalBoneGroup::RightHand},
-		{EOHSkeletalBone::Thumb_03_R, EOHFunctionalBoneGroup::RightHand},
-		{EOHSkeletalBone::Index_01_R, EOHFunctionalBoneGroup::RightHand},
-		{EOHSkeletalBone::Index_02_R, EOHFunctionalBoneGroup::RightHand},
-		{EOHSkeletalBone::Index_03_R, EOHFunctionalBoneGroup::RightHand},
-		{EOHSkeletalBone::Middle_01_R, EOHFunctionalBoneGroup::RightHand},
-		{EOHSkeletalBone::Middle_02_R, EOHFunctionalBoneGroup::RightHand},
-		{EOHSkeletalBone::Middle_03_R, EOHFunctionalBoneGroup::RightHand},
-		{EOHSkeletalBone::Ring_01_R, EOHFunctionalBoneGroup::RightHand},
-		{EOHSkeletalBone::Ring_02_R, EOHFunctionalBoneGroup::RightHand},
-		{EOHSkeletalBone::Ring_03_R, EOHFunctionalBoneGroup::RightHand},
-		{EOHSkeletalBone::Pinky_01_R, EOHFunctionalBoneGroup::RightHand},
-		{EOHSkeletalBone::Pinky_02_R, EOHFunctionalBoneGroup::RightHand},
-		{EOHSkeletalBone::Pinky_03_R, EOHFunctionalBoneGroup::RightHand},
-		
-		// Left Leg
-		{EOHSkeletalBone::Thigh_L, EOHFunctionalBoneGroup::LeftLeg},
-		{EOHSkeletalBone::Calf_L, EOHFunctionalBoneGroup::LeftLeg},
-		{EOHSkeletalBone::Foot_L, EOHFunctionalBoneGroup::LeftFoot},
-		{EOHSkeletalBone::Ball_L, EOHFunctionalBoneGroup::LeftFoot},
-		
-		// Right Leg
-		{EOHSkeletalBone::Thigh_R, EOHFunctionalBoneGroup::RightLeg},
-		{EOHSkeletalBone::Calf_R, EOHFunctionalBoneGroup::RightLeg},
-		{EOHSkeletalBone::Foot_R, EOHFunctionalBoneGroup::RightFoot},
-		{EOHSkeletalBone::Ball_R, EOHFunctionalBoneGroup::RightFoot}
-	};
-
-	// One-to-One: FunctionalGroup → Bone (representative bone)
-	const TMap<EOHFunctionalBoneGroup, EOHSkeletalBone> FunctionalGroupToBoneMap = {
-		{EOHFunctionalBoneGroup::Core, EOHSkeletalBone::Spine_02},
-		{EOHFunctionalBoneGroup::Cranial, EOHSkeletalBone::Head},
-		{EOHFunctionalBoneGroup::LeftArm, EOHSkeletalBone::UpperArm_L},
-		{EOHFunctionalBoneGroup::RightArm, EOHSkeletalBone::UpperArm_R},
-		{EOHFunctionalBoneGroup::LeftHand, EOHSkeletalBone::Hand_L},
-		{EOHFunctionalBoneGroup::RightHand, EOHSkeletalBone::Hand_R},
-		{EOHFunctionalBoneGroup::Arms, EOHSkeletalBone::UpperArm_L},
-		{EOHFunctionalBoneGroup::Hands, EOHSkeletalBone::Hand_L},
-		{EOHFunctionalBoneGroup::LeftLeg, EOHSkeletalBone::Thigh_L},
-		{EOHFunctionalBoneGroup::RightLeg, EOHSkeletalBone::Thigh_R},
-		{EOHFunctionalBoneGroup::LeftFoot, EOHSkeletalBone::Foot_L},
-		{EOHFunctionalBoneGroup::RightFoot, EOHSkeletalBone::Foot_R},
-		{EOHFunctionalBoneGroup::Legs, EOHSkeletalBone::Thigh_L},
-		{EOHFunctionalBoneGroup::Feet, EOHSkeletalBone::Foot_L},
-		{EOHFunctionalBoneGroup::UpperBody, EOHSkeletalBone::Spine_03},
-		{EOHFunctionalBoneGroup::LowerBody, EOHSkeletalBone::Pelvis},
-		{EOHFunctionalBoneGroup::LeftLimbs, EOHSkeletalBone::UpperArm_L},
-		{EOHFunctionalBoneGroup::RightLimbs, EOHSkeletalBone::UpperArm_R},
-		{EOHFunctionalBoneGroup::FullBody, EOHSkeletalBone::Spine_02}
-	};
-
-	// One-to-Many: Bone → FunctionalGroups
-	const TMap<EOHSkeletalBone, TArray<EOHFunctionalBoneGroup>> BoneToFunctionalGroupsMap = {
-		// Core
-		{EOHSkeletalBone::Pelvis, {EOHFunctionalBoneGroup::Core, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Spine_01, {EOHFunctionalBoneGroup::Core, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Spine_02, {EOHFunctionalBoneGroup::Core, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Spine_03, {EOHFunctionalBoneGroup::Core, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-
-		// Cranial
-		{EOHSkeletalBone::Neck_01, {EOHFunctionalBoneGroup::Cranial, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Head, {EOHFunctionalBoneGroup::Cranial, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-
-		// Left Arm
-		{EOHSkeletalBone::Clavicle_L, {EOHFunctionalBoneGroup::LeftArm, EOHFunctionalBoneGroup::Arms, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::UpperArm_L, {EOHFunctionalBoneGroup::LeftArm, EOHFunctionalBoneGroup::Arms, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::LowerArm_L, {EOHFunctionalBoneGroup::LeftArm, EOHFunctionalBoneGroup::Arms, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-
-		// Left Hand
-		{EOHSkeletalBone::Hand_L, {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Thumb_01_L, {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Thumb_02_L, {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Thumb_03_L, {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Index_01_L, {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Index_02_L, {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Index_03_L, {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Middle_01_L, {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Middle_02_L, {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Middle_03_L, {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Ring_01_L, {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Ring_02_L, {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Ring_03_L, {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Pinky_01_L, {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Pinky_02_L, {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Pinky_03_L, {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-
-		// Right Arm
-		{EOHSkeletalBone::Clavicle_R, {EOHFunctionalBoneGroup::RightArm, EOHFunctionalBoneGroup::Arms, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::UpperArm_R, {EOHFunctionalBoneGroup::RightArm, EOHFunctionalBoneGroup::Arms, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::LowerArm_R, {EOHFunctionalBoneGroup::RightArm, EOHFunctionalBoneGroup::Arms, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-
-		// Right Hand
-		{EOHSkeletalBone::Hand_R, {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Thumb_01_R, {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Thumb_02_R, {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Thumb_03_R, {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Index_01_R, {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Index_02_R, {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Index_03_R, {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Middle_01_R, {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Middle_02_R, {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Middle_03_R, {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Ring_01_R, {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Ring_02_R, {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Ring_03_R, {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Pinky_01_R, {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Pinky_02_R, {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Pinky_03_R, {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody}},
-
-		// Left Leg
-		{EOHSkeletalBone::Thigh_L, {EOHFunctionalBoneGroup::LeftLeg, EOHFunctionalBoneGroup::Legs, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Calf_L, {EOHFunctionalBoneGroup::LeftLeg, EOHFunctionalBoneGroup::Legs, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody}},
-
-		// Right Leg
-		{EOHSkeletalBone::Thigh_R, {EOHFunctionalBoneGroup::RightLeg, EOHFunctionalBoneGroup::Legs, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Calf_R, {EOHFunctionalBoneGroup::RightLeg, EOHFunctionalBoneGroup::Legs, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody}},
-
-		// Left Foot
-		{EOHSkeletalBone::Foot_L, {EOHFunctionalBoneGroup::LeftFoot, EOHFunctionalBoneGroup::Feet, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Ball_L, {EOHFunctionalBoneGroup::LeftFoot, EOHFunctionalBoneGroup::Feet, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody}},
-
-		// Right Foot
-		{EOHSkeletalBone::Foot_R, {EOHFunctionalBoneGroup::RightFoot, EOHFunctionalBoneGroup::Feet, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody}},
-		{EOHSkeletalBone::Ball_R, {EOHFunctionalBoneGroup::RightFoot, EOHFunctionalBoneGroup::Feet, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody}}
-	};
-
-	// --------------------------------------------------
-	// FunctionalGroup → Bones
-	// --------------------------------------------------
-
-	// All Functional Groups To All Bones Map
-	const TMap<EOHFunctionalBoneGroup, TArray<EOHSkeletalBone>> FunctionalGroupToBonesMap = {
-		{EOHFunctionalBoneGroup::None, {}},
-		{EOHFunctionalBoneGroup::Cranial, {EOHSkeletalBone::Neck_01, EOHSkeletalBone::Head}},
-		{EOHFunctionalBoneGroup::Core, {EOHSkeletalBone::Pelvis, EOHSkeletalBone::Spine_01, EOHSkeletalBone::Spine_02, EOHSkeletalBone::Spine_03}},
-		{EOHFunctionalBoneGroup::LeftArm, {EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L, EOHSkeletalBone::LowerArm_L}},
-		{EOHFunctionalBoneGroup::RightArm, {EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R, EOHSkeletalBone::LowerArm_R}},
-		{EOHFunctionalBoneGroup::LeftHand,{
-				EOHSkeletalBone::Hand_L,
-				EOHSkeletalBone::Thumb_01_L, EOHSkeletalBone::Thumb_02_L, EOHSkeletalBone::Thumb_03_L,
-				EOHSkeletalBone::Index_01_L, EOHSkeletalBone::Index_02_L, EOHSkeletalBone::Index_03_L,
-				EOHSkeletalBone::Middle_01_L, EOHSkeletalBone::Middle_02_L, EOHSkeletalBone::Middle_03_L,
-				EOHSkeletalBone::Ring_01_L, EOHSkeletalBone::Ring_02_L, EOHSkeletalBone::Ring_03_L,
-				EOHSkeletalBone::Pinky_01_L, EOHSkeletalBone::Pinky_02_L, EOHSkeletalBone::Pinky_03_L}},
-		
-		{EOHFunctionalBoneGroup::RightHand, {
-				EOHSkeletalBone::Hand_R,
-				EOHSkeletalBone::Thumb_01_R, EOHSkeletalBone::Thumb_02_R, EOHSkeletalBone::Thumb_03_R,
-				EOHSkeletalBone::Index_01_R, EOHSkeletalBone::Index_02_R, EOHSkeletalBone::Index_03_R,
-				EOHSkeletalBone::Middle_01_R, EOHSkeletalBone::Middle_02_R, EOHSkeletalBone::Middle_03_R,
-				EOHSkeletalBone::Ring_01_R, EOHSkeletalBone::Ring_02_R, EOHSkeletalBone::Ring_03_R,
-				EOHSkeletalBone::Pinky_01_R, EOHSkeletalBone::Pinky_02_R, EOHSkeletalBone::Pinky_03_R}},
-
-		{EOHFunctionalBoneGroup::Arms, {
-				EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L, EOHSkeletalBone::LowerArm_L,
-				EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R, EOHSkeletalBone::LowerArm_R}},
-
-		{EOHFunctionalBoneGroup::Hands, {
-				EOHSkeletalBone::Hand_L, EOHSkeletalBone::Hand_R,
-				EOHSkeletalBone::Thumb_01_L, EOHSkeletalBone::Thumb_02_L, EOHSkeletalBone::Thumb_03_L,
-				EOHSkeletalBone::Index_01_L, EOHSkeletalBone::Index_02_L, EOHSkeletalBone::Index_03_L,
-				EOHSkeletalBone::Middle_01_L, EOHSkeletalBone::Middle_02_L, EOHSkeletalBone::Middle_03_L,
-				EOHSkeletalBone::Ring_01_L, EOHSkeletalBone::Ring_02_L, EOHSkeletalBone::Ring_03_L,
-				EOHSkeletalBone::Pinky_01_L, EOHSkeletalBone::Pinky_02_L, EOHSkeletalBone::Pinky_03_L,
-				EOHSkeletalBone::Thumb_01_R, EOHSkeletalBone::Thumb_02_R, EOHSkeletalBone::Thumb_03_R,
-				EOHSkeletalBone::Index_01_R, EOHSkeletalBone::Index_02_R, EOHSkeletalBone::Index_03_R,
-				EOHSkeletalBone::Middle_01_R, EOHSkeletalBone::Middle_02_R, EOHSkeletalBone::Middle_03_R,
-				EOHSkeletalBone::Ring_01_R, EOHSkeletalBone::Ring_02_R, EOHSkeletalBone::Ring_03_R,
-				EOHSkeletalBone::Pinky_01_R, EOHSkeletalBone::Pinky_02_R, EOHSkeletalBone::Pinky_03_R}},
-
-		{EOHFunctionalBoneGroup::LeftLeg, {EOHSkeletalBone::Thigh_L, EOHSkeletalBone::Calf_L}},
-		{EOHFunctionalBoneGroup::RightLeg, {EOHSkeletalBone::Thigh_R, EOHSkeletalBone::Calf_R}},
-		{EOHFunctionalBoneGroup::Legs, {EOHSkeletalBone::Thigh_L, EOHSkeletalBone::Calf_L,EOHSkeletalBone::Thigh_R, EOHSkeletalBone::Calf_R}},
-		{EOHFunctionalBoneGroup::LeftFoot, {EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L}},
-		{EOHFunctionalBoneGroup::RightFoot, {EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R}},
-		{EOHFunctionalBoneGroup::Feet, {EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L,EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R}},
-		{EOHFunctionalBoneGroup::UpperBody, {
-				EOHSkeletalBone::Pelvis, EOHSkeletalBone::Spine_01, EOHSkeletalBone::Spine_02,
-				EOHSkeletalBone::Spine_03,
-				EOHSkeletalBone::Neck_01, EOHSkeletalBone::Head,
-				EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L, EOHSkeletalBone::LowerArm_L,
-				EOHSkeletalBone::Hand_L,
-				EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R, EOHSkeletalBone::LowerArm_R,
-				EOHSkeletalBone::Hand_R // Add fingers if needed
-			}},
-		{EOHFunctionalBoneGroup::LowerBody, {
-				EOHSkeletalBone::Pelvis,
-				EOHSkeletalBone::Thigh_L, EOHSkeletalBone::Calf_L, EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L,
-				EOHSkeletalBone::Thigh_R, EOHSkeletalBone::Calf_R, EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R}
-		},
-		{
-			EOHFunctionalBoneGroup::LeftLimbs, {
-				EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L, EOHSkeletalBone::LowerArm_L,
-				EOHSkeletalBone::Hand_L,
-				EOHSkeletalBone::Thigh_L, EOHSkeletalBone::Calf_L, EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L
-			}
-		},
-		{
-			EOHFunctionalBoneGroup::RightLimbs, {
-				EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R, EOHSkeletalBone::LowerArm_R,
-				EOHSkeletalBone::Hand_R,
-				EOHSkeletalBone::Thigh_R, EOHSkeletalBone::Calf_R, EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R
-			}
-		},
-		{
-			EOHFunctionalBoneGroup::FullBody, {
-				EOHSkeletalBone::Pelvis, EOHSkeletalBone::Spine_01, EOHSkeletalBone::Spine_02,
-				EOHSkeletalBone::Spine_03,
-				EOHSkeletalBone::Neck_01, EOHSkeletalBone::Head,
-				EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L, EOHSkeletalBone::LowerArm_L,
-				EOHSkeletalBone::Hand_L,
-				EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R, EOHSkeletalBone::LowerArm_R,
-				EOHSkeletalBone::Hand_R,
-				EOHSkeletalBone::Thigh_L, EOHSkeletalBone::Calf_L, EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L,
-				EOHSkeletalBone::Thigh_R, EOHSkeletalBone::Calf_R, EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R
-			}
-		}
-	};
-		
-	const TMap<EOHSkeletalBone, TArray<EOHFunctionalBoneGroup>> PrimaryBoneToFunctionalGroupsMap = {
-		{ EOHSkeletalBone::Pelvis,      { EOHFunctionalBoneGroup::Core, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Spine_01,    { EOHFunctionalBoneGroup::Core, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Spine_02,    { EOHFunctionalBoneGroup::Core, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Spine_03,    { EOHFunctionalBoneGroup::Core, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Neck_01,     { EOHFunctionalBoneGroup::Cranial, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Head,        { EOHFunctionalBoneGroup::Cranial, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Clavicle_L,  { EOHFunctionalBoneGroup::LeftArm, EOHFunctionalBoneGroup::Arms, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::UpperArm_L,  { EOHFunctionalBoneGroup::LeftArm, EOHFunctionalBoneGroup::Arms, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::LowerArm_L,  { EOHFunctionalBoneGroup::LeftArm, EOHFunctionalBoneGroup::Arms, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Hand_L,      { EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Clavicle_R,  { EOHFunctionalBoneGroup::RightArm, EOHFunctionalBoneGroup::Arms, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::UpperArm_R,  { EOHFunctionalBoneGroup::RightArm, EOHFunctionalBoneGroup::Arms, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::LowerArm_R,  { EOHFunctionalBoneGroup::RightArm, EOHFunctionalBoneGroup::Arms, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Hand_R,      { EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Thigh_L,     { EOHFunctionalBoneGroup::LeftLeg, EOHFunctionalBoneGroup::Legs, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Calf_L,      { EOHFunctionalBoneGroup::LeftLeg, EOHFunctionalBoneGroup::Legs, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Foot_L,      { EOHFunctionalBoneGroup::LeftFoot, EOHFunctionalBoneGroup::Feet, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Ball_L,      { EOHFunctionalBoneGroup::LeftFoot, EOHFunctionalBoneGroup::Feet, EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Thigh_R,     { EOHFunctionalBoneGroup::RightLeg, EOHFunctionalBoneGroup::Legs, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Calf_R,      { EOHFunctionalBoneGroup::RightLeg, EOHFunctionalBoneGroup::Legs, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Foot_R,      { EOHFunctionalBoneGroup::RightFoot, EOHFunctionalBoneGroup::Feet, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody } },
-		{ EOHSkeletalBone::Ball_R,      { EOHFunctionalBoneGroup::RightFoot, EOHFunctionalBoneGroup::Feet, EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::LowerBody, EOHFunctionalBoneGroup::FullBody } }
-	};
-
-	// Primary Bones To A Single Primary Functional Group
-	const TMap<EOHSkeletalBone, EOHFunctionalBoneGroup> PrimaryBoneToFunctionalGroupMap = {
-		{ EOHSkeletalBone::Pelvis,      EOHFunctionalBoneGroup::Core },
-		{ EOHSkeletalBone::Spine_01,    EOHFunctionalBoneGroup::Core },
-		{ EOHSkeletalBone::Spine_02,    EOHFunctionalBoneGroup::Core },
-		{ EOHSkeletalBone::Spine_03,    EOHFunctionalBoneGroup::Core },
-		{ EOHSkeletalBone::Neck_01,     EOHFunctionalBoneGroup::Cranial },
-		{ EOHSkeletalBone::Head,        EOHFunctionalBoneGroup::Cranial },
-		{ EOHSkeletalBone::Clavicle_L,  EOHFunctionalBoneGroup::LeftArm },
-		{ EOHSkeletalBone::UpperArm_L,  EOHFunctionalBoneGroup::LeftArm },
-		{ EOHSkeletalBone::LowerArm_L,  EOHFunctionalBoneGroup::LeftArm },
-		{ EOHSkeletalBone::Hand_L,      EOHFunctionalBoneGroup::LeftHand },
-		{ EOHSkeletalBone::Clavicle_R,  EOHFunctionalBoneGroup::RightArm },
-		{ EOHSkeletalBone::UpperArm_R,  EOHFunctionalBoneGroup::RightArm },
-		{ EOHSkeletalBone::LowerArm_R,  EOHFunctionalBoneGroup::RightArm },
-		{ EOHSkeletalBone::Hand_R,      EOHFunctionalBoneGroup::RightHand },
-		{ EOHSkeletalBone::Thigh_L,     EOHFunctionalBoneGroup::LeftLeg },
-		{ EOHSkeletalBone::Calf_L,      EOHFunctionalBoneGroup::LeftLeg },
-		{ EOHSkeletalBone::Foot_L,      EOHFunctionalBoneGroup::LeftFoot },
-		{ EOHSkeletalBone::Ball_L,      EOHFunctionalBoneGroup::LeftFoot },
-		{ EOHSkeletalBone::Thigh_R,     EOHFunctionalBoneGroup::RightLeg },
-		{ EOHSkeletalBone::Calf_R,      EOHFunctionalBoneGroup::RightLeg },
-		{ EOHSkeletalBone::Foot_R,      EOHFunctionalBoneGroup::RightFoot },
-		{ EOHSkeletalBone::Ball_R,      EOHFunctionalBoneGroup::RightFoot }
-	};
-	
-	// Functional Group To Primary Bones
-	const TMap<EOHFunctionalBoneGroup, TArray<EOHSkeletalBone>> FunctionalGroupToPrimaryBonesMap = {
-		{ EOHFunctionalBoneGroup::Core, {
-			EOHSkeletalBone::Pelvis,
-			EOHSkeletalBone::Spine_01,
-			EOHSkeletalBone::Spine_02,
-			EOHSkeletalBone::Spine_03
-		}},
-
-		{ EOHFunctionalBoneGroup::Cranial, {
-			EOHSkeletalBone::Neck_01,
-			EOHSkeletalBone::Head
-		}},
-
-		{ EOHFunctionalBoneGroup::LeftArm, {
-			EOHSkeletalBone::Clavicle_L,
-			EOHSkeletalBone::UpperArm_L,
-			EOHSkeletalBone::LowerArm_L
-		}},
-
-		{ EOHFunctionalBoneGroup::RightArm, {
-			EOHSkeletalBone::Clavicle_R,
-			EOHSkeletalBone::UpperArm_R,
-			EOHSkeletalBone::LowerArm_R
-		}},
-
-		{ EOHFunctionalBoneGroup::LeftLeg, {
-			EOHSkeletalBone::Thigh_L,
-			EOHSkeletalBone::Calf_L
-		}},
-
-		{ EOHFunctionalBoneGroup::RightLeg, {
-			EOHSkeletalBone::Thigh_R,
-			EOHSkeletalBone::Calf_R
-		}},
-
-		{ EOHFunctionalBoneGroup::LeftFoot, {
-			EOHSkeletalBone::Foot_L,
-			EOHSkeletalBone::Ball_L
-		}},
-
-		{ EOHFunctionalBoneGroup::RightFoot, {
-			EOHSkeletalBone::Foot_R,
-			EOHSkeletalBone::Ball_R
-		}}
-	};
-
-	const TArray<EOHSkeletalBone> PrimarySkeletalBones = {
-		// Core
-		EOHSkeletalBone::Pelvis,
-		EOHSkeletalBone::Spine_01,
-		EOHSkeletalBone::Spine_02,
-		EOHSkeletalBone::Spine_03,
-		EOHSkeletalBone::Neck_01,
-		EOHSkeletalBone::Head,
-
-		// Left Arm
-		EOHSkeletalBone::Clavicle_L,
-		EOHSkeletalBone::UpperArm_L,
-		EOHSkeletalBone::LowerArm_L,
-		EOHSkeletalBone::Hand_L,
-
-		// Right Arm
-		EOHSkeletalBone::Clavicle_R,
-		EOHSkeletalBone::UpperArm_R,
-		EOHSkeletalBone::LowerArm_R,
-		EOHSkeletalBone::Hand_R,
-
-		// Left Leg
-		EOHSkeletalBone::Thigh_L,
-		EOHSkeletalBone::Calf_L,
-		EOHSkeletalBone::Foot_L,
-
-		// Right Leg
-		EOHSkeletalBone::Thigh_R,
-		EOHSkeletalBone::Calf_R,
-		EOHSkeletalBone::Foot_R
-	};
-	
-	// All Finger Bones Definition
-	const TArray<EOHSkeletalBone> AllFingerBones = {
-		// Left Hand Fingers
-		EOHSkeletalBone::Thumb_01_L, EOHSkeletalBone::Thumb_02_L, EOHSkeletalBone::Thumb_03_L,
-		EOHSkeletalBone::Index_01_L, EOHSkeletalBone::Index_02_L, EOHSkeletalBone::Index_03_L,
-		EOHSkeletalBone::Middle_01_L, EOHSkeletalBone::Middle_02_L, EOHSkeletalBone::Middle_03_L,
-		EOHSkeletalBone::Ring_01_L, EOHSkeletalBone::Ring_02_L, EOHSkeletalBone::Ring_03_L,
-		EOHSkeletalBone::Pinky_01_L, EOHSkeletalBone::Pinky_02_L, EOHSkeletalBone::Pinky_03_L,
-
-		// Right Hand Fingers
-		EOHSkeletalBone::Thumb_01_R, EOHSkeletalBone::Thumb_02_R, EOHSkeletalBone::Thumb_03_R,
-		EOHSkeletalBone::Index_01_R, EOHSkeletalBone::Index_02_R, EOHSkeletalBone::Index_03_R,
-		EOHSkeletalBone::Middle_01_R, EOHSkeletalBone::Middle_02_R, EOHSkeletalBone::Middle_03_R,
-		EOHSkeletalBone::Ring_01_R, EOHSkeletalBone::Ring_02_R, EOHSkeletalBone::Ring_03_R,
-		EOHSkeletalBone::Pinky_01_R, EOHSkeletalBone::Pinky_02_R, EOHSkeletalBone::Pinky_03_R
-	};
-
-	
+namespace OHSkeletalMappings {
+// ==========================================
+// Core String Conversions
+// ==========================================
+
+// SkeletalBone → FName mapping
+const TMap<EOHSkeletalBone, FName> SkeletalBoneToFNameMap = {
+    {EOHSkeletalBone::None, FName("None")},
+    {EOHSkeletalBone::Root, FName("root")},
+    {EOHSkeletalBone::Spine_01, FName("spine_01")},
+    {EOHSkeletalBone::Spine_02, FName("spine_02")},
+    {EOHSkeletalBone::Spine_03, FName("spine_03")},
+    {EOHSkeletalBone::Pelvis, FName("pelvis")},
+    {EOHSkeletalBone::Neck_01, FName("neck_01")},
+    {EOHSkeletalBone::Head, FName("head")},
+
+    {EOHSkeletalBone::Clavicle_L, FName("clavicle_l")},
+    {EOHSkeletalBone::UpperArm_L, FName("upperarm_l")},
+    {EOHSkeletalBone::LowerArm_L, FName("lowerarm_l")},
+    {EOHSkeletalBone::Hand_L, FName("hand_l")},
+
+    {EOHSkeletalBone::Clavicle_R, FName("clavicle_r")},
+    {EOHSkeletalBone::UpperArm_R, FName("upperarm_r")},
+    {EOHSkeletalBone::LowerArm_R, FName("lowerarm_r")},
+    {EOHSkeletalBone::Hand_R, FName("hand_r")},
+
+    {EOHSkeletalBone::Thigh_L, FName("thigh_l")},
+    {EOHSkeletalBone::Calf_L, FName("calf_l")},
+    {EOHSkeletalBone::Foot_L, FName("foot_l")},
+    {EOHSkeletalBone::Ball_L, FName("ball_l")},
+
+    {EOHSkeletalBone::Thigh_R, FName("thigh_r")},
+    {EOHSkeletalBone::Calf_R, FName("calf_r")},
+    {EOHSkeletalBone::Foot_R, FName("foot_r")},
+    {EOHSkeletalBone::Ball_R, FName("ball_r")},
+
+    // Fingers - Left
+    {EOHSkeletalBone::Thumb_01_L, FName("thumb_01_l")},
+    {EOHSkeletalBone::Thumb_02_L, FName("thumb_02_l")},
+    {EOHSkeletalBone::Thumb_03_L, FName("thumb_03_l")},
+    {EOHSkeletalBone::Index_01_L, FName("index_01_l")},
+    {EOHSkeletalBone::Index_02_L, FName("index_02_l")},
+    {EOHSkeletalBone::Index_03_L, FName("index_03_l")},
+    {EOHSkeletalBone::Middle_01_L, FName("middle_01_l")},
+    {EOHSkeletalBone::Middle_02_L, FName("middle_02_l")},
+    {EOHSkeletalBone::Middle_03_L, FName("middle_03_l")},
+    {EOHSkeletalBone::Ring_01_L, FName("ring_01_l")},
+    {EOHSkeletalBone::Ring_02_L, FName("ring_02_l")},
+    {EOHSkeletalBone::Ring_03_L, FName("ring_03_l")},
+    {EOHSkeletalBone::Pinky_01_L, FName("pinky_01_l")},
+    {EOHSkeletalBone::Pinky_02_L, FName("pinky_02_l")},
+    {EOHSkeletalBone::Pinky_03_L, FName("pinky_03_l")},
+
+    // Fingers - Right
+    {EOHSkeletalBone::Thumb_01_R, FName("thumb_01_r")},
+    {EOHSkeletalBone::Thumb_02_R, FName("thumb_02_r")},
+    {EOHSkeletalBone::Thumb_03_R, FName("thumb_03_r")},
+    {EOHSkeletalBone::Index_01_R, FName("index_01_r")},
+    {EOHSkeletalBone::Index_02_R, FName("index_02_r")},
+    {EOHSkeletalBone::Index_03_R, FName("index_03_r")},
+    {EOHSkeletalBone::Middle_01_R, FName("middle_01_r")},
+    {EOHSkeletalBone::Middle_02_R, FName("middle_02_r")},
+    {EOHSkeletalBone::Middle_03_R, FName("middle_03_r")},
+    {EOHSkeletalBone::Ring_01_R, FName("ring_01_r")},
+    {EOHSkeletalBone::Ring_02_R, FName("ring_02_r")},
+    {EOHSkeletalBone::Ring_03_R, FName("ring_03_r")},
+    {EOHSkeletalBone::Pinky_01_R, FName("pinky_01_r")},
+    {EOHSkeletalBone::Pinky_02_R, FName("pinky_02_r")},
+    {EOHSkeletalBone::Pinky_03_R, FName("pinky_03_r")},
+
+    // IK Bones
+    {EOHSkeletalBone::IK_Root, FName("ik_root")},
+    {EOHSkeletalBone::IK_Hand_L, FName("ik_hand_l")},
+    {EOHSkeletalBone::IK_Hand_R, FName("ik_hand_r")},
+    {EOHSkeletalBone::IK_Foot_L, FName("ik_foot_l")},
+    {EOHSkeletalBone::IK_Foot_R, FName("ik_foot_r")},
+    {EOHSkeletalBone::IK_Hand_Gun, FName("ik_hand_gun")},
+    {EOHSkeletalBone::IK_Hand_Root, FName("ik_hand_root")},
+    {EOHSkeletalBone::IK_Foot_Root, FName("ik_foot_root")}};
+
+// FName → SkeletalBone mapping (reverse lookup)
+const TMap<FName, EOHSkeletalBone> FNameToSkeletalBoneMap = {
+    {FName("None"), EOHSkeletalBone::None},
+    {FName("root"), EOHSkeletalBone::Root},
+    {FName("spine_01"), EOHSkeletalBone::Spine_01},
+    {FName("spine_02"), EOHSkeletalBone::Spine_02},
+    {FName("spine_03"), EOHSkeletalBone::Spine_03},
+    {FName("pelvis"), EOHSkeletalBone::Pelvis},
+    {FName("neck_01"), EOHSkeletalBone::Neck_01},
+    {FName("head"), EOHSkeletalBone::Head},
+
+    {FName("clavicle_l"), EOHSkeletalBone::Clavicle_L},
+    {FName("upperarm_l"), EOHSkeletalBone::UpperArm_L},
+    {FName("lowerarm_l"), EOHSkeletalBone::LowerArm_L},
+    {FName("hand_l"), EOHSkeletalBone::Hand_L},
+
+    {FName("clavicle_r"), EOHSkeletalBone::Clavicle_R},
+    {FName("upperarm_r"), EOHSkeletalBone::UpperArm_R},
+    {FName("lowerarm_r"), EOHSkeletalBone::LowerArm_R},
+    {FName("hand_r"), EOHSkeletalBone::Hand_R},
+
+    {FName("thigh_l"), EOHSkeletalBone::Thigh_L},
+    {FName("calf_l"), EOHSkeletalBone::Calf_L},
+    {FName("foot_l"), EOHSkeletalBone::Foot_L},
+    {FName("ball_l"), EOHSkeletalBone::Ball_L},
+
+    {FName("thigh_r"), EOHSkeletalBone::Thigh_R},
+    {FName("calf_r"), EOHSkeletalBone::Calf_R},
+    {FName("foot_r"), EOHSkeletalBone::Foot_R},
+    {FName("ball_r"), EOHSkeletalBone::Ball_R},
+
+    // Fingers - Left
+    {FName("thumb_01_l"), EOHSkeletalBone::Thumb_01_L},
+    {FName("thumb_02_l"), EOHSkeletalBone::Thumb_02_L},
+    {FName("thumb_03_l"), EOHSkeletalBone::Thumb_03_L},
+    {FName("index_01_l"), EOHSkeletalBone::Index_01_L},
+    {FName("index_02_l"), EOHSkeletalBone::Index_02_L},
+    {FName("index_03_l"), EOHSkeletalBone::Index_03_L},
+    {FName("middle_01_l"), EOHSkeletalBone::Middle_01_L},
+    {FName("middle_02_l"), EOHSkeletalBone::Middle_02_L},
+    {FName("middle_03_l"), EOHSkeletalBone::Middle_03_L},
+    {FName("ring_01_l"), EOHSkeletalBone::Ring_01_L},
+    {FName("ring_02_l"), EOHSkeletalBone::Ring_02_L},
+    {FName("ring_03_l"), EOHSkeletalBone::Ring_03_L},
+    {FName("pinky_01_l"), EOHSkeletalBone::Pinky_01_L},
+    {FName("pinky_02_l"), EOHSkeletalBone::Pinky_02_L},
+    {FName("pinky_03_l"), EOHSkeletalBone::Pinky_03_L},
+
+    // Fingers - Right
+    {FName("thumb_01_r"), EOHSkeletalBone::Thumb_01_R},
+    {FName("thumb_02_r"), EOHSkeletalBone::Thumb_02_R},
+    {FName("thumb_03_r"), EOHSkeletalBone::Thumb_03_R},
+    {FName("index_01_r"), EOHSkeletalBone::Index_01_R},
+    {FName("index_02_r"), EOHSkeletalBone::Index_02_R},
+    {FName("index_03_r"), EOHSkeletalBone::Index_03_R},
+    {FName("middle_01_r"), EOHSkeletalBone::Middle_01_R},
+    {FName("middle_02_r"), EOHSkeletalBone::Middle_02_R},
+    {FName("middle_03_r"), EOHSkeletalBone::Middle_03_R},
+    {FName("ring_01_r"), EOHSkeletalBone::Ring_01_R},
+    {FName("ring_02_r"), EOHSkeletalBone::Ring_02_R},
+    {FName("ring_03_r"), EOHSkeletalBone::Ring_03_R},
+    {FName("pinky_01_r"), EOHSkeletalBone::Pinky_01_R},
+    {FName("pinky_02_r"), EOHSkeletalBone::Pinky_02_R},
+    {FName("pinky_03_r"), EOHSkeletalBone::Pinky_03_R},
+
+    // IK Bones
+    {FName("ik_root"), EOHSkeletalBone::IK_Root},
+    {FName("ik_hand_l"), EOHSkeletalBone::IK_Hand_L},
+    {FName("ik_hand_r"), EOHSkeletalBone::IK_Hand_R},
+    {FName("ik_foot_l"), EOHSkeletalBone::IK_Foot_L},
+    {FName("ik_foot_r"), EOHSkeletalBone::IK_Foot_R},
+    {FName("ik_hand_gun"), EOHSkeletalBone::IK_Hand_Gun},
+    {FName("ik_hand_root"), EOHSkeletalBone::IK_Hand_Root},
+    {FName("ik_foot_root"), EOHSkeletalBone::IK_Foot_Root}};
+
+// Primary bones only (no fingers/IK)
+const TMap<EOHSkeletalBone, FName> PrimaryBoneToFNameMap = {
+    {EOHSkeletalBone::Pelvis, FName("pelvis")},
+    {EOHSkeletalBone::Spine_01, FName("spine_01")},
+    {EOHSkeletalBone::Spine_02, FName("spine_02")},
+    {EOHSkeletalBone::Spine_03, FName("spine_03")},
+    {EOHSkeletalBone::Neck_01, FName("neck_01")},
+    {EOHSkeletalBone::Head, FName("head")},
+    {EOHSkeletalBone::Clavicle_L, FName("clavicle_l")},
+    {EOHSkeletalBone::UpperArm_L, FName("upperarm_l")},
+    {EOHSkeletalBone::LowerArm_L, FName("lowerarm_l")},
+    {EOHSkeletalBone::Hand_L, FName("hand_l")},
+    {EOHSkeletalBone::Clavicle_R, FName("clavicle_r")},
+    {EOHSkeletalBone::UpperArm_R, FName("upperarm_r")},
+    {EOHSkeletalBone::LowerArm_R, FName("lowerarm_r")},
+    {EOHSkeletalBone::Hand_R, FName("hand_r")},
+    {EOHSkeletalBone::Thigh_L, FName("thigh_l")},
+    {EOHSkeletalBone::Calf_L, FName("calf_l")},
+    {EOHSkeletalBone::Foot_L, FName("foot_l")},
+    {EOHSkeletalBone::Ball_L, FName("ball_l")},
+    {EOHSkeletalBone::Thigh_R, FName("thigh_r")},
+    {EOHSkeletalBone::Calf_R, FName("calf_r")},
+    {EOHSkeletalBone::Foot_R, FName("foot_r")},
+    {EOHSkeletalBone::Ball_R, FName("ball_r")}};
+
+// ==========================================
+// EOHSkeletalBone <-> EOHBodyZone
+// ==========================================
+
+// One-to-One: Bone → Zone
+const TMap<EOHSkeletalBone, EOHBodyZone> BoneToZoneMap = {
+    {EOHSkeletalBone::Spine_02, EOHBodyZone::Torso_Upper},
+    {EOHSkeletalBone::Spine_03, EOHBodyZone::Torso_Upper},
+    {EOHSkeletalBone::Pelvis, EOHBodyZone::Torso_Lower},
+    {EOHSkeletalBone::Spine_01, EOHBodyZone::Torso_Lower},
+    {EOHSkeletalBone::Neck_01, EOHBodyZone::Cranial},
+    {EOHSkeletalBone::Head, EOHBodyZone::Cranial},
+
+    // Left Arm
+    {EOHSkeletalBone::Clavicle_L, EOHBodyZone::Arm_L_Upper},
+    {EOHSkeletalBone::UpperArm_L, EOHBodyZone::Arm_L_Upper},
+    {EOHSkeletalBone::LowerArm_L, EOHBodyZone::Arm_L_Lower},
+    {EOHSkeletalBone::Hand_L, EOHBodyZone::Hand_L},
+
+    // Left Fingers
+    {EOHSkeletalBone::Thumb_01_L, EOHBodyZone::Hand_L},
+    {EOHSkeletalBone::Thumb_02_L, EOHBodyZone::Hand_L},
+    {EOHSkeletalBone::Thumb_03_L, EOHBodyZone::Hand_L},
+    {EOHSkeletalBone::Index_01_L, EOHBodyZone::Hand_L},
+    {EOHSkeletalBone::Index_02_L, EOHBodyZone::Hand_L},
+    {EOHSkeletalBone::Index_03_L, EOHBodyZone::Hand_L},
+    {EOHSkeletalBone::Middle_01_L, EOHBodyZone::Hand_L},
+    {EOHSkeletalBone::Middle_02_L, EOHBodyZone::Hand_L},
+    {EOHSkeletalBone::Middle_03_L, EOHBodyZone::Hand_L},
+    {EOHSkeletalBone::Ring_01_L, EOHBodyZone::Hand_L},
+    {EOHSkeletalBone::Ring_02_L, EOHBodyZone::Hand_L},
+    {EOHSkeletalBone::Ring_03_L, EOHBodyZone::Hand_L},
+    {EOHSkeletalBone::Pinky_01_L, EOHBodyZone::Hand_L},
+    {EOHSkeletalBone::Pinky_02_L, EOHBodyZone::Hand_L},
+    {EOHSkeletalBone::Pinky_03_L, EOHBodyZone::Hand_L},
+
+    // Right Arm
+    {EOHSkeletalBone::Clavicle_R, EOHBodyZone::Arm_R_Upper},
+    {EOHSkeletalBone::UpperArm_R, EOHBodyZone::Arm_R_Upper},
+    {EOHSkeletalBone::LowerArm_R, EOHBodyZone::Arm_R_Lower},
+    {EOHSkeletalBone::Hand_R, EOHBodyZone::Hand_R},
+
+    // Right Fingers
+    {EOHSkeletalBone::Thumb_01_R, EOHBodyZone::Hand_R},
+    {EOHSkeletalBone::Thumb_02_R, EOHBodyZone::Hand_R},
+    {EOHSkeletalBone::Thumb_03_R, EOHBodyZone::Hand_R},
+    {EOHSkeletalBone::Index_01_R, EOHBodyZone::Hand_R},
+    {EOHSkeletalBone::Index_02_R, EOHBodyZone::Hand_R},
+    {EOHSkeletalBone::Index_03_R, EOHBodyZone::Hand_R},
+    {EOHSkeletalBone::Middle_01_R, EOHBodyZone::Hand_R},
+    {EOHSkeletalBone::Middle_02_R, EOHBodyZone::Hand_R},
+    {EOHSkeletalBone::Middle_03_R, EOHBodyZone::Hand_R},
+    {EOHSkeletalBone::Ring_01_R, EOHBodyZone::Hand_R},
+    {EOHSkeletalBone::Ring_02_R, EOHBodyZone::Hand_R},
+    {EOHSkeletalBone::Ring_03_R, EOHBodyZone::Hand_R},
+    {EOHSkeletalBone::Pinky_01_R, EOHBodyZone::Hand_R},
+    {EOHSkeletalBone::Pinky_02_R, EOHBodyZone::Hand_R},
+    {EOHSkeletalBone::Pinky_03_R, EOHBodyZone::Hand_R},
+
+    // Left Leg
+    {EOHSkeletalBone::Thigh_L, EOHBodyZone::Leg_L_Upper},
+    {EOHSkeletalBone::Calf_L, EOHBodyZone::Leg_L_Lower},
+    {EOHSkeletalBone::Foot_L, EOHBodyZone::Foot_L},
+    {EOHSkeletalBone::Ball_L, EOHBodyZone::Foot_L},
+
+    // Right Leg
+    {EOHSkeletalBone::Thigh_R, EOHBodyZone::Leg_R_Upper},
+    {EOHSkeletalBone::Calf_R, EOHBodyZone::Leg_R_Lower},
+    {EOHSkeletalBone::Foot_R, EOHBodyZone::Foot_R},
+    {EOHSkeletalBone::Ball_R, EOHBodyZone::Foot_R}};
+
+// One-to-One: Zone → Bone (representative bone for each zone)
+const TMap<EOHBodyZone, EOHSkeletalBone> ZoneToBoneMap = {
+    {EOHBodyZone::Torso_Upper, EOHSkeletalBone::Spine_03},
+    {EOHBodyZone::Torso_Lower, EOHSkeletalBone::Pelvis},
+    {EOHBodyZone::Cranial, EOHSkeletalBone::Head},
+    {EOHBodyZone::Arm_L_Upper, EOHSkeletalBone::UpperArm_L},
+    {EOHBodyZone::Arm_L_Lower, EOHSkeletalBone::LowerArm_L},
+    {EOHBodyZone::Hand_L, EOHSkeletalBone::Hand_L},
+    {EOHBodyZone::Arm_R_Upper, EOHSkeletalBone::UpperArm_R},
+    {EOHBodyZone::Arm_R_Lower, EOHSkeletalBone::LowerArm_R},
+    {EOHBodyZone::Hand_R, EOHSkeletalBone::Hand_R},
+    {EOHBodyZone::Leg_L_Upper, EOHSkeletalBone::Thigh_L},
+    {EOHBodyZone::Leg_L_Lower, EOHSkeletalBone::Calf_L},
+    {EOHBodyZone::Foot_L, EOHSkeletalBone::Foot_L},
+    {EOHBodyZone::Leg_R_Upper, EOHSkeletalBone::Thigh_R},
+    {EOHBodyZone::Leg_R_Lower, EOHSkeletalBone::Calf_R},
+    {EOHBodyZone::Foot_R, EOHSkeletalBone::Foot_R}};
+
+// One-to-Many: Bone → Zones (bones that span multiple zones)
+const TMap<EOHSkeletalBone, TArray<EOHBodyZone>> BoneToZonesMap = {
+    // Most bones map to single zone, but including for completeness
+    {EOHSkeletalBone::Spine_02, {EOHBodyZone::Torso_Upper}},
+    {EOHSkeletalBone::Spine_03, {EOHBodyZone::Torso_Upper}},
+    {EOHSkeletalBone::Pelvis, {EOHBodyZone::Torso_Lower}},
+    {EOHSkeletalBone::Spine_01, {EOHBodyZone::Torso_Lower}},
+    {EOHSkeletalBone::Neck_01, {EOHBodyZone::Cranial}},
+    {EOHSkeletalBone::Head, {EOHBodyZone::Cranial}},
+
+    // Arms
+    {EOHSkeletalBone::Clavicle_L, {EOHBodyZone::Arm_L_Upper}},
+    {EOHSkeletalBone::UpperArm_L, {EOHBodyZone::Arm_L_Upper}},
+    {EOHSkeletalBone::LowerArm_L, {EOHBodyZone::Arm_L_Lower}},
+    {EOHSkeletalBone::Hand_L, {EOHBodyZone::Hand_L}},
+
+    {EOHSkeletalBone::Clavicle_R, {EOHBodyZone::Arm_R_Upper}},
+    {EOHSkeletalBone::UpperArm_R, {EOHBodyZone::Arm_R_Upper}},
+    {EOHSkeletalBone::LowerArm_R, {EOHBodyZone::Arm_R_Lower}},
+    {EOHSkeletalBone::Hand_R, {EOHBodyZone::Hand_R}},
+
+    // Legs
+    {EOHSkeletalBone::Thigh_L, {EOHBodyZone::Leg_L_Upper}},
+    {EOHSkeletalBone::Calf_L, {EOHBodyZone::Leg_L_Lower}},
+    {EOHSkeletalBone::Foot_L, {EOHBodyZone::Foot_L}},
+    {EOHSkeletalBone::Ball_L, {EOHBodyZone::Foot_L}},
+
+    {EOHSkeletalBone::Thigh_R, {EOHBodyZone::Leg_R_Upper}},
+    {EOHSkeletalBone::Calf_R, {EOHBodyZone::Leg_R_Lower}},
+    {EOHSkeletalBone::Foot_R, {EOHBodyZone::Foot_R}},
+    {EOHSkeletalBone::Ball_R, {EOHBodyZone::Foot_R}}};
+
+// One-to-Many: Zone → Bones
+const TMap<EOHBodyZone, TArray<EOHSkeletalBone>> ZoneToBonesMap = {
+    {EOHBodyZone::Torso_Upper,
+     {EOHSkeletalBone::Spine_02, EOHSkeletalBone::Spine_03}},
+    {EOHBodyZone::Torso_Lower,
+     {EOHSkeletalBone::Pelvis, EOHSkeletalBone::Spine_01}},
+    {EOHBodyZone::Cranial, {EOHSkeletalBone::Neck_01, EOHSkeletalBone::Head}},
+
+    {EOHBodyZone::Arm_L_Upper,
+     {EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L}},
+    {EOHBodyZone::Arm_L_Lower, {EOHSkeletalBone::LowerArm_L}},
+    {EOHBodyZone::Hand_L,
+     {EOHSkeletalBone::Hand_L, EOHSkeletalBone::Thumb_01_L,
+      EOHSkeletalBone::Thumb_02_L, EOHSkeletalBone::Thumb_03_L,
+      EOHSkeletalBone::Index_01_L, EOHSkeletalBone::Index_02_L,
+      EOHSkeletalBone::Index_03_L, EOHSkeletalBone::Middle_01_L,
+      EOHSkeletalBone::Middle_02_L, EOHSkeletalBone::Middle_03_L,
+      EOHSkeletalBone::Ring_01_L, EOHSkeletalBone::Ring_02_L,
+      EOHSkeletalBone::Ring_03_L, EOHSkeletalBone::Pinky_01_L,
+      EOHSkeletalBone::Pinky_02_L, EOHSkeletalBone::Pinky_03_L}},
+
+    {EOHBodyZone::Arm_R_Upper,
+     {EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R}},
+    {EOHBodyZone::Arm_R_Lower, {EOHSkeletalBone::LowerArm_R}},
+    {EOHBodyZone::Hand_R,
+     {EOHSkeletalBone::Hand_R, EOHSkeletalBone::Thumb_01_R,
+      EOHSkeletalBone::Thumb_02_R, EOHSkeletalBone::Thumb_03_R,
+      EOHSkeletalBone::Index_01_R, EOHSkeletalBone::Index_02_R,
+      EOHSkeletalBone::Index_03_R, EOHSkeletalBone::Middle_01_R,
+      EOHSkeletalBone::Middle_02_R, EOHSkeletalBone::Middle_03_R,
+      EOHSkeletalBone::Ring_01_R, EOHSkeletalBone::Ring_02_R,
+      EOHSkeletalBone::Ring_03_R, EOHSkeletalBone::Pinky_01_R,
+      EOHSkeletalBone::Pinky_02_R, EOHSkeletalBone::Pinky_03_R}},
+
+    {EOHBodyZone::Leg_L_Upper, {EOHSkeletalBone::Thigh_L}},
+    {EOHBodyZone::Leg_L_Lower, {EOHSkeletalBone::Calf_L}},
+    {EOHBodyZone::Foot_L, {EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L}},
+
+    {EOHBodyZone::Leg_R_Upper, {EOHSkeletalBone::Thigh_R}},
+    {EOHBodyZone::Leg_R_Lower, {EOHSkeletalBone::Calf_R}},
+    {EOHBodyZone::Foot_R, {EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R}}};
+
+// Primary: Bone → Zone (no fingers)
+const TMap<EOHSkeletalBone, EOHBodyZone> PrimaryBoneToZoneMap = {
+    {EOHSkeletalBone::Pelvis, EOHBodyZone::Torso_Lower},
+    {EOHSkeletalBone::Spine_01, EOHBodyZone::Torso_Lower},
+    {EOHSkeletalBone::Spine_02, EOHBodyZone::Torso_Upper},
+    {EOHSkeletalBone::Spine_03, EOHBodyZone::Torso_Upper},
+    {EOHSkeletalBone::Neck_01, EOHBodyZone::Cranial},
+    {EOHSkeletalBone::Head, EOHBodyZone::Cranial},
+    {EOHSkeletalBone::Clavicle_L, EOHBodyZone::Arm_L_Upper},
+    {EOHSkeletalBone::UpperArm_L, EOHBodyZone::Arm_L_Upper},
+    {EOHSkeletalBone::LowerArm_L, EOHBodyZone::Arm_L_Lower},
+    {EOHSkeletalBone::Hand_L, EOHBodyZone::Hand_L},
+    {EOHSkeletalBone::Clavicle_R, EOHBodyZone::Arm_R_Upper},
+    {EOHSkeletalBone::UpperArm_R, EOHBodyZone::Arm_R_Upper},
+    {EOHSkeletalBone::LowerArm_R, EOHBodyZone::Arm_R_Lower},
+    {EOHSkeletalBone::Hand_R, EOHBodyZone::Hand_R},
+    {EOHSkeletalBone::Thigh_L, EOHBodyZone::Leg_L_Upper},
+    {EOHSkeletalBone::Calf_L, EOHBodyZone::Leg_L_Lower},
+    {EOHSkeletalBone::Foot_L, EOHBodyZone::Foot_L},
+    {EOHSkeletalBone::Ball_L, EOHBodyZone::Foot_L},
+    {EOHSkeletalBone::Thigh_R, EOHBodyZone::Leg_R_Upper},
+    {EOHSkeletalBone::Calf_R, EOHBodyZone::Leg_R_Lower},
+    {EOHSkeletalBone::Foot_R, EOHBodyZone::Foot_R},
+    {EOHSkeletalBone::Ball_R, EOHBodyZone::Foot_R}};
+
+// Primary: Zone → Primary Bone
+const TMap<EOHBodyZone, EOHSkeletalBone> ZoneToPrimaryBoneMap = {
+    {EOHBodyZone::Torso_Upper, EOHSkeletalBone::Spine_03},
+    {EOHBodyZone::Torso_Lower, EOHSkeletalBone::Pelvis},
+    {EOHBodyZone::Cranial, EOHSkeletalBone::Head},
+    {EOHBodyZone::Arm_L_Upper, EOHSkeletalBone::UpperArm_L},
+    {EOHBodyZone::Arm_L_Lower, EOHSkeletalBone::LowerArm_L},
+    {EOHBodyZone::Hand_L, EOHSkeletalBone::Hand_L},
+    {EOHBodyZone::Arm_R_Upper, EOHSkeletalBone::UpperArm_R},
+    {EOHBodyZone::Arm_R_Lower, EOHSkeletalBone::LowerArm_R},
+    {EOHBodyZone::Hand_R, EOHSkeletalBone::Hand_R},
+    {EOHBodyZone::Leg_L_Upper, EOHSkeletalBone::Thigh_L},
+    {EOHBodyZone::Leg_L_Lower, EOHSkeletalBone::Calf_L},
+    {EOHBodyZone::Foot_L, EOHSkeletalBone::Foot_L},
+    {EOHBodyZone::Leg_R_Upper, EOHSkeletalBone::Thigh_R},
+    {EOHBodyZone::Leg_R_Lower, EOHSkeletalBone::Calf_R},
+    {EOHBodyZone::Foot_R, EOHSkeletalBone::Foot_R}};
+
+// Primary: Bone → Zones (primary bones only)
+const TMap<EOHSkeletalBone, TArray<EOHBodyZone>> PrimaryBoneToZonesMap = {
+    {EOHSkeletalBone::Pelvis, {EOHBodyZone::Torso_Lower}},
+    {EOHSkeletalBone::Spine_01, {EOHBodyZone::Torso_Lower}},
+    {EOHSkeletalBone::Spine_02, {EOHBodyZone::Torso_Upper}},
+    {EOHSkeletalBone::Spine_03, {EOHBodyZone::Torso_Upper}},
+    {EOHSkeletalBone::Neck_01, {EOHBodyZone::Cranial}},
+    {EOHSkeletalBone::Head, {EOHBodyZone::Cranial}},
+    {EOHSkeletalBone::Clavicle_L, {EOHBodyZone::Arm_L_Upper}},
+    {EOHSkeletalBone::UpperArm_L, {EOHBodyZone::Arm_L_Upper}},
+    {EOHSkeletalBone::LowerArm_L, {EOHBodyZone::Arm_L_Lower}},
+    {EOHSkeletalBone::Hand_L, {EOHBodyZone::Hand_L}},
+    {EOHSkeletalBone::Clavicle_R, {EOHBodyZone::Arm_R_Upper}},
+    {EOHSkeletalBone::UpperArm_R, {EOHBodyZone::Arm_R_Upper}},
+    {EOHSkeletalBone::LowerArm_R, {EOHBodyZone::Arm_R_Lower}},
+    {EOHSkeletalBone::Hand_R, {EOHBodyZone::Hand_R}},
+    {EOHSkeletalBone::Thigh_L, {EOHBodyZone::Leg_L_Upper}},
+    {EOHSkeletalBone::Calf_L, {EOHBodyZone::Leg_L_Lower}},
+    {EOHSkeletalBone::Foot_L, {EOHBodyZone::Foot_L}},
+    {EOHSkeletalBone::Ball_L, {EOHBodyZone::Foot_L}},
+    {EOHSkeletalBone::Thigh_R, {EOHBodyZone::Leg_R_Upper}},
+    {EOHSkeletalBone::Calf_R, {EOHBodyZone::Leg_R_Lower}},
+    {EOHSkeletalBone::Foot_R, {EOHBodyZone::Foot_R}},
+    {EOHSkeletalBone::Ball_R, {EOHBodyZone::Foot_R}}};
+
+// Primary: Zone → Primary Bones
+const TMap<EOHBodyZone, TArray<EOHSkeletalBone>> ZoneToPrimaryBonesMap = {
+    {EOHBodyZone::Torso_Upper,
+     {EOHSkeletalBone::Spine_02, EOHSkeletalBone::Spine_03}},
+    {EOHBodyZone::Torso_Lower,
+     {EOHSkeletalBone::Pelvis, EOHSkeletalBone::Spine_01}},
+    {EOHBodyZone::Cranial, {EOHSkeletalBone::Neck_01, EOHSkeletalBone::Head}},
+    {EOHBodyZone::Arm_L_Upper,
+     {EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L}},
+    {EOHBodyZone::Arm_L_Lower, {EOHSkeletalBone::LowerArm_L}},
+    {EOHBodyZone::Hand_L, {EOHSkeletalBone::Hand_L}},
+    {EOHBodyZone::Arm_R_Upper,
+     {EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R}},
+    {EOHBodyZone::Arm_R_Lower, {EOHSkeletalBone::LowerArm_R}},
+    {EOHBodyZone::Hand_R, {EOHSkeletalBone::Hand_R}},
+    {EOHBodyZone::Leg_L_Upper, {EOHSkeletalBone::Thigh_L}},
+    {EOHBodyZone::Leg_L_Lower, {EOHSkeletalBone::Calf_L}},
+    {EOHBodyZone::Foot_L, {EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L}},
+    {EOHBodyZone::Leg_R_Upper, {EOHSkeletalBone::Thigh_R}},
+    {EOHBodyZone::Leg_R_Lower, {EOHSkeletalBone::Calf_R}},
+    {EOHBodyZone::Foot_R, {EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R}}};
+
+const TMap<EOHBodyZone, TArray<EOHBodyPart>> ZoneToBodyPartsMap = {
+    {EOHBodyZone::Torso_Upper, {EOHBodyPart::Torso}},
+    {EOHBodyZone::Torso_Lower, {EOHBodyPart::Pelvis}},
+    {EOHBodyZone::Cranial, {EOHBodyPart::Head}},
+
+    {EOHBodyZone::Arm_L_Upper, {EOHBodyPart::Arm_Left}},
+    {EOHBodyZone::Arm_L_Lower, {EOHBodyPart::Arm_Left}},
+    {EOHBodyZone::Hand_L, {EOHBodyPart::Arm_Left}},
+
+    {EOHBodyZone::Arm_R_Upper, {EOHBodyPart::Arm_Right}},
+    {EOHBodyZone::Arm_R_Lower, {EOHBodyPart::Arm_Right}},
+    {EOHBodyZone::Hand_R, {EOHBodyPart::Arm_Right}},
+
+    {EOHBodyZone::Leg_L_Upper, {EOHBodyPart::Leg_Left}},
+    {EOHBodyZone::Leg_L_Lower, {EOHBodyPart::Leg_Left}},
+    {EOHBodyZone::Foot_L, {EOHBodyPart::Leg_Left}},
+
+    {EOHBodyZone::Leg_R_Upper, {EOHBodyPart::Leg_Right}},
+    {EOHBodyZone::Leg_R_Lower, {EOHBodyPart::Leg_Right}},
+    {EOHBodyZone::Foot_R, {EOHBodyPart::Leg_Right}}};
+
+const TMap<EOHBodyPart, TArray<EOHBodyZone>> BodyPartToZonesMap = {
+    {EOHBodyPart::Torso, {EOHBodyZone::Torso_Upper}},
+    {EOHBodyPart::Pelvis, {EOHBodyZone::Torso_Lower}},
+    {EOHBodyPart::Head, {EOHBodyZone::Cranial}},
+
+    {EOHBodyPart::Arm_Left,
+     {EOHBodyZone::Arm_L_Upper, EOHBodyZone::Arm_L_Lower, EOHBodyZone::Hand_L}},
+    {EOHBodyPart::Arm_Right,
+     {EOHBodyZone::Arm_R_Upper, EOHBodyZone::Arm_R_Lower, EOHBodyZone::Hand_R}},
+
+    {EOHBodyPart::Leg_Left,
+     {EOHBodyZone::Leg_L_Upper, EOHBodyZone::Leg_L_Lower, EOHBodyZone::Foot_L}},
+    {EOHBodyPart::Leg_Right,
+     {EOHBodyZone::Leg_R_Upper, EOHBodyZone::Leg_R_Lower,
+      EOHBodyZone::Foot_R}}};
+
+const TMap<EOHFunctionalBoneGroup, TArray<EOHBodyZone>>
+    FunctionalGroupToZonesMap = {
+        {EOHFunctionalBoneGroup::Cranial, {EOHBodyZone::Cranial}},
+        {EOHFunctionalBoneGroup::Core,
+         {EOHBodyZone::Torso_Lower, EOHBodyZone::Torso_Upper}},
+
+        {EOHFunctionalBoneGroup::LeftArm,
+         {EOHBodyZone::Arm_L_Upper, EOHBodyZone::Arm_L_Lower}},
+        {EOHFunctionalBoneGroup::RightArm,
+         {EOHBodyZone::Arm_R_Upper, EOHBodyZone::Arm_R_Lower}},
+        {EOHFunctionalBoneGroup::LeftHand, {EOHBodyZone::Hand_L}},
+        {EOHFunctionalBoneGroup::RightHand, {EOHBodyZone::Hand_R}},
+
+        {EOHFunctionalBoneGroup::LeftLeg,
+         {EOHBodyZone::Leg_L_Upper, EOHBodyZone::Leg_L_Lower}},
+        {EOHFunctionalBoneGroup::RightLeg,
+         {EOHBodyZone::Leg_R_Upper, EOHBodyZone::Leg_R_Lower}},
+        {EOHFunctionalBoneGroup::LeftFoot, {EOHBodyZone::Foot_L}},
+        {EOHFunctionalBoneGroup::RightFoot, {EOHBodyZone::Foot_R}},
+
+        {EOHFunctionalBoneGroup::UpperBody,
+         {EOHBodyZone::Cranial, EOHBodyZone::Torso_Upper,
+          EOHBodyZone::Arm_L_Upper, EOHBodyZone::Arm_R_Upper}},
+        {EOHFunctionalBoneGroup::LowerBody,
+         {EOHBodyZone::Torso_Lower, EOHBodyZone::Leg_L_Upper,
+          EOHBodyZone::Leg_R_Upper}},
+        {EOHFunctionalBoneGroup::LeftLimbs,
+         {EOHBodyZone::Arm_L_Upper, EOHBodyZone::Leg_L_Upper}},
+        {EOHFunctionalBoneGroup::RightLimbs,
+         {EOHBodyZone::Arm_R_Upper, EOHBodyZone::Leg_R_Upper}},
+        {EOHFunctionalBoneGroup::FullBody,
+         {EOHBodyZone::Cranial, EOHBodyZone::Torso_Upper,
+          EOHBodyZone::Torso_Lower, EOHBodyZone::Arm_L_Upper,
+          EOHBodyZone::Arm_L_Lower, EOHBodyZone::Hand_L,
+          EOHBodyZone::Arm_R_Upper, EOHBodyZone::Arm_R_Lower,
+          EOHBodyZone::Hand_R, EOHBodyZone::Leg_L_Upper,
+          EOHBodyZone::Leg_L_Lower, EOHBodyZone::Foot_L,
+          EOHBodyZone::Leg_R_Upper, EOHBodyZone::Leg_R_Lower,
+          EOHBodyZone::Foot_R}}};
+
+const TMap<EOHFunctionalBoneGroup, TArray<EOHBodyPart>>
+    FunctionalGroupToBodyPartsMap = {
+        {EOHFunctionalBoneGroup::Cranial, {EOHBodyPart::Head}},
+        {EOHFunctionalBoneGroup::Core,
+         {EOHBodyPart::Pelvis, EOHBodyPart::Torso}},
+        {EOHFunctionalBoneGroup::LeftArm, {EOHBodyPart::Arm_Left}},
+        {EOHFunctionalBoneGroup::RightArm, {EOHBodyPart::Arm_Right}},
+        {EOHFunctionalBoneGroup::LeftHand, {EOHBodyPart::Arm_Left}},
+        {EOHFunctionalBoneGroup::RightHand, {EOHBodyPart::Arm_Right}},
+        {EOHFunctionalBoneGroup::LeftLeg, {EOHBodyPart::Leg_Left}},
+        {EOHFunctionalBoneGroup::RightLeg, {EOHBodyPart::Leg_Right}},
+        {EOHFunctionalBoneGroup::LeftFoot, {EOHBodyPart::Leg_Left}},
+        {EOHFunctionalBoneGroup::RightFoot, {EOHBodyPart::Leg_Right}},
+        {EOHFunctionalBoneGroup::UpperBody,
+         {EOHBodyPart::Head, EOHBodyPart::Torso, EOHBodyPart::Arm_Left,
+          EOHBodyPart::Arm_Right}},
+        {EOHFunctionalBoneGroup::LowerBody,
+         {EOHBodyPart::Pelvis, EOHBodyPart::Leg_Left, EOHBodyPart::Leg_Right}},
+        {EOHFunctionalBoneGroup::LeftLimbs,
+         {EOHBodyPart::Arm_Left, EOHBodyPart::Leg_Left}},
+        {EOHFunctionalBoneGroup::RightLimbs,
+         {EOHBodyPart::Arm_Right, EOHBodyPart::Leg_Right}},
+        {EOHFunctionalBoneGroup::FullBody,
+         {EOHBodyPart::Pelvis, EOHBodyPart::Torso, EOHBodyPart::Head,
+          EOHBodyPart::Arm_Left, EOHBodyPart::Arm_Right, EOHBodyPart::Leg_Left,
+          EOHBodyPart::Leg_Right}}};
+// ==========================================
+// EOHSkeletalBone <-> EOHBodyPart
+// ==========================================
+
+// One-to-One: Bone → BodyPart
+const TMap<EOHSkeletalBone, EOHBodyPart> BoneToBodyPartMap = {
+    {EOHSkeletalBone::Spine_01, EOHBodyPart::Torso},
+    {EOHSkeletalBone::Spine_02, EOHBodyPart::Torso},
+    {EOHSkeletalBone::Spine_03, EOHBodyPart::Torso},
+    {EOHSkeletalBone::Pelvis, EOHBodyPart::Pelvis},
+    {EOHSkeletalBone::Neck_01, EOHBodyPart::Head},
+    {EOHSkeletalBone::Head, EOHBodyPart::Head},
+
+    // Left Arm
+    {EOHSkeletalBone::Clavicle_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::UpperArm_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::LowerArm_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Hand_L, EOHBodyPart::Arm_Left},
+
+    // Left Fingers
+    {EOHSkeletalBone::Thumb_01_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Thumb_02_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Thumb_03_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Index_01_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Index_02_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Index_03_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Middle_01_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Middle_02_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Middle_03_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Ring_01_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Ring_02_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Ring_03_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Pinky_01_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Pinky_02_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Pinky_03_L, EOHBodyPart::Arm_Left},
+
+    // Right Arm
+    {EOHSkeletalBone::Clavicle_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::UpperArm_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::LowerArm_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Hand_R, EOHBodyPart::Arm_Right},
+
+    // Right Fingers
+    {EOHSkeletalBone::Thumb_01_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Thumb_02_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Thumb_03_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Index_01_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Index_02_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Index_03_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Middle_01_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Middle_02_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Middle_03_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Ring_01_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Ring_02_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Ring_03_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Pinky_01_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Pinky_02_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Pinky_03_R, EOHBodyPart::Arm_Right},
+
+    // Left Leg
+    {EOHSkeletalBone::Thigh_L, EOHBodyPart::Leg_Left},
+    {EOHSkeletalBone::Calf_L, EOHBodyPart::Leg_Left},
+    {EOHSkeletalBone::Foot_L, EOHBodyPart::Leg_Left},
+    {EOHSkeletalBone::Ball_L, EOHBodyPart::Leg_Left},
+
+    // Right Leg
+    {EOHSkeletalBone::Thigh_R, EOHBodyPart::Leg_Right},
+    {EOHSkeletalBone::Calf_R, EOHBodyPart::Leg_Right},
+    {EOHSkeletalBone::Foot_R, EOHBodyPart::Leg_Right},
+    {EOHSkeletalBone::Ball_R, EOHBodyPart::Leg_Right}};
+
+// One-to-One: BodyPart → Bone (representative bone)
+const TMap<EOHBodyPart, EOHSkeletalBone> BodyPartToBoneMap = {
+    {EOHBodyPart::Pelvis, EOHSkeletalBone::Pelvis},
+    {EOHBodyPart::Torso, EOHSkeletalBone::Spine_02},
+    {EOHBodyPart::Head, EOHSkeletalBone::Head},
+    {EOHBodyPart::Arm_Left, EOHSkeletalBone::UpperArm_L},
+    {EOHBodyPart::Arm_Right, EOHSkeletalBone::UpperArm_R},
+    {EOHBodyPart::Leg_Left, EOHSkeletalBone::Thigh_L},
+    {EOHBodyPart::Leg_Right, EOHSkeletalBone::Thigh_R}};
+
+// One-to-Many: Bone → BodyParts
+const TMap<EOHSkeletalBone, TArray<EOHBodyPart>> BoneToBodyPartsMap = {
+    // Core bones
+    {EOHSkeletalBone::Pelvis, {EOHBodyPart::Pelvis}},
+    {EOHSkeletalBone::Spine_01, {EOHBodyPart::Torso}},
+    {EOHSkeletalBone::Spine_02, {EOHBodyPart::Torso}},
+    {EOHSkeletalBone::Spine_03, {EOHBodyPart::Torso}},
+    {EOHSkeletalBone::Neck_01, {EOHBodyPart::Head}},
+    {EOHSkeletalBone::Head, {EOHBodyPart::Head}},
+
+    // Arms - all map to single part
+    {EOHSkeletalBone::Clavicle_L, {EOHBodyPart::Arm_Left}},
+    {EOHSkeletalBone::UpperArm_L, {EOHBodyPart::Arm_Left}},
+    {EOHSkeletalBone::LowerArm_L, {EOHBodyPart::Arm_Left}},
+    {EOHSkeletalBone::Hand_L, {EOHBodyPart::Arm_Left}},
+
+    {EOHSkeletalBone::Clavicle_R, {EOHBodyPart::Arm_Right}},
+    {EOHSkeletalBone::UpperArm_R, {EOHBodyPart::Arm_Right}},
+    {EOHSkeletalBone::LowerArm_R, {EOHBodyPart::Arm_Right}},
+    {EOHSkeletalBone::Hand_R, {EOHBodyPart::Arm_Right}},
+
+    // Legs
+    {EOHSkeletalBone::Thigh_L, {EOHBodyPart::Leg_Left}},
+    {EOHSkeletalBone::Calf_L, {EOHBodyPart::Leg_Left}},
+    {EOHSkeletalBone::Foot_L, {EOHBodyPart::Leg_Left}},
+    {EOHSkeletalBone::Ball_L, {EOHBodyPart::Leg_Left}},
+
+    {EOHSkeletalBone::Thigh_R, {EOHBodyPart::Leg_Right}},
+    {EOHSkeletalBone::Calf_R, {EOHBodyPart::Leg_Right}},
+    {EOHSkeletalBone::Foot_R, {EOHBodyPart::Leg_Right}},
+    {EOHSkeletalBone::Ball_R, {EOHBodyPart::Leg_Right}}};
+
+// One-to-Many: BodyPart → Bones
+const TMap<EOHBodyPart, TArray<EOHSkeletalBone>> BodyPartToBonesMap = {
+    {EOHBodyPart::Torso,
+     {EOHSkeletalBone::Spine_01, EOHSkeletalBone::Spine_02,
+      EOHSkeletalBone::Spine_03}},
+    {EOHBodyPart::Pelvis, {EOHSkeletalBone::Pelvis}},
+    {EOHBodyPart::Head, {EOHSkeletalBone::Neck_01, EOHSkeletalBone::Head}},
+
+    {EOHBodyPart::Arm_Left,
+     {EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L,
+      EOHSkeletalBone::LowerArm_L, EOHSkeletalBone::Hand_L,
+      EOHSkeletalBone::Thumb_01_L, EOHSkeletalBone::Thumb_02_L,
+      EOHSkeletalBone::Thumb_03_L, EOHSkeletalBone::Index_01_L,
+      EOHSkeletalBone::Index_02_L, EOHSkeletalBone::Index_03_L,
+      EOHSkeletalBone::Middle_01_L, EOHSkeletalBone::Middle_02_L,
+      EOHSkeletalBone::Middle_03_L, EOHSkeletalBone::Ring_01_L,
+      EOHSkeletalBone::Ring_02_L, EOHSkeletalBone::Ring_03_L,
+      EOHSkeletalBone::Pinky_01_L, EOHSkeletalBone::Pinky_02_L,
+      EOHSkeletalBone::Pinky_03_L}},
+
+    {EOHBodyPart::Arm_Right,
+     {EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R,
+      EOHSkeletalBone::LowerArm_R, EOHSkeletalBone::Hand_R,
+      EOHSkeletalBone::Thumb_01_R, EOHSkeletalBone::Thumb_02_R,
+      EOHSkeletalBone::Thumb_03_R, EOHSkeletalBone::Index_01_R,
+      EOHSkeletalBone::Index_02_R, EOHSkeletalBone::Index_03_R,
+      EOHSkeletalBone::Middle_01_R, EOHSkeletalBone::Middle_02_R,
+      EOHSkeletalBone::Middle_03_R, EOHSkeletalBone::Ring_01_R,
+      EOHSkeletalBone::Ring_02_R, EOHSkeletalBone::Ring_03_R,
+      EOHSkeletalBone::Pinky_01_R, EOHSkeletalBone::Pinky_02_R,
+      EOHSkeletalBone::Pinky_03_R}},
+
+    {EOHBodyPart::Leg_Left,
+     {EOHSkeletalBone::Thigh_L, EOHSkeletalBone::Calf_L,
+      EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L}},
+
+    {EOHBodyPart::Leg_Right,
+     {EOHSkeletalBone::Thigh_R, EOHSkeletalBone::Calf_R,
+      EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R}}};
+
+// Primary: Bone → BodyPart
+const TMap<EOHSkeletalBone, EOHBodyPart> PrimaryBoneToBodyPartMap = {
+    {EOHSkeletalBone::Pelvis, EOHBodyPart::Pelvis},
+    {EOHSkeletalBone::Spine_01, EOHBodyPart::Torso},
+    {EOHSkeletalBone::Spine_02, EOHBodyPart::Torso},
+    {EOHSkeletalBone::Spine_03, EOHBodyPart::Torso},
+    {EOHSkeletalBone::Neck_01, EOHBodyPart::Head},
+    {EOHSkeletalBone::Head, EOHBodyPart::Head},
+    {EOHSkeletalBone::Clavicle_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::UpperArm_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::LowerArm_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Hand_L, EOHBodyPart::Arm_Left},
+    {EOHSkeletalBone::Clavicle_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::UpperArm_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::LowerArm_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Hand_R, EOHBodyPart::Arm_Right},
+    {EOHSkeletalBone::Thigh_L, EOHBodyPart::Leg_Left},
+    {EOHSkeletalBone::Calf_L, EOHBodyPart::Leg_Left},
+    {EOHSkeletalBone::Foot_L, EOHBodyPart::Leg_Left},
+    {EOHSkeletalBone::Ball_L, EOHBodyPart::Leg_Left},
+    {EOHSkeletalBone::Thigh_R, EOHBodyPart::Leg_Right},
+    {EOHSkeletalBone::Calf_R, EOHBodyPart::Leg_Right},
+    {EOHSkeletalBone::Foot_R, EOHBodyPart::Leg_Right},
+    {EOHSkeletalBone::Ball_R, EOHBodyPart::Leg_Right}};
+
+// Primary: BodyPart → Primary Bone
+const TMap<EOHBodyPart, EOHSkeletalBone> BodyPartToPrimaryBoneMap = {
+    {EOHBodyPart::Pelvis, EOHSkeletalBone::Pelvis},
+    {EOHBodyPart::Torso, EOHSkeletalBone::Spine_02},
+    {EOHBodyPart::Head, EOHSkeletalBone::Head},
+    {EOHBodyPart::Arm_Left, EOHSkeletalBone::UpperArm_L},
+    {EOHBodyPart::Arm_Right, EOHSkeletalBone::UpperArm_R},
+    {EOHBodyPart::Leg_Left, EOHSkeletalBone::Thigh_L},
+    {EOHBodyPart::Leg_Right, EOHSkeletalBone::Thigh_R}};
+
+// Primary: Bone → BodyParts
+const TMap<EOHSkeletalBone, TArray<EOHBodyPart>> PrimaryBoneToBodyPartsMap = {
+    {EOHSkeletalBone::Pelvis, {EOHBodyPart::Pelvis}},
+    {EOHSkeletalBone::Spine_01, {EOHBodyPart::Torso}},
+    {EOHSkeletalBone::Spine_02, {EOHBodyPart::Torso}},
+    {EOHSkeletalBone::Spine_03, {EOHBodyPart::Torso}},
+    {EOHSkeletalBone::Neck_01, {EOHBodyPart::Head}},
+    {EOHSkeletalBone::Head, {EOHBodyPart::Head}},
+    {EOHSkeletalBone::Clavicle_L, {EOHBodyPart::Arm_Left}},
+    {EOHSkeletalBone::UpperArm_L, {EOHBodyPart::Arm_Left}},
+    {EOHSkeletalBone::LowerArm_L, {EOHBodyPart::Arm_Left}},
+    {EOHSkeletalBone::Hand_L, {EOHBodyPart::Arm_Left}},
+    {EOHSkeletalBone::Clavicle_R, {EOHBodyPart::Arm_Right}},
+    {EOHSkeletalBone::UpperArm_R, {EOHBodyPart::Arm_Right}},
+    {EOHSkeletalBone::LowerArm_R, {EOHBodyPart::Arm_Right}},
+    {EOHSkeletalBone::Hand_R, {EOHBodyPart::Arm_Right}},
+    {EOHSkeletalBone::Thigh_L, {EOHBodyPart::Leg_Left}},
+    {EOHSkeletalBone::Calf_L, {EOHBodyPart::Leg_Left}},
+    {EOHSkeletalBone::Foot_L, {EOHBodyPart::Leg_Left}},
+    {EOHSkeletalBone::Ball_L, {EOHBodyPart::Leg_Left}},
+    {EOHSkeletalBone::Thigh_R, {EOHBodyPart::Leg_Right}},
+    {EOHSkeletalBone::Calf_R, {EOHBodyPart::Leg_Right}},
+    {EOHSkeletalBone::Foot_R, {EOHBodyPart::Leg_Right}},
+    {EOHSkeletalBone::Ball_R, {EOHBodyPart::Leg_Right}}};
+
+// Primary: BodyPart → Primary Bones
+const TMap<EOHBodyPart, TArray<EOHSkeletalBone>> BodyPartToPrimaryBonesMap = {
+    {EOHBodyPart::Pelvis, {EOHSkeletalBone::Pelvis}},
+    {EOHBodyPart::Torso,
+     {EOHSkeletalBone::Spine_01, EOHSkeletalBone::Spine_02,
+      EOHSkeletalBone::Spine_03}},
+    {EOHBodyPart::Head, {EOHSkeletalBone::Neck_01, EOHSkeletalBone::Head}},
+    {EOHBodyPart::Arm_Left,
+     {EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L,
+      EOHSkeletalBone::LowerArm_L, EOHSkeletalBone::Hand_L}},
+    {EOHBodyPart::Arm_Right,
+     {EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R,
+      EOHSkeletalBone::LowerArm_R, EOHSkeletalBone::Hand_R}},
+    {EOHBodyPart::Leg_Left,
+     {EOHSkeletalBone::Thigh_L, EOHSkeletalBone::Calf_L,
+      EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L}},
+    {EOHBodyPart::Leg_Right,
+     {EOHSkeletalBone::Thigh_R, EOHSkeletalBone::Calf_R,
+      EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R}}};
+
+// ==========================================
+// EOHSkeletalBone <-> EOHFunctionalBoneGroup
+// ==========================================
+
+// One-to-One: Bone → FunctionalGroup (primary group for each bone)
+const TMap<EOHSkeletalBone, EOHFunctionalBoneGroup> BoneToFunctionalGroupMap = {
+    // Core
+    {EOHSkeletalBone::Pelvis, EOHFunctionalBoneGroup::Core},
+    {EOHSkeletalBone::Spine_01, EOHFunctionalBoneGroup::Core},
+    {EOHSkeletalBone::Spine_02, EOHFunctionalBoneGroup::Core},
+    {EOHSkeletalBone::Spine_03, EOHFunctionalBoneGroup::Core},
+
+    // Cranial
+    {EOHSkeletalBone::Neck_01, EOHFunctionalBoneGroup::Cranial},
+    {EOHSkeletalBone::Head, EOHFunctionalBoneGroup::Cranial},
+
+    // Left Arm
+    {EOHSkeletalBone::Clavicle_L, EOHFunctionalBoneGroup::LeftArm},
+    {EOHSkeletalBone::UpperArm_L, EOHFunctionalBoneGroup::LeftArm},
+    {EOHSkeletalBone::LowerArm_L, EOHFunctionalBoneGroup::LeftArm},
+    {EOHSkeletalBone::Hand_L, EOHFunctionalBoneGroup::LeftHand},
+
+    // Left Fingers
+    {EOHSkeletalBone::Thumb_01_L, EOHFunctionalBoneGroup::LeftHand},
+    {EOHSkeletalBone::Thumb_02_L, EOHFunctionalBoneGroup::LeftHand},
+    {EOHSkeletalBone::Thumb_03_L, EOHFunctionalBoneGroup::LeftHand},
+    {EOHSkeletalBone::Index_01_L, EOHFunctionalBoneGroup::LeftHand},
+    {EOHSkeletalBone::Index_02_L, EOHFunctionalBoneGroup::LeftHand},
+    {EOHSkeletalBone::Index_03_L, EOHFunctionalBoneGroup::LeftHand},
+    {EOHSkeletalBone::Middle_01_L, EOHFunctionalBoneGroup::LeftHand},
+    {EOHSkeletalBone::Middle_02_L, EOHFunctionalBoneGroup::LeftHand},
+    {EOHSkeletalBone::Middle_03_L, EOHFunctionalBoneGroup::LeftHand},
+    {EOHSkeletalBone::Ring_01_L, EOHFunctionalBoneGroup::LeftHand},
+    {EOHSkeletalBone::Ring_02_L, EOHFunctionalBoneGroup::LeftHand},
+    {EOHSkeletalBone::Ring_03_L, EOHFunctionalBoneGroup::LeftHand},
+    {EOHSkeletalBone::Pinky_01_L, EOHFunctionalBoneGroup::LeftHand},
+    {EOHSkeletalBone::Pinky_02_L, EOHFunctionalBoneGroup::LeftHand},
+    {EOHSkeletalBone::Pinky_03_L, EOHFunctionalBoneGroup::LeftHand},
+
+    // Right Arm
+    {EOHSkeletalBone::Clavicle_R, EOHFunctionalBoneGroup::RightArm},
+    {EOHSkeletalBone::UpperArm_R, EOHFunctionalBoneGroup::RightArm},
+    {EOHSkeletalBone::LowerArm_R, EOHFunctionalBoneGroup::RightArm},
+    {EOHSkeletalBone::Hand_R, EOHFunctionalBoneGroup::RightHand},
+
+    // Right Fingers
+    {EOHSkeletalBone::Thumb_01_R, EOHFunctionalBoneGroup::RightHand},
+    {EOHSkeletalBone::Thumb_02_R, EOHFunctionalBoneGroup::RightHand},
+    {EOHSkeletalBone::Thumb_03_R, EOHFunctionalBoneGroup::RightHand},
+    {EOHSkeletalBone::Index_01_R, EOHFunctionalBoneGroup::RightHand},
+    {EOHSkeletalBone::Index_02_R, EOHFunctionalBoneGroup::RightHand},
+    {EOHSkeletalBone::Index_03_R, EOHFunctionalBoneGroup::RightHand},
+    {EOHSkeletalBone::Middle_01_R, EOHFunctionalBoneGroup::RightHand},
+    {EOHSkeletalBone::Middle_02_R, EOHFunctionalBoneGroup::RightHand},
+    {EOHSkeletalBone::Middle_03_R, EOHFunctionalBoneGroup::RightHand},
+    {EOHSkeletalBone::Ring_01_R, EOHFunctionalBoneGroup::RightHand},
+    {EOHSkeletalBone::Ring_02_R, EOHFunctionalBoneGroup::RightHand},
+    {EOHSkeletalBone::Ring_03_R, EOHFunctionalBoneGroup::RightHand},
+    {EOHSkeletalBone::Pinky_01_R, EOHFunctionalBoneGroup::RightHand},
+    {EOHSkeletalBone::Pinky_02_R, EOHFunctionalBoneGroup::RightHand},
+    {EOHSkeletalBone::Pinky_03_R, EOHFunctionalBoneGroup::RightHand},
+
+    // Left Leg
+    {EOHSkeletalBone::Thigh_L, EOHFunctionalBoneGroup::LeftLeg},
+    {EOHSkeletalBone::Calf_L, EOHFunctionalBoneGroup::LeftLeg},
+    {EOHSkeletalBone::Foot_L, EOHFunctionalBoneGroup::LeftFoot},
+    {EOHSkeletalBone::Ball_L, EOHFunctionalBoneGroup::LeftFoot},
+
+    // Right Leg
+    {EOHSkeletalBone::Thigh_R, EOHFunctionalBoneGroup::RightLeg},
+    {EOHSkeletalBone::Calf_R, EOHFunctionalBoneGroup::RightLeg},
+    {EOHSkeletalBone::Foot_R, EOHFunctionalBoneGroup::RightFoot},
+    {EOHSkeletalBone::Ball_R, EOHFunctionalBoneGroup::RightFoot}};
+
+// One-to-One: FunctionalGroup → Bone (representative bone)
+const TMap<EOHFunctionalBoneGroup, EOHSkeletalBone> FunctionalGroupToBoneMap = {
+    {EOHFunctionalBoneGroup::Core, EOHSkeletalBone::Spine_02},
+    {EOHFunctionalBoneGroup::Cranial, EOHSkeletalBone::Head},
+    {EOHFunctionalBoneGroup::LeftArm, EOHSkeletalBone::UpperArm_L},
+    {EOHFunctionalBoneGroup::RightArm, EOHSkeletalBone::UpperArm_R},
+    {EOHFunctionalBoneGroup::LeftHand, EOHSkeletalBone::Hand_L},
+    {EOHFunctionalBoneGroup::RightHand, EOHSkeletalBone::Hand_R},
+    {EOHFunctionalBoneGroup::Arms, EOHSkeletalBone::UpperArm_L},
+    {EOHFunctionalBoneGroup::Hands, EOHSkeletalBone::Hand_L},
+    {EOHFunctionalBoneGroup::LeftLeg, EOHSkeletalBone::Thigh_L},
+    {EOHFunctionalBoneGroup::RightLeg, EOHSkeletalBone::Thigh_R},
+    {EOHFunctionalBoneGroup::LeftFoot, EOHSkeletalBone::Foot_L},
+    {EOHFunctionalBoneGroup::RightFoot, EOHSkeletalBone::Foot_R},
+    {EOHFunctionalBoneGroup::Legs, EOHSkeletalBone::Thigh_L},
+    {EOHFunctionalBoneGroup::Feet, EOHSkeletalBone::Foot_L},
+    {EOHFunctionalBoneGroup::UpperBody, EOHSkeletalBone::Spine_03},
+    {EOHFunctionalBoneGroup::LowerBody, EOHSkeletalBone::Pelvis},
+    {EOHFunctionalBoneGroup::LeftLimbs, EOHSkeletalBone::UpperArm_L},
+    {EOHFunctionalBoneGroup::RightLimbs, EOHSkeletalBone::UpperArm_R},
+    {EOHFunctionalBoneGroup::FullBody, EOHSkeletalBone::Spine_02}};
+
+// One-to-Many: Bone → FunctionalGroups
+const TMap<EOHSkeletalBone, TArray<EOHFunctionalBoneGroup>>
+    BoneToFunctionalGroupsMap = {
+        // Core
+        {EOHSkeletalBone::Pelvis,
+         {EOHFunctionalBoneGroup::Core, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Spine_01,
+         {EOHFunctionalBoneGroup::Core, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Spine_02,
+         {EOHFunctionalBoneGroup::Core, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Spine_03,
+         {EOHFunctionalBoneGroup::Core, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+
+        // Cranial
+        {EOHSkeletalBone::Neck_01,
+         {EOHFunctionalBoneGroup::Cranial, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Head,
+         {EOHFunctionalBoneGroup::Cranial, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+
+        // Left Arm
+        {EOHSkeletalBone::Clavicle_L,
+         {EOHFunctionalBoneGroup::LeftArm, EOHFunctionalBoneGroup::Arms,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::UpperArm_L,
+         {EOHFunctionalBoneGroup::LeftArm, EOHFunctionalBoneGroup::Arms,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::LowerArm_L,
+         {EOHFunctionalBoneGroup::LeftArm, EOHFunctionalBoneGroup::Arms,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+
+        // Left Hand
+        {EOHSkeletalBone::Hand_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Thumb_01_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Thumb_02_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Thumb_03_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Index_01_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Index_02_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Index_03_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Middle_01_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Middle_02_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Middle_03_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Ring_01_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Ring_02_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Ring_03_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Pinky_01_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Pinky_02_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Pinky_03_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+
+        // Right Arm
+        {EOHSkeletalBone::Clavicle_R,
+         {EOHFunctionalBoneGroup::RightArm, EOHFunctionalBoneGroup::Arms,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::UpperArm_R,
+         {EOHFunctionalBoneGroup::RightArm, EOHFunctionalBoneGroup::Arms,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::LowerArm_R,
+         {EOHFunctionalBoneGroup::RightArm, EOHFunctionalBoneGroup::Arms,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+
+        // Right Hand
+        {EOHSkeletalBone::Hand_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Thumb_01_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Thumb_02_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Thumb_03_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Index_01_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Index_02_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Index_03_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Middle_01_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Middle_02_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Middle_03_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Ring_01_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Ring_02_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Ring_03_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Pinky_01_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Pinky_02_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Pinky_03_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+
+        // Left Leg
+        {EOHSkeletalBone::Thigh_L,
+         {EOHFunctionalBoneGroup::LeftLeg, EOHFunctionalBoneGroup::Legs,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Calf_L,
+         {EOHFunctionalBoneGroup::LeftLeg, EOHFunctionalBoneGroup::Legs,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+
+        // Right Leg
+        {EOHSkeletalBone::Thigh_R,
+         {EOHFunctionalBoneGroup::RightLeg, EOHFunctionalBoneGroup::Legs,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Calf_R,
+         {EOHFunctionalBoneGroup::RightLeg, EOHFunctionalBoneGroup::Legs,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+
+        // Left Foot
+        {EOHSkeletalBone::Foot_L,
+         {EOHFunctionalBoneGroup::LeftFoot, EOHFunctionalBoneGroup::Feet,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Ball_L,
+         {EOHFunctionalBoneGroup::LeftFoot, EOHFunctionalBoneGroup::Feet,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+
+        // Right Foot
+        {EOHSkeletalBone::Foot_R,
+         {EOHFunctionalBoneGroup::RightFoot, EOHFunctionalBoneGroup::Feet,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Ball_R,
+         {EOHFunctionalBoneGroup::RightFoot, EOHFunctionalBoneGroup::Feet,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}}};
+
+// --------------------------------------------------
+// FunctionalGroup → Bones
+// --------------------------------------------------
+
+// All Functional Groups To All Bones Map
+const TMap<EOHFunctionalBoneGroup, TArray<EOHSkeletalBone>>
+    FunctionalGroupToBonesMap = {
+        {EOHFunctionalBoneGroup::None, {}},
+        {EOHFunctionalBoneGroup::Cranial,
+         {EOHSkeletalBone::Neck_01, EOHSkeletalBone::Head}},
+        {EOHFunctionalBoneGroup::Core,
+         {EOHSkeletalBone::Pelvis, EOHSkeletalBone::Spine_01,
+          EOHSkeletalBone::Spine_02, EOHSkeletalBone::Spine_03}},
+        {EOHFunctionalBoneGroup::LeftArm,
+         {EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L,
+          EOHSkeletalBone::LowerArm_L}},
+        {EOHFunctionalBoneGroup::RightArm,
+         {EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R,
+          EOHSkeletalBone::LowerArm_R}},
+        {EOHFunctionalBoneGroup::LeftHand,
+         {EOHSkeletalBone::Hand_L, EOHSkeletalBone::Thumb_01_L,
+          EOHSkeletalBone::Thumb_02_L, EOHSkeletalBone::Thumb_03_L,
+          EOHSkeletalBone::Index_01_L, EOHSkeletalBone::Index_02_L,
+          EOHSkeletalBone::Index_03_L, EOHSkeletalBone::Middle_01_L,
+          EOHSkeletalBone::Middle_02_L, EOHSkeletalBone::Middle_03_L,
+          EOHSkeletalBone::Ring_01_L, EOHSkeletalBone::Ring_02_L,
+          EOHSkeletalBone::Ring_03_L, EOHSkeletalBone::Pinky_01_L,
+          EOHSkeletalBone::Pinky_02_L, EOHSkeletalBone::Pinky_03_L}},
+
+        {EOHFunctionalBoneGroup::RightHand,
+         {EOHSkeletalBone::Hand_R, EOHSkeletalBone::Thumb_01_R,
+          EOHSkeletalBone::Thumb_02_R, EOHSkeletalBone::Thumb_03_R,
+          EOHSkeletalBone::Index_01_R, EOHSkeletalBone::Index_02_R,
+          EOHSkeletalBone::Index_03_R, EOHSkeletalBone::Middle_01_R,
+          EOHSkeletalBone::Middle_02_R, EOHSkeletalBone::Middle_03_R,
+          EOHSkeletalBone::Ring_01_R, EOHSkeletalBone::Ring_02_R,
+          EOHSkeletalBone::Ring_03_R, EOHSkeletalBone::Pinky_01_R,
+          EOHSkeletalBone::Pinky_02_R, EOHSkeletalBone::Pinky_03_R}},
+
+        {EOHFunctionalBoneGroup::Arms,
+         {EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L,
+          EOHSkeletalBone::LowerArm_L, EOHSkeletalBone::Clavicle_R,
+          EOHSkeletalBone::UpperArm_R, EOHSkeletalBone::LowerArm_R}},
+
+        {EOHFunctionalBoneGroup::Hands,
+         {EOHSkeletalBone::Hand_L,      EOHSkeletalBone::Hand_R,
+          EOHSkeletalBone::Thumb_01_L,  EOHSkeletalBone::Thumb_02_L,
+          EOHSkeletalBone::Thumb_03_L,  EOHSkeletalBone::Index_01_L,
+          EOHSkeletalBone::Index_02_L,  EOHSkeletalBone::Index_03_L,
+          EOHSkeletalBone::Middle_01_L, EOHSkeletalBone::Middle_02_L,
+          EOHSkeletalBone::Middle_03_L, EOHSkeletalBone::Ring_01_L,
+          EOHSkeletalBone::Ring_02_L,   EOHSkeletalBone::Ring_03_L,
+          EOHSkeletalBone::Pinky_01_L,  EOHSkeletalBone::Pinky_02_L,
+          EOHSkeletalBone::Pinky_03_L,  EOHSkeletalBone::Thumb_01_R,
+          EOHSkeletalBone::Thumb_02_R,  EOHSkeletalBone::Thumb_03_R,
+          EOHSkeletalBone::Index_01_R,  EOHSkeletalBone::Index_02_R,
+          EOHSkeletalBone::Index_03_R,  EOHSkeletalBone::Middle_01_R,
+          EOHSkeletalBone::Middle_02_R, EOHSkeletalBone::Middle_03_R,
+          EOHSkeletalBone::Ring_01_R,   EOHSkeletalBone::Ring_02_R,
+          EOHSkeletalBone::Ring_03_R,   EOHSkeletalBone::Pinky_01_R,
+          EOHSkeletalBone::Pinky_02_R,  EOHSkeletalBone::Pinky_03_R}},
+
+        {EOHFunctionalBoneGroup::LeftLeg,
+         {EOHSkeletalBone::Thigh_L, EOHSkeletalBone::Calf_L}},
+        {EOHFunctionalBoneGroup::RightLeg,
+         {EOHSkeletalBone::Thigh_R, EOHSkeletalBone::Calf_R}},
+        {EOHFunctionalBoneGroup::Legs,
+         {EOHSkeletalBone::Thigh_L, EOHSkeletalBone::Calf_L,
+          EOHSkeletalBone::Thigh_R, EOHSkeletalBone::Calf_R}},
+        {EOHFunctionalBoneGroup::LeftFoot,
+         {EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L}},
+        {EOHFunctionalBoneGroup::RightFoot,
+         {EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R}},
+        {EOHFunctionalBoneGroup::Feet,
+         {EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L,
+          EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R}},
+        {EOHFunctionalBoneGroup::UpperBody,
+         {
+             EOHSkeletalBone::Pelvis, EOHSkeletalBone::Spine_01,
+             EOHSkeletalBone::Spine_02, EOHSkeletalBone::Spine_03,
+             EOHSkeletalBone::Neck_01, EOHSkeletalBone::Head,
+             EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L,
+             EOHSkeletalBone::LowerArm_L, EOHSkeletalBone::Hand_L,
+             EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R,
+             EOHSkeletalBone::LowerArm_R,
+             EOHSkeletalBone::Hand_R // Add fingers if needed
+         }},
+        {EOHFunctionalBoneGroup::LowerBody,
+         {EOHSkeletalBone::Pelvis, EOHSkeletalBone::Thigh_L,
+          EOHSkeletalBone::Calf_L, EOHSkeletalBone::Foot_L,
+          EOHSkeletalBone::Ball_L, EOHSkeletalBone::Thigh_R,
+          EOHSkeletalBone::Calf_R, EOHSkeletalBone::Foot_R,
+          EOHSkeletalBone::Ball_R}},
+        {EOHFunctionalBoneGroup::LeftLimbs,
+         {EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L,
+          EOHSkeletalBone::LowerArm_L, EOHSkeletalBone::Hand_L,
+          EOHSkeletalBone::Thigh_L, EOHSkeletalBone::Calf_L,
+          EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L}},
+        {EOHFunctionalBoneGroup::RightLimbs,
+         {EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R,
+          EOHSkeletalBone::LowerArm_R, EOHSkeletalBone::Hand_R,
+          EOHSkeletalBone::Thigh_R, EOHSkeletalBone::Calf_R,
+          EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R}},
+        {EOHFunctionalBoneGroup::FullBody,
+         {EOHSkeletalBone::Pelvis,     EOHSkeletalBone::Spine_01,
+          EOHSkeletalBone::Spine_02,   EOHSkeletalBone::Spine_03,
+          EOHSkeletalBone::Neck_01,    EOHSkeletalBone::Head,
+          EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L,
+          EOHSkeletalBone::LowerArm_L, EOHSkeletalBone::Hand_L,
+          EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R,
+          EOHSkeletalBone::LowerArm_R, EOHSkeletalBone::Hand_R,
+          EOHSkeletalBone::Thigh_L,    EOHSkeletalBone::Calf_L,
+          EOHSkeletalBone::Foot_L,     EOHSkeletalBone::Ball_L,
+          EOHSkeletalBone::Thigh_R,    EOHSkeletalBone::Calf_R,
+          EOHSkeletalBone::Foot_R,     EOHSkeletalBone::Ball_R}}};
+
+const TMap<EOHSkeletalBone, TArray<EOHFunctionalBoneGroup>>
+    PrimaryBoneToFunctionalGroupsMap = {
+        {EOHSkeletalBone::Pelvis,
+         {EOHFunctionalBoneGroup::Core, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Spine_01,
+         {EOHFunctionalBoneGroup::Core, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Spine_02,
+         {EOHFunctionalBoneGroup::Core, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Spine_03,
+         {EOHFunctionalBoneGroup::Core, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Neck_01,
+         {EOHFunctionalBoneGroup::Cranial, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Head,
+         {EOHFunctionalBoneGroup::Cranial, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Clavicle_L,
+         {EOHFunctionalBoneGroup::LeftArm, EOHFunctionalBoneGroup::Arms,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::UpperArm_L,
+         {EOHFunctionalBoneGroup::LeftArm, EOHFunctionalBoneGroup::Arms,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::LowerArm_L,
+         {EOHFunctionalBoneGroup::LeftArm, EOHFunctionalBoneGroup::Arms,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Hand_L,
+         {EOHFunctionalBoneGroup::LeftHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Clavicle_R,
+         {EOHFunctionalBoneGroup::RightArm, EOHFunctionalBoneGroup::Arms,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::UpperArm_R,
+         {EOHFunctionalBoneGroup::RightArm, EOHFunctionalBoneGroup::Arms,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::LowerArm_R,
+         {EOHFunctionalBoneGroup::RightArm, EOHFunctionalBoneGroup::Arms,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Hand_R,
+         {EOHFunctionalBoneGroup::RightHand, EOHFunctionalBoneGroup::Hands,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::UpperBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Thigh_L,
+         {EOHFunctionalBoneGroup::LeftLeg, EOHFunctionalBoneGroup::Legs,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Calf_L,
+         {EOHFunctionalBoneGroup::LeftLeg, EOHFunctionalBoneGroup::Legs,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Foot_L,
+         {EOHFunctionalBoneGroup::LeftFoot, EOHFunctionalBoneGroup::Feet,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Ball_L,
+         {EOHFunctionalBoneGroup::LeftFoot, EOHFunctionalBoneGroup::Feet,
+          EOHFunctionalBoneGroup::LeftLimbs, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Thigh_R,
+         {EOHFunctionalBoneGroup::RightLeg, EOHFunctionalBoneGroup::Legs,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Calf_R,
+         {EOHFunctionalBoneGroup::RightLeg, EOHFunctionalBoneGroup::Legs,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Foot_R,
+         {EOHFunctionalBoneGroup::RightFoot, EOHFunctionalBoneGroup::Feet,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}},
+        {EOHSkeletalBone::Ball_R,
+         {EOHFunctionalBoneGroup::RightFoot, EOHFunctionalBoneGroup::Feet,
+          EOHFunctionalBoneGroup::RightLimbs, EOHFunctionalBoneGroup::LowerBody,
+          EOHFunctionalBoneGroup::FullBody}}};
+
+// Primary Bones To A Single Primary Functional Group
+const TMap<EOHSkeletalBone, EOHFunctionalBoneGroup>
+    PrimaryBoneToFunctionalGroupMap = {
+        {EOHSkeletalBone::Pelvis, EOHFunctionalBoneGroup::Core},
+        {EOHSkeletalBone::Spine_01, EOHFunctionalBoneGroup::Core},
+        {EOHSkeletalBone::Spine_02, EOHFunctionalBoneGroup::Core},
+        {EOHSkeletalBone::Spine_03, EOHFunctionalBoneGroup::Core},
+        {EOHSkeletalBone::Neck_01, EOHFunctionalBoneGroup::Cranial},
+        {EOHSkeletalBone::Head, EOHFunctionalBoneGroup::Cranial},
+        {EOHSkeletalBone::Clavicle_L, EOHFunctionalBoneGroup::LeftArm},
+        {EOHSkeletalBone::UpperArm_L, EOHFunctionalBoneGroup::LeftArm},
+        {EOHSkeletalBone::LowerArm_L, EOHFunctionalBoneGroup::LeftArm},
+        {EOHSkeletalBone::Hand_L, EOHFunctionalBoneGroup::LeftHand},
+        {EOHSkeletalBone::Clavicle_R, EOHFunctionalBoneGroup::RightArm},
+        {EOHSkeletalBone::UpperArm_R, EOHFunctionalBoneGroup::RightArm},
+        {EOHSkeletalBone::LowerArm_R, EOHFunctionalBoneGroup::RightArm},
+        {EOHSkeletalBone::Hand_R, EOHFunctionalBoneGroup::RightHand},
+        {EOHSkeletalBone::Thigh_L, EOHFunctionalBoneGroup::LeftLeg},
+        {EOHSkeletalBone::Calf_L, EOHFunctionalBoneGroup::LeftLeg},
+        {EOHSkeletalBone::Foot_L, EOHFunctionalBoneGroup::LeftFoot},
+        {EOHSkeletalBone::Ball_L, EOHFunctionalBoneGroup::LeftFoot},
+        {EOHSkeletalBone::Thigh_R, EOHFunctionalBoneGroup::RightLeg},
+        {EOHSkeletalBone::Calf_R, EOHFunctionalBoneGroup::RightLeg},
+        {EOHSkeletalBone::Foot_R, EOHFunctionalBoneGroup::RightFoot},
+        {EOHSkeletalBone::Ball_R, EOHFunctionalBoneGroup::RightFoot}};
+
+// Functional Group To Primary Bones
+const TMap<EOHFunctionalBoneGroup, TArray<EOHSkeletalBone>>
+    FunctionalGroupToPrimaryBonesMap = {
+        {EOHFunctionalBoneGroup::Core,
+         {EOHSkeletalBone::Pelvis, EOHSkeletalBone::Spine_01,
+          EOHSkeletalBone::Spine_02, EOHSkeletalBone::Spine_03}},
+
+        {EOHFunctionalBoneGroup::Cranial,
+         {EOHSkeletalBone::Neck_01, EOHSkeletalBone::Head}},
+
+        {EOHFunctionalBoneGroup::LeftArm,
+         {EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L,
+          EOHSkeletalBone::LowerArm_L}},
+
+        {EOHFunctionalBoneGroup::RightArm,
+         {EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R,
+          EOHSkeletalBone::LowerArm_R}},
+
+        {EOHFunctionalBoneGroup::LeftLeg,
+         {EOHSkeletalBone::Thigh_L, EOHSkeletalBone::Calf_L}},
+
+        {EOHFunctionalBoneGroup::RightLeg,
+         {EOHSkeletalBone::Thigh_R, EOHSkeletalBone::Calf_R}},
+
+        {EOHFunctionalBoneGroup::LeftFoot,
+         {EOHSkeletalBone::Foot_L, EOHSkeletalBone::Ball_L}},
+
+        {EOHFunctionalBoneGroup::RightFoot,
+         {EOHSkeletalBone::Foot_R, EOHSkeletalBone::Ball_R}}};
+
+const TArray<EOHSkeletalBone> PrimarySkeletalBones = {
+    // Core
+    EOHSkeletalBone::Pelvis, EOHSkeletalBone::Spine_01,
+    EOHSkeletalBone::Spine_02, EOHSkeletalBone::Spine_03,
+    EOHSkeletalBone::Neck_01, EOHSkeletalBone::Head,
+
+    // Left Arm
+    EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L,
+    EOHSkeletalBone::LowerArm_L, EOHSkeletalBone::Hand_L,
+
+    // Right Arm
+    EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R,
+    EOHSkeletalBone::LowerArm_R, EOHSkeletalBone::Hand_R,
+
+    // Left Leg
+    EOHSkeletalBone::Thigh_L, EOHSkeletalBone::Calf_L, EOHSkeletalBone::Foot_L,
+
+    // Right Leg
+    EOHSkeletalBone::Thigh_R, EOHSkeletalBone::Calf_R, EOHSkeletalBone::Foot_R};
+
+// All Finger Bones Definition
+const TArray<EOHSkeletalBone> AllFingerBones = {
+    // Left Hand Fingers
+    EOHSkeletalBone::Thumb_01_L, EOHSkeletalBone::Thumb_02_L,
+    EOHSkeletalBone::Thumb_03_L, EOHSkeletalBone::Index_01_L,
+    EOHSkeletalBone::Index_02_L, EOHSkeletalBone::Index_03_L,
+    EOHSkeletalBone::Middle_01_L, EOHSkeletalBone::Middle_02_L,
+    EOHSkeletalBone::Middle_03_L, EOHSkeletalBone::Ring_01_L,
+    EOHSkeletalBone::Ring_02_L, EOHSkeletalBone::Ring_03_L,
+    EOHSkeletalBone::Pinky_01_L, EOHSkeletalBone::Pinky_02_L,
+    EOHSkeletalBone::Pinky_03_L,
+
+    // Right Hand Fingers
+    EOHSkeletalBone::Thumb_01_R, EOHSkeletalBone::Thumb_02_R,
+    EOHSkeletalBone::Thumb_03_R, EOHSkeletalBone::Index_01_R,
+    EOHSkeletalBone::Index_02_R, EOHSkeletalBone::Index_03_R,
+    EOHSkeletalBone::Middle_01_R, EOHSkeletalBone::Middle_02_R,
+    EOHSkeletalBone::Middle_03_R, EOHSkeletalBone::Ring_01_R,
+    EOHSkeletalBone::Ring_02_R, EOHSkeletalBone::Ring_03_R,
+    EOHSkeletalBone::Pinky_01_R, EOHSkeletalBone::Pinky_02_R,
+    EOHSkeletalBone::Pinky_03_R};
+
 // End of EOHSkeletalBone enum definition
 
-	
-}
+} // namespace OHSkeletalMappings
 
 #if 0
 	// ======================= Internal Resolver ==========================

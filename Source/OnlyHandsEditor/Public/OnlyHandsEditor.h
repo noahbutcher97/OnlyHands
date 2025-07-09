@@ -4,15 +4,11 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(OnlyHandsEditor, All, All);
 
-class FOnlyHandsEditor : public IModuleInterface
-{
-	public:
+class FOnlyHandsEditor : public IModuleInterface {
+public:
+  /* Called when the module is loaded */
+  virtual void StartupModule() override;
 
-	/* Called when the module is loaded */
-	virtual void StartupModule() override;
-
-	/* Called when the module is unloaded */
-	virtual void ShutdownModule() override;
-
-	
+  /* Called when the module is unloaded */
+  virtual void ShutdownModule() override;
 };

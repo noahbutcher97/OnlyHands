@@ -2,30 +2,29 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "CoreMinimal.h"
 #include "OHDamageComponent.generated.h"
 
+UCLASS(Blueprintable, BlueprintType, ClassGroup = (Combat),
+       meta = (BlueprintSpawnableComponent))
+class ONLYHANDS_API UOHDamageComponent : public UActorComponent {
+  GENERATED_BODY()
 
-UCLASS(Blueprintable, BlueprintType, ClassGroup = (Combat), meta = (BlueprintSpawnableComponent))
-class ONLYHANDS_API UOHDamageComponent : public UActorComponent
-{
-	GENERATED_BODY()
-
-public:	
-	// Sets default values for this component's properties
-	UOHDamageComponent();
-
-	/*
 public:
-	UFUNCTION(BlueprintCallable, Category = "Combat")
-	void ApplyHitReaction(float Force);
-	
-	UFUNCTION(BlueprintCallable, Category = "Combat")
-	void Reset();
+  // Sets default values for this component's properties
+  UOHDamageComponent();
+
+  /*
+public:
+  UFUNCTION(BlueprintCallable, Category = "Combat")
+  void ApplyHitReaction(float Force);
+
+  UFUNCTION(BlueprintCallable, Category = "Combat")
+  void Reset();
 
 private:
-	UPROPERTY(VisibleAnywhere, Category = "Combat")
-	bool bIsStaggered = false;
-	*/	
+  UPROPERTY(VisibleAnywhere, Category = "Combat")
+  bool bIsStaggered = false;
+  */
 };

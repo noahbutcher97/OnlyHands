@@ -2,33 +2,33 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "CoreMinimal.h"
 #include "OHAttackComponent.generated.h"
-UCLASS(Blueprintable, BlueprintType, ClassGroup = (Combat), meta = (BlueprintSpawnableComponent))
-class ONLYHANDS_API UOHAttackComponent : public UActorComponent
-{
-    GENERATED_BODY()
+UCLASS(Blueprintable, BlueprintType, ClassGroup = (Combat),
+       meta = (BlueprintSpawnableComponent))
+class ONLYHANDS_API UOHAttackComponent : public UActorComponent {
+  GENERATED_BODY()
 
 public:
-    UOHAttackComponent();
+  UOHAttackComponent();
 
-//    UFUNCTION(BlueprintCallable, Category = "Combat")
-//    void TryAttack();
-//
-//    UFUNCTION(BlueprintCallable, Category = "Combat")
-//    void Reset();
+  //    UFUNCTION(BlueprintCallable, Category = "Combat")
+  //    void TryAttack();
+  //
+  //    UFUNCTION(BlueprintCallable, Category = "Combat")
+  //    void Reset();
 
 protected:
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
-    float AttackCooldown = 1.0f;
+  UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat")
+  float AttackCooldown = 1.0f;
 
 private:
-    UPROPERTY(VisibleAnywhere, Category = "Combat")
-    int32 ComboStep = 0;
+  UPROPERTY(VisibleAnywhere, Category = "Combat")
+  int32 ComboStep = 0;
 
-    FTimerHandle ResetHandle;
+  FTimerHandle ResetHandle;
 
-    UPROPERTY(VisibleAnywhere, Category = "Combat")
-    bool bIsAttacking = false;
+  UPROPERTY(VisibleAnywhere, Category = "Combat")
+  bool bIsAttacking = false;
 };
