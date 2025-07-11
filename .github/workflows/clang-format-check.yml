@@ -7,29 +7,23 @@ on:
     branches: [ main ]
 
 jobs:
-  clang-format:
+  clang-format-check:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install LLVM 20 clang-format
+      - name: Install clang-format
         run: |
           sudo apt-get update
-          sudo apt-get install -y wget gnupg lsb-release
-          wget https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          sudo ./llvm.sh 20
-          sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-20 100
+          sudo apt-get install -y clang-format
 
       - name: Run clang-format check
         run: |
-          echo "Checking for formatting issues..."
           FORMAT_DIFF=$(find Source -type f \( -name "*.cpp" -o -name "*.h" \) -exec clang-format -output-replacements-xml {} \; | grep "<replacement " || true)
           if [ -n "$FORMAT_DIFF" ]; then
             echo "❌ clang-format found formatting issues."
-            echo "Run locally: clang-format -i (Get-ChildItem -Recurse -Include *.cpp,*.h | Select-Object -ExpandProperty FullName)"
             exit 1
           else
             echo "✅ All files are correctly formatted."
