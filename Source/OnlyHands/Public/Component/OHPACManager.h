@@ -434,6 +434,15 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
     UFUNCTION(BlueprintCallable, Category = "PAC Manager|Impulse")
     void ApplyImpulseToChain(FName RootBone, const FVector& Direction, float Magnitude, int32 Depth = 3);
 
+    // === ADVANCED PHYSICS ===
+    /** Apply inertia based on tracked pose velocity when starting simulation */
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Physics")
+    void ApplyPoseInertia(FName BoneName, float Scale = 1.f);
+
+    /** Scale constraint stiffness/damping at runtime for fine tune reactions */
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Physics")
+    void TuneConstraintStrength(FName BoneName, float StiffnessMultiplier = 1.f, float DampingMultiplier = 1.f);
+
     // === ACCESSORS ===
     UFUNCTION(BlueprintPure, Category = "PAC Manager|Motion")
     FVector GetBoneVelocity(FName BoneName) const;
