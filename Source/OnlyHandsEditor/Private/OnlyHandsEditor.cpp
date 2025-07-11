@@ -9,26 +9,23 @@ DEFINE_LOG_CATEGORY(OnlyHandsEditor);
 
 static const FName HapticCurveName("FOHHapticParameterCurve");
 
-void FOnlyHandsEditor::StartupModule()
-{
-	UE_LOG(OnlyHandsEditor, Warning, TEXT("OnlyHandsEditor module has been loaded"));
+void FOnlyHandsEditor::StartupModule() {
+    UE_LOG(OnlyHandsEditor, Warning, TEXT("OnlyHandsEditor module has been loaded"));
 
-	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	PropertyModule.RegisterCustomPropertyTypeLayout(
-		HapticCurveName,
-		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&OHHapticParameterCurveCustomization::MakeInstance)
-	);
+    FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+    PropertyModule.RegisterCustomPropertyTypeLayout(
+        HapticCurveName,
+        FOnGetPropertyTypeCustomizationInstance::CreateStatic(&OHHapticParameterCurveCustomization::MakeInstance));
 }
 
-void FOnlyHandsEditor::ShutdownModule()
-{
-	UE_LOG(OnlyHandsEditor, Warning, TEXT("OnlyHandsEditor module has been unloaded"));
+void FOnlyHandsEditor::ShutdownModule() {
+    UE_LOG(OnlyHandsEditor, Warning, TEXT("OnlyHandsEditor module has been unloaded"));
 
-	if (FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
-	{
-		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-		PropertyModule.UnregisterCustomPropertyTypeLayout(HapticCurveName);
-	}
+    if (FModuleManager::Get().IsModuleLoaded("PropertyEditor")) {
+        FPropertyEditorModule& PropertyModule =
+            FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+        PropertyModule.UnregisterCustomPropertyTypeLayout(HapticCurveName);
+    }
 }
 
 #undef LOCTEXT_NAMESPACE

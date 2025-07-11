@@ -8,19 +8,17 @@
 #include "OHSpecialMMC.generated.h"
 
 /**
- * 
+ *
  */
 UCLASS()
-class ONLYHANDS_API UOHSpecialMMC : public UGameplayModMagnitudeCalculation
-{
-	GENERATED_BODY()
+class ONLYHANDS_API UOHSpecialMMC : public UGameplayModMagnitudeCalculation {
+    GENERATED_BODY()
 
-	UOHSpecialMMC();
+    UOHSpecialMMC();
 
-	FGameplayEffectAttributeCaptureDefinition SpecialBarDef;
-	FGameplayEffectAttributeCaptureDefinition MaxSpecialBarDef;
-	FGameplayEffectAttributeCaptureDefinition SpecialDef;
+    FGameplayEffectAttributeCaptureDefinition SpecialBarDef;
+    FGameplayEffectAttributeCaptureDefinition MaxSpecialBarDef;
+    FGameplayEffectAttributeCaptureDefinition SpecialDef;
 
-	float CalculateBaseMagnitude_Implementation(const FGameplayEffectSpec& Spec) const;
-	
+    float CalculateBaseMagnitude_Implementation(const FGameplayEffectSpec& Spec) const;
 };

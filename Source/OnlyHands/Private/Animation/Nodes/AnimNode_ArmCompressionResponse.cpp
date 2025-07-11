@@ -8,219 +8,170 @@
 DEFINE_LOG_CATEGORY(LogOnlyHands);
 DECLARE_STATS_GROUP(TEXT("OnlyHands"), STATGROUP_OnlyHands, STATCAT_Advanced);
 
-DECLARE_CYCLE_STAT(
-	TEXT("OnlyHands ArmCompression"), // What shows up in the profiler
-	STAT_OnlyHands_ArmCompression, // The symbol you pass to SCOPE_CYCLE_COUNTER
-	STATGROUP_OnlyHands // The group you just declared
+DECLARE_CYCLE_STAT(TEXT("OnlyHands ArmCompression"), // What shows up in the profiler
+                   STAT_OnlyHands_ArmCompression,    // The symbol you pass to SCOPE_CYCLE_COUNTER
+                   STATGROUP_OnlyHands               // The group you just declared
 );
-
 
 // FAnimNode_ArmCompressionResponse
 
-void FAnimNode_ArmCompressionResponse::CacheBones_AnyThread(const FAnimationCacheBonesContext& Context)
-{
-	Super::CacheBones_AnyThread(Context);
+void FAnimNode_ArmCompressionResponse::CacheBones_AnyThread(const FAnimationCacheBonesContext& Context) {
+    Super::CacheBones_AnyThread(Context);
 
-	// Get the required bones from the proxy, not Context.Pose
-	const FBoneContainer& RequiredBones = Context.AnimInstanceProxy->GetRequiredBones();
+    // Get the required bones from the proxy, not Context.Pose
+    const FBoneContainer& RequiredBones = Context.AnimInstanceProxy->GetRequiredBones();
 
-	if (bUseEnumSetup)
-	{
-		TArray<FName> ValidNames;
-		UOHSkeletalPhysicsUtils::BuildValidatedBoneChain(HandBoneEnum, RequiredBones, ValidNames);
+    if (bUseEnumSetup) {
+        TArray<FName> ValidNames;
+        UOHSkeletalPhysicsUtils::BuildValidatedBoneChain(HandBoneEnum, RequiredBones, ValidNames);
 
-		if (ValidNames.Num() < 3)
-		{
-			UE_LOG(LogOnlyHands, Warning,
-			       TEXT("ArmCompressionResponse: enum %s yielded only %d valid bones, disabling auto-setup"),
-			       *UOHSkeletalPhysicsUtils::ResolveBoneNameFromSkeletalBone_Static(HandBoneEnum).ToString(),
-			       ValidNames.Num()
-			);
-			bUseEnumSetup = false;
-		}
-		else
-		{
-			const int32 N = ValidNames.Num();
-			UpperArmBone.BoneName = ValidNames[N - 3];
-			LowerArmBone.BoneName = ValidNames[N - 2];
-			HandBone.BoneName = ValidNames[N - 1];
-		}
-	}
+        if (ValidNames.Num() < 3) {
+            UE_LOG(LogOnlyHands, Warning,
+                   TEXT("ArmCompressionResponse: enum %s yielded only %d valid bones, disabling auto-setup"),
+                   *UOHSkeletalPhysicsUtils::ResolveBoneNameFromSkeletalBone_Static(HandBoneEnum).ToString(),
+                   ValidNames.Num());
+            bUseEnumSetup = false;
+        } else {
+            const int32 N = ValidNames.Num();
+            UpperArmBone.BoneName = ValidNames[N - 3];
+            LowerArmBone.BoneName = ValidNames[N - 2];
+            HandBone.BoneName = ValidNames[N - 1];
+        }
+    }
 
-	// Now initialize the three FBoneReferences against the real bone container
-	InitializeAndValidateBoneRef(UpperArmBone, RequiredBones);
-	InitializeAndValidateBoneRef(LowerArmBone, RequiredBones);
-	InitializeAndValidateBoneRef(HandBone, RequiredBones);
+    // Now initialize the three FBoneReferences against the real bone container
+    InitializeAndValidateBoneRef(UpperArmBone, RequiredBones);
+    InitializeAndValidateBoneRef(LowerArmBone, RequiredBones);
+    InitializeAndValidateBoneRef(HandBone, RequiredBones);
 }
 
-bool FAnimNode_ArmCompressionResponse::IsValidToEvaluate(
-	const USkeleton* /*Skeleton*/,
-	const FBoneContainer& RequiredBones
-)
-{
-	// Only valid when all three refs resolve
-	return HandBone.IsValidToEvaluate(RequiredBones)
-		&& LowerArmBone.IsValidToEvaluate(RequiredBones)
-		&& UpperArmBone.IsValidToEvaluate(RequiredBones);
+bool FAnimNode_ArmCompressionResponse::IsValidToEvaluate(const USkeleton* /*Skeleton*/,
+                                                         const FBoneContainer& RequiredBones) {
+    // Only valid when all three refs resolve
+    return HandBone.IsValidToEvaluate(RequiredBones) && LowerArmBone.IsValidToEvaluate(RequiredBones) &&
+           UpperArmBone.IsValidToEvaluate(RequiredBones);
 }
 
-void FAnimNode_ArmCompressionResponse::EvaluateSkeletalControl_AnyThread(
-	FComponentSpacePoseContext& Output,
-	TArray<FBoneTransform>& OutBoneTransforms
-)
-{
-	SCOPE_CYCLE_COUNTER(STAT_OnlyHands_ArmCompression);
+void FAnimNode_ArmCompressionResponse::EvaluateSkeletalControl_AnyThread(FComponentSpacePoseContext& Output,
+                                                                         TArray<FBoneTransform>& OutBoneTransforms) {
+    SCOPE_CYCLE_COUNTER(STAT_OnlyHands_ArmCompression);
 
-	// 0) Quick pointer checks
-	if (!Output.AnimInstanceProxy)
-	{
-		return;
-	}
-	USkeletalMeshComponent* SkelComp = Output.AnimInstanceProxy->GetSkelMeshComponent();
-	if (!SkelComp)
-	{
-		return;
-	}
+    // 0) Quick pointer checks
+    if (!Output.AnimInstanceProxy) {
+        return;
+    }
+    USkeletalMeshComponent* SkelComp = Output.AnimInstanceProxy->GetSkelMeshComponent();
+    if (!SkelComp) {
+        return;
+    }
 
-	// 1) Reset & grab CSPose + bone container
-	OutBoneTransforms.Reset();
-	FCSPose<FCompactPose>& CSPose = Output.Pose;
-	const FCompactPose& PoseCS = CSPose.GetPose();
-	const FBoneContainer& BoneC = PoseCS.GetBoneContainer();
+    // 1) Reset & grab CSPose + bone container
+    OutBoneTransforms.Reset();
+    FCSPose<FCompactPose>& CSPose = Output.Pose;
+    const FCompactPose& PoseCS = CSPose.GetPose();
+    const FBoneContainer& BoneC = PoseCS.GetBoneContainer();
 
-	// 2) Resolve our three indices
-	const FCompactPoseBoneIndex iHand = HandBone.GetCompactPoseIndex(BoneC);
-	const FCompactPoseBoneIndex iLowerArm = LowerArmBone.GetCompactPoseIndex(BoneC);
-	const FCompactPoseBoneIndex iUpperArm = UpperArmBone.GetCompactPoseIndex(BoneC);
-	if (!PoseCS.IsValidIndex(iHand) ||
-		!PoseCS.IsValidIndex(iLowerArm) ||
-		!PoseCS.IsValidIndex(iUpperArm))
-	{
-		UE_LOG(LogOnlyHands, Warning, TEXT("ArmCompression: invalid bone indices"));
-		return;
-	}
+    // 2) Resolve our three indices
+    const FCompactPoseBoneIndex iHand = HandBone.GetCompactPoseIndex(BoneC);
+    const FCompactPoseBoneIndex iLowerArm = LowerArmBone.GetCompactPoseIndex(BoneC);
+    const FCompactPoseBoneIndex iUpperArm = UpperArmBone.GetCompactPoseIndex(BoneC);
+    if (!PoseCS.IsValidIndex(iHand) || !PoseCS.IsValidIndex(iLowerArm) || !PoseCS.IsValidIndex(iUpperArm)) {
+        UE_LOG(LogOnlyHands, Warning, TEXT("ArmCompression: invalid bone indices"));
+        return;
+    }
 
-	// 3) Pull component-space transforms
-	FTransform HandTM = CSPose.GetComponentSpaceTransform(iHand);
-	FTransform LowerTM = CSPose.GetComponentSpaceTransform(iLowerArm);
-	FTransform UpperTM = CSPose.GetComponentSpaceTransform(iUpperArm);
+    // 3) Pull component-space transforms
+    FTransform HandTM = CSPose.GetComponentSpaceTransform(iHand);
+    FTransform LowerTM = CSPose.GetComponentSpaceTransform(iLowerArm);
+    FTransform UpperTM = CSPose.GetComponentSpaceTransform(iUpperArm);
 
-	// 4) Base target from velocity-driven compression
-	const FVector Velocity = SkelComp->GetComponentVelocity();
-	const FVector VelDir = Velocity.IsNearlyZero() ? FVector::ZeroVector : Velocity.GetSafeNormal();
-	const FVector BaseTarget = HandTM.GetLocation() - VelDir * CompressionThreshold;
+    // 4) Base target from velocity-driven compression
+    const FVector Velocity = SkelComp->GetComponentVelocity();
+    const FVector VelDir = Velocity.IsNearlyZero() ? FVector::ZeroVector : Velocity.GetSafeNormal();
+    const FVector BaseTarget = HandTM.GetLocation() - VelDir * CompressionThreshold;
 
-	// 5) Update our runtime override alpha
-	const float DeltaTime = Output.AnimInstanceProxy->GetDeltaSeconds();
-	CurrentEffectorAlpha = FMath::FInterpTo(
-		CurrentEffectorAlpha,
-		bUseEffectorOverride ? 1.f : 0.f,
-		DeltaTime,
-		EffectorInterpSpeed
-	);
+    // 5) Update our runtime override alpha
+    const float DeltaTime = Output.AnimInstanceProxy->GetDeltaSeconds();
+    CurrentEffectorAlpha =
+        FMath::FInterpTo(CurrentEffectorAlpha, bUseEffectorOverride ? 1.f : 0.f, DeltaTime, EffectorInterpSpeed);
 
-	// 6) Blend Base→EffectorTarget
-	FVector TargetPos = FMath::Lerp(BaseTarget, EffectorTarget, CurrentEffectorAlpha);
+    // 6) Blend Base→EffectorTarget
+    FVector TargetPos = FMath::Lerp(BaseTarget, EffectorTarget, CurrentEffectorAlpha);
 
-	// 7) Predictive offset
-	TargetPos += Velocity * PredictiveOffset;
+    // 7) Predictive offset
+    TargetPos += Velocity * PredictiveOffset;
 
-	// 8) Joint hint (with editor offset + fallback)
-	FVector JointHint = LowerTM.GetLocation() + JointTargetOffset;
-	if ((JointHint - UpperTM.GetLocation()).IsNearlyZero())
-	{
-		// if it collapses onto the upper joint, pick a safe bend axis
-		const FVector Axis = UOHSkeletalPhysicsUtils::ComputeFallbackBendAxis(UpperTM, LowerTM);
-		const float Len = (LowerTM.GetLocation() - UpperTM.GetLocation()).Size();
-		JointHint = UpperTM.GetLocation()
-			+ UpperTM.TransformVectorNoScale(Axis) * Len;
-	}
+    // 8) Joint hint (with editor offset + fallback)
+    FVector JointHint = LowerTM.GetLocation() + JointTargetOffset;
+    if ((JointHint - UpperTM.GetLocation()).IsNearlyZero()) {
+        // if it collapses onto the upper joint, pick a safe bend axis
+        const FVector Axis = UOHSkeletalPhysicsUtils::ComputeFallbackBendAxis(UpperTM, LowerTM);
+        const float Len = (LowerTM.GetLocation() - UpperTM.GetLocation()).Size();
+        JointHint = UpperTM.GetLocation() + UpperTM.TransformVectorNoScale(Axis) * Len;
+    }
 
-	// 9) Mirror across your chosen axis if requested
-	if (bMirror)
-	{
-		const FVector RootPos = UpperTM.GetLocation();
-		FVector Rel = TargetPos - RootPos;
-		const FVector Scale(
-			FMath::Abs(MirrorHintAxis.X) > KINDA_SMALL_NUMBER ? -1.f : 1.f,
-			FMath::Abs(MirrorHintAxis.Y) > KINDA_SMALL_NUMBER ? -1.f : 1.f,
-			FMath::Abs(MirrorHintAxis.Z) > KINDA_SMALL_NUMBER ? -1.f : 1.f
-		);
-		TargetPos = RootPos + Rel * Scale;
-	}
+    // 9) Mirror across your chosen axis if requested
+    if (bMirror) {
+        const FVector RootPos = UpperTM.GetLocation();
+        FVector Rel = TargetPos - RootPos;
+        const FVector Scale(FMath::Abs(MirrorHintAxis.X) > KINDA_SMALL_NUMBER ? -1.f : 1.f,
+                            FMath::Abs(MirrorHintAxis.Y) > KINDA_SMALL_NUMBER ? -1.f : 1.f,
+                            FMath::Abs(MirrorHintAxis.Z) > KINDA_SMALL_NUMBER ? -1.f : 1.f);
+        TargetPos = RootPos + Rel * Scale;
+    }
 
-	// 10) Bail on NaN/Inf
-	if (!FMath::IsFinite(TargetPos.SizeSquared()) ||
-		!FMath::IsFinite(JointHint.SizeSquared()))
-	{
-		UE_LOG(LogOnlyHands, Warning, TEXT("ArmCompression: invalid target/hint"));
-		return;
-	}
+    // 10) Bail on NaN/Inf
+    if (!FMath::IsFinite(TargetPos.SizeSquared()) || !FMath::IsFinite(JointHint.SizeSquared())) {
+        UE_LOG(LogOnlyHands, Warning, TEXT("ArmCompression: invalid target/hint"));
+        return;
+    }
 
-	// 11) Compute max stretch scale
-	const float BoneLen = (UpperTM.GetLocation() - LowerTM.GetLocation()).Size();
-	const float SafeLen = FMath::Max(BoneLen, KINDA_SMALL_NUMBER);
-	const float MaxStretch = bClampCompression
-		                         ? (SafeLen + MaxCompressionDistance) / SafeLen
-		                         : 1.f;
+    // 11) Compute max stretch scale
+    const float BoneLen = (UpperTM.GetLocation() - LowerTM.GetLocation()).Size();
+    const float SafeLen = FMath::Max(BoneLen, KINDA_SMALL_NUMBER);
+    const float MaxStretch = bClampCompression ? (SafeLen + MaxCompressionDistance) / SafeLen : 1.f;
 
-	// 12) Solve the two-bone IK
-	UOHSkeletalPhysicsUtils::SolveIK_TwoBone(
-		UpperTM,
-		LowerTM,
-		HandTM,
-		TargetPos,
-		JointHint,
-		bClampCompression,
-		/*StartStretchRatio=*/ 1.f,
-		MaxStretch,
-		bEnableDebug ? SkelComp->GetWorld() : nullptr,
-		bEnableDebug
-	);
+    // 12) Solve the two-bone IK
+    UOHSkeletalPhysicsUtils::SolveIK_TwoBone(UpperTM, LowerTM, HandTM, TargetPos, JointHint, bClampCompression,
+                                             /*StartStretchRatio=*/1.f, MaxStretch,
+                                             bEnableDebug ? SkelComp->GetWorld() : nullptr, bEnableDebug);
 
-	// 13) Push back for LocalBlendCSBoneTransforms
-	OutBoneTransforms.Add(FBoneTransform(iUpperArm, UpperTM));
-	OutBoneTransforms.Add(FBoneTransform(iLowerArm, LowerTM));
-	OutBoneTransforms.Add(FBoneTransform(iHand, HandTM));
+    // 13) Push back for LocalBlendCSBoneTransforms
+    OutBoneTransforms.Add(FBoneTransform(iUpperArm, UpperTM));
+    OutBoneTransforms.Add(FBoneTransform(iLowerArm, LowerTM));
+    OutBoneTransforms.Add(FBoneTransform(iHand, HandTM));
 
-	// 14) Finally sort & strip out any dupes / invalids
-	UOHSkeletalPhysicsUtils::ValidateAndSortBoneTransforms(
-		OutBoneTransforms,
-		/*bSortByIndex=*/ true,
-		/*bLogWarnings=*/ bEnableDebug
-	);
+    // 14) Finally sort & strip out any dupes / invalids
+    UOHSkeletalPhysicsUtils::ValidateAndSortBoneTransforms(OutBoneTransforms,
+                                                           /*bSortByIndex=*/true,
+                                                           /*bLogWarnings=*/bEnableDebug);
 }
 
 ///////////////////////////////////////////////////////
 // Enum-driven chain helper
 
-void FAnimNode_ArmCompressionResponse::InitializeChainFromEnum(const FBoneContainer& RequiredBones)
-{
-	// Build parent-lineage from the hand enum toward root
-	TArray<EOHSkeletalBone> Lineage = UOHSkeletalPhysicsUtils::GetBoneLineageToRoot(HandBoneEnum);
-	Algo::Reverse(Lineage);
-	if (Lineage.Num() < 3)
-	{
-		UE_LOG(LogOnlyHands, Warning,
-		       TEXT("ArmCompressionResponse: HandBoneEnum '%s' yields too short chain (%d bones)"),
-		       *UOHSkeletalPhysicsUtils::ResolveBoneNameFromSkeletalBone_Static(HandBoneEnum).ToString(),
-		       Lineage.Num()
-		);
-		return;
-	}
+void FAnimNode_ArmCompressionResponse::InitializeChainFromEnum(const FBoneContainer& RequiredBones) {
+    // Build parent-lineage from the hand enum toward root
+    TArray<EOHSkeletalBone> Lineage = UOHSkeletalPhysicsUtils::GetBoneLineageToRoot(HandBoneEnum);
+    Algo::Reverse(Lineage);
+    if (Lineage.Num() < 3) {
+        UE_LOG(
+            LogOnlyHands, Warning, TEXT("ArmCompressionResponse: HandBoneEnum '%s' yields too short chain (%d bones)"),
+            *UOHSkeletalPhysicsUtils::ResolveBoneNameFromSkeletalBone_Static(HandBoneEnum).ToString(), Lineage.Num());
+        return;
+    }
 
-	// Last three are [ ..., UpperArm, LowerArm, Hand ]
-	const int32 Last = Lineage.Num() - 1;
-	UpperArmBone.BoneName = UOHSkeletalPhysicsUtils::ResolveBoneNameFromSkeletalBone_Static(Lineage[Last - 2]);
-	LowerArmBone.BoneName = UOHSkeletalPhysicsUtils::ResolveBoneNameFromSkeletalBone_Static(Lineage[Last - 1]);
-	HandBone.BoneName = UOHSkeletalPhysicsUtils::ResolveBoneNameFromSkeletalBone_Static(Lineage[Last]);
+    // Last three are [ ..., UpperArm, LowerArm, Hand ]
+    const int32 Last = Lineage.Num() - 1;
+    UpperArmBone.BoneName = UOHSkeletalPhysicsUtils::ResolveBoneNameFromSkeletalBone_Static(Lineage[Last - 2]);
+    LowerArmBone.BoneName = UOHSkeletalPhysicsUtils::ResolveBoneNameFromSkeletalBone_Static(Lineage[Last - 1]);
+    HandBone.BoneName = UOHSkeletalPhysicsUtils::ResolveBoneNameFromSkeletalBone_Static(Lineage[Last]);
 
-	// Immediately initialize so IsValidToEvaluate() will return true next frame
-	UpperArmBone.Initialize(RequiredBones);
-	LowerArmBone.Initialize(RequiredBones);
-	HandBone.Initialize(RequiredBones);
+    // Immediately initialize so IsValidToEvaluate() will return true next frame
+    UpperArmBone.Initialize(RequiredBones);
+    LowerArmBone.Initialize(RequiredBones);
+    HandBone.Initialize(RequiredBones);
 }
-
 
 #if 0
 
@@ -558,7 +509,7 @@ void FAnimNode_ArmCompressionResponse::EvaluateSkeletalControl_AnyThread(
 	FComponentSpacePoseContext& Output,
 	TArray<FBoneTransform>& OutBoneTransforms)
 {
-	
+
 #if WITH_EDITOR
 	// Skip evaluation if we're in editor and the AnimInstance isn't valid
 	if (GIsEditor && (!Output.AnimInstanceProxy || !Output.AnimInstanceProxy->GetSkelMeshComponent()))
@@ -1094,8 +1045,6 @@ void FAnimNode_ArmCompressionResponse::BuildChainFromEffector(
 
 	return DefaultCurve;
 }*/
-
-
 
 #undef LOCTEXT_NAMESPACE
 #endif

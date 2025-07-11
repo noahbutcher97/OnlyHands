@@ -8,36 +8,33 @@
 #include "OHCombatAICharacter.generated.h"
 
 UCLASS()
-class ONLYHANDS_API AOHCombatAICharacter : public ACharacter, public IAbilitySystemInterface
-{
-	GENERATED_BODY()
+class ONLYHANDS_API AOHCombatAICharacter : public ACharacter, public IAbilitySystemInterface {
+    GENERATED_BODY()
 
-public:
-	// Sets default values for this character's properties
-	AOHCombatAICharacter();
+  public:
+    // Sets default values for this character's properties
+    AOHCombatAICharacter();
 
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
+  public:
+    // Called every frame
+    virtual void Tick(float DeltaTime) override;
 
-	// Called to bind functionality to input
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+    // Called to bind functionality to input
+    virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	virtual class UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+    virtual class UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
-	virtual class UOHCombatAttributeSet* GetAttributeSet() const;
+    virtual class UOHCombatAttributeSet* GetAttributeSet() const;
 
-	//virtual void OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode = 0) override;
+    // virtual void OnMovementModeChanged(EMovementMode PrevMovementMode, uint8 PreviousCustomMode = 0) override;
 
+  protected:
+    // Called when the game starts or when spawned
+    virtual void BeginPlay() override;
 
-protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
+    UPROPERTY()
+    class UOHCombatAbilitySystemComponent* AbilitySystemComponent;
 
-	UPROPERTY()
-	class UOHCombatAbilitySystemComponent* AbilitySystemComponent;
-
-	UPROPERTY()
-	class UOHCombatAttributeSet* CombatAttributeSet;
-
+    UPROPERTY()
+    class UOHCombatAttributeSet* CombatAttributeSet;
 };

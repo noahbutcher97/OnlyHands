@@ -18,14 +18,11 @@ class APawn;
 class UBlendSpace;
 
 /**
- * 
+ *
  */
 
-
-
 USTRUCT(BlueprintType)
-struct F_SkinThumbnail : public FTableRowBase
-{
+struct F_SkinThumbnail : public FTableRowBase {
     GENERATED_BODY()
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TSoftObjectPtr<UTexture2D> Default_Image;
@@ -42,8 +39,7 @@ struct F_SkinThumbnail : public FTableRowBase
 };
 
 USTRUCT(BlueprintType)
-struct F_FighAnimBP : public FTableRowBase
-{
+struct F_FighAnimBP : public FTableRowBase {
     GENERATED_BODY()
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TSoftObjectPtr<UAnimSequenceBase> Anm_Idle;
@@ -54,13 +50,12 @@ struct F_FighAnimBP : public FTableRowBase
 };
 
 USTRUCT(BlueprintType)
-struct F_AnimationSlot : public FTableRowBase
-{
+struct F_AnimationSlot : public FTableRowBase {
     GENERATED_BODY()
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     UAnimCompositeBase* AnimSequences;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TMap <FString, FName> AnimSequences_Path;
+    TMap<FString, FName> AnimSequences_Path;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName Animation_Slot;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -71,12 +66,10 @@ struct F_AnimationSlot : public FTableRowBase
     float Animation_PlayRate;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     int32 Animation_Loop;
-
 };
 
 USTRUCT(BlueprintType)
-struct F_GrabAnimationSlot : public FTableRowBase
-{
+struct F_GrabAnimationSlot : public FTableRowBase {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -100,13 +93,11 @@ struct F_GrabAnimationSlot : public FTableRowBase
     float Enemy_BlendMovementFix;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float Enemy_BlendAnimationStart;
-
 };
 
-//Animation
+// Animation
 USTRUCT(BlueprintType)
-struct F_AnimationRef : public FTableRowBase
-{
+struct F_AnimationRef : public FTableRowBase {
     GENERATED_BODY()
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName Animation_Group;
@@ -118,10 +109,9 @@ struct F_AnimationRef : public FTableRowBase
     TSoftObjectPtr<UAnimCompositeBase> Anim_Ref;
 };
 
-//Parry
+// Parry
 USTRUCT(BlueprintType)
-struct F_Parry : public FTableRowBase
-{
+struct F_Parry : public FTableRowBase {
     GENERATED_BODY()
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName PBlock_Name;
@@ -129,13 +119,10 @@ struct F_Parry : public FTableRowBase
     FName PEvade_Name;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName PPivot_Name;
-
-
 };
 
 USTRUCT(BlueprintType)
-struct F_RevideStats : public FTableRowBase
-{
+struct F_RevideStats : public FTableRowBase {
     GENERATED_BODY()
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TEnumAsByte<Enm_AttackSideBody::Enm_AttackSideBody> Side_Attack;
@@ -146,8 +133,7 @@ struct F_RevideStats : public FTableRowBase
 };
 
 USTRUCT(BlueprintType)
-struct F_SpecialAnimations : public FTableRowBase
-{
+struct F_SpecialAnimations : public FTableRowBase {
     GENERATED_BODY()
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TSoftObjectPtr<UAnimCompositeBase> AnimSpecial;
@@ -161,13 +147,10 @@ struct F_SpecialAnimations : public FTableRowBase
     float Animation_PlayRate;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float Delay_Finish;
-
-    
 };
-//FrameData
+// FrameData
 USTRUCT(BlueprintType)
-struct F_DataFrames : public FTableRowBase
-{
+struct F_DataFrames : public FTableRowBase {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -197,8 +180,7 @@ struct F_DataFrames : public FTableRowBase
 };
 
 USTRUCT(BlueprintType)
-struct F_SpecialAbility : public FTableRowBase
-{
+struct F_SpecialAbility : public FTableRowBase {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -212,12 +194,11 @@ struct F_SpecialAbility : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName NiagaraSystem_Ability;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TSoftObjectPtr<UNiagaraSystem > P_AbilityNiagaraSystem;
+    TSoftObjectPtr<UNiagaraSystem> P_AbilityNiagaraSystem;
 };
 
 USTRUCT(BlueprintType)
-struct F_StateType : public FTableRowBase
-{
+struct F_StateType : public FTableRowBase {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -236,13 +217,10 @@ struct F_StateType : public FTableRowBase
     float Priority;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     bool FaceEnemy;
-
 };
 
-
 USTRUCT(BlueprintType)
-struct F_HitStun : public FTableRowBase
-{
+struct F_HitStun : public FTableRowBase {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -254,8 +232,7 @@ struct F_HitStun : public FTableRowBase
 };
 
 USTRUCT(BlueprintType)
-struct F_HitSFX : public FTableRowBase
-{
+struct F_HitSFX : public FTableRowBase {
     GENERATED_BODY()
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     bool bSphereCollision_ImpactPoint;
@@ -274,17 +251,15 @@ struct F_HitSFX : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName NiagaraSystem_Name;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TSoftObjectPtr<UNiagaraSystem > P_NiagaraSystem;
+    TSoftObjectPtr<UNiagaraSystem> P_NiagaraSystem;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName SoundsFX_Name;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TSoftObjectPtr<USoundCue> P_SoundsFX;
-
 };
 
 USTRUCT(BlueprintType)
-struct F_HitDef : public FTableRowBase
-{
+struct F_HitDef : public FTableRowBase {
     GENERATED_BODY()
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TEnumAsByte<Enm_MomentumPoints::Enm_MomentumPoints> AddPointsMovementum;
@@ -316,12 +291,10 @@ struct F_HitDef : public FTableRowBase
     F_Parry Parry_System;
 };
 
-
-//PlayerData
+// PlayerData
 
 USTRUCT(BlueprintType)
-struct F_StateDef : public FTableRowBase
-{
+struct F_StateDef : public FTableRowBase {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -331,12 +304,11 @@ struct F_StateDef : public FTableRowBase
     F_StateType StateType;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TMap <int32,F_HitDef> HitDef;
+    TMap<int32, F_HitDef> HitDef;
 };
 
 USTRUCT(BlueprintType)
-struct F_States : public FTableRowBase
-{
+struct F_States : public FTableRowBase {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -344,16 +316,15 @@ struct F_States : public FTableRowBase
 };
 
 USTRUCT(BlueprintType)
-struct F_CostumePerfil : public FTableRowBase
-{
+struct F_CostumePerfil : public FTableRowBase {
     GENERATED_BODY()
-    //data
+    // data
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName name;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float ID;
-    
-    //money
+
+    // money
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float crystals;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -365,26 +336,25 @@ struct F_CostumePerfil : public FTableRowBase
 };
 
 USTRUCT(BlueprintType)
-struct F_SkinPerfil : public FTableRowBase
-{
+struct F_SkinPerfil : public FTableRowBase {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     bool Active;
-    //Name
+    // Name
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName Skin_Name;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName Skin_Subname;
-    //Class
+    // Class
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName FighClass;
-    //Skin
+    // Skin
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TSoftClassPtr <AActor> Skin_Player;
+    TSoftClassPtr<AActor> Skin_Player;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TSoftClassPtr <AActor> Skin_NPC;
-    //Image
+    TSoftClassPtr<AActor> Skin_NPC;
+    // Image
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     F_SkinThumbnail Thumbnails;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -392,7 +362,7 @@ struct F_SkinPerfil : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TSoftObjectPtr<UTexture2D> Load_Screen_Image;
 
-    //Data
+    // Data
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float level;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -407,21 +377,17 @@ struct F_SkinPerfil : public FTableRowBase
     float special;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TMap<int32, FString> special_slots;
-
-
 };
 
 USTRUCT(BlueprintType)
-struct F_SkinGroup : public FTableRowBase
-{
+struct F_SkinGroup : public FTableRowBase {
     GENERATED_BODY()
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TMap<FName, F_SkinPerfil> SkinGroup;
 };
 
 USTRUCT(BlueprintType)
-struct F_SeasonGroup : public FTableRowBase
-{
+struct F_SeasonGroup : public FTableRowBase {
     GENERATED_BODY()
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TMap<FName, F_SkinGroup> Skins;
@@ -431,14 +397,12 @@ struct F_SeasonGroup : public FTableRowBase
     TMap<FName, FString> Levels;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TMap<FName, TSoftObjectPtr<USoundCue>> Music;
-
 };
 
 USTRUCT(BlueprintType)
-struct F_FightPerfil : public FTableRowBase
-{
+struct F_FightPerfil : public FTableRowBase {
     GENERATED_BODY()
-    //data
+    // data
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float Attack;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -452,8 +416,7 @@ struct F_FightPerfil : public FTableRowBase
 };
 
 USTRUCT(BlueprintType)
-struct F_PlayerValues_Scale : public FTableRowBase
-{
+struct F_PlayerValues_Scale : public FTableRowBase {
     GENERATED_BODY()
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FVector2D Attack;
@@ -470,25 +433,22 @@ struct F_PlayerValues_Scale : public FTableRowBase
 };
 
 USTRUCT(BlueprintType)
-struct F_FightSequence_Position : public FTableRowBase
-{
+struct F_FightSequence_Position : public FTableRowBase {
     GENERATED_BODY()
-UPROPERTY(EditAnywhere, BlueprintReadWrite)
-bool World_PLocation;
-UPROPERTY(EditAnywhere, BlueprintReadWrite)
-FVector PLocation_Cinematic;
-UPROPERTY(EditAnywhere, BlueprintReadWrite)
-bool Rotation_PLocation;
-UPROPERTY(EditAnywhere, BlueprintReadWrite)
-FRotator PRotation_Cinematic;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    bool World_PLocation;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FVector PLocation_Cinematic;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    bool Rotation_PLocation;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FRotator PRotation_Cinematic;
 };
 
-
 USTRUCT(BlueprintType)
-struct F_FightLevelSequence : public FTableRowBase
-{
+struct F_FightLevelSequence : public FTableRowBase {
     GENERATED_BODY()
-    //Cinematic
+    // Cinematic
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TSoftObjectPtr<ULevelSequence> Player_Cinematic;
@@ -524,29 +484,27 @@ struct F_FightLevelSequence : public FTableRowBase
     bool End_BlockAllCinematics;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     bool End_NotRemoveTitle;
-
 };
 
 USTRUCT(BlueprintType)
-struct F_FightClassPerfil : public FTableRowBase
-{
+struct F_FightClassPerfil : public FTableRowBase {
     GENERATED_BODY()
-    //States
+    // States
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TMap<FName, UDataTable*> DT_States;
-    //Cinematic
+    // Cinematic
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TMap <FString, F_FightLevelSequence > Cinematic;
-    //SpecialAnimations
+    TMap<FString, F_FightLevelSequence> Cinematic;
+    // SpecialAnimations
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TMap <FString, F_SpecialAnimations > Special_Animations;
-       
-    //AI
+    TMap<FString, F_SpecialAnimations> Special_Animations;
+
+    // AI
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName Behavior_Type;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName Enemy_Type;
-    //SKILL
+    // SKILL
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FString Skill_Name;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -555,48 +513,40 @@ struct F_FightClassPerfil : public FTableRowBase
     TMap<FName, TSoftObjectPtr<UAnimCompositeBase>> AI_MovementList;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TMap<FName, TSoftObjectPtr<UAnimCompositeBase>> AI_MovementAttacks;
-    //data
+    // data
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     F_FightPerfil PlayerPerfil;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     F_PlayerValues_Scale GlobalPlayerValues;
-
 };
 
 USTRUCT(BlueprintType)
-struct F_LoadCharacter : public FTableRowBase
-{
+struct F_LoadCharacter : public FTableRowBase {
     GENERATED_BODY()
-    //Data
+    // Data
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     F_CostumePerfil PlayerData;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TMap <FName, FString> Left_Char;
+    TMap<FName, FString> Left_Char;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TMap <FName, FString> Right_Char;
+    TMap<FName, FString> Right_Char;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TSoftObjectPtr<USoundCue> Music;
-
 };
 
 USTRUCT(BlueprintType)
-struct F_GameSeasons : public FTableRowBase
-{
+struct F_GameSeasons : public FTableRowBase {
     GENERATED_BODY()
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     F_SeasonGroup ListPlayer;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     F_PlayerValues_Scale PlayerValues_Scale;
-
 };
 
-
-
-//AI//
+// AI//
 
 USTRUCT(BlueprintType)
-struct F_AI_GetMovementPoints : public FTableRowBase
-{
+struct F_AI_GetMovementPoints : public FTableRowBase {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -605,13 +555,10 @@ struct F_AI_GetMovementPoints : public FTableRowBase
     float Medium;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float Far;
-
-
 };
 
 USTRUCT(BlueprintType)
-struct F_AI_AttackPoints : public FTableRowBase
-{
+struct F_AI_AttackPoints : public FTableRowBase {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -627,8 +574,7 @@ struct F_AI_AttackPoints : public FTableRowBase
 };
 
 USTRUCT(BlueprintType)
-struct F_AI_StatetypePoints : public FTableRowBase
-{
+struct F_AI_StatetypePoints : public FTableRowBase {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -639,12 +585,10 @@ struct F_AI_StatetypePoints : public FTableRowBase
     float Block;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float Counter;
-
 };
 
 USTRUCT(BlueprintType)
-struct F_AI_BodyPartsPoints : public FTableRowBase
-{
+struct F_AI_BodyPartsPoints : public FTableRowBase {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -655,12 +599,10 @@ struct F_AI_BodyPartsPoints : public FTableRowBase
     float LeftBody;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     float RightBody;
-
 };
 
 USTRUCT(BlueprintType)
-struct F_AI_Results : public FTableRowBase
-{
+struct F_AI_Results : public FTableRowBase {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -677,14 +619,12 @@ struct F_AI_Results : public FTableRowBase
     TEnumAsByte<Enm_AI_BodyPart::Enm_AI_BodyPart> First_BodyPrefence;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TEnumAsByte<Enm_AI_BodyPart::Enm_AI_BodyPart> Second_BodyPrefence;
-
 };
 
 USTRUCT(BlueprintType)
-struct F_AI_GetValues : public FTableRowBase
-{
+struct F_AI_GetValues : public FTableRowBase {
     GENERATED_BODY()
-  
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName Name;
 
@@ -699,22 +639,17 @@ struct F_AI_GetValues : public FTableRowBase
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     F_AI_BodyPartsPoints BodyPartsPoints;
-
 };
 
-
-
-
 USTRUCT(BlueprintType)
-struct F_AI_BrainData : public FTableRowBase
-{
+struct F_AI_BrainData : public FTableRowBase {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName PlayerName;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TMap<FName, F_AI_GetValues > RivalFightStylList;
+    TMap<FName, F_AI_GetValues> RivalFightStylList;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     F_AI_Results RivalResult;
 
@@ -724,26 +659,21 @@ struct F_AI_BrainData : public FTableRowBase
     FName Attack_Strategy;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     FName Defense_Strategy;
-
- 
-
-
 };
 
 USTRUCT(BlueprintType)
-struct FInputWindow : public FTableRowBase
-{
+struct FInputWindow : public FTableRowBase {
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float StartTime;
+    float StartTime;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float EndTime;
+    float EndTime;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FLinearColor WindowColor;
+    FLinearColor WindowColor;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FName WindowName;
+    FName WindowName;
 };

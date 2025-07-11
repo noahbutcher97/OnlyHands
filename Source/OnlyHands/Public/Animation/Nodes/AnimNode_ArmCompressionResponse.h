@@ -13,126 +13,115 @@ DECLARE_LOG_CATEGORY_EXTERN(LogOnlyHands, Log, All);
  * Minimal overrides: CacheBones, IsValidToEvaluate, EvaluateSkeletalControl.
  */
 USTRUCT(BlueprintInternalUseOnly)
-struct ONLYHANDS_API FAnimNode_ArmCompressionResponse : public FAnimNode_SkeletalControlBase
-{
-	GENERATED_BODY()
+struct ONLYHANDS_API FAnimNode_ArmCompressionResponse : public FAnimNode_SkeletalControlBase {
+    GENERATED_BODY()
 
-	/** Constructor: initialize all parameters to sensible defaults */
-	FAnimNode_ArmCompressionResponse()
-		: FAnimNode_SkeletalControlBase()
-		  , HandBone()
-		  , LowerArmBone()
-		  , UpperArmBone()
-		  , bUseEnumSetup(false)
-		  , HandBoneEnum(EOHSkeletalBone::Hand_R)
-		  , CompressionThreshold(120.f)
-		  , MaxCompressionDistance(15.f)
-		  , CompressionBlendAlpha(1.f)
-		  , MinCompressionAlpha(0.f)
-		  , bClampCompression(true)
-		  , EffectorInterpSpeed(12.f)
-		  , EffectorBlendAlpha(0.f)
-		  , bUseEffectorOverride(false)
-		  , EffectorTarget(FVector::ZeroVector)
-		  // referenced by SetEffectorInterpSpeed :contentReference[oaicite:0]{index=0}:contentReference[oaicite:1]{index=1}
-		  , EffectorSpace(BCS_ComponentSpace)
-		  // referenced by SetEffectorBlendAlpha :contentReference[oaicite:2]{index=2}:contentReference[oaicite:3]{index=3}
-		  , PredictiveOffset(0.f)
-		  // referenced by SetEffectorPredictionOffset :contentReference[oaicite:4]{index=4}:contentReference[oaicite:5]{index=5}
-		  , bMirror(false)
-		  // referenced by SetMirror :contentReference[oaicite:6]{index=6}:contentReference[oaicite:7]{index=7}
-		  , MirrorHintAxis(FVector(0.f, 1.f, 0.f))
-		  , bEnableDebug(false)
-	{
-	}
+    /** Constructor: initialize all parameters to sensible defaults */
+    FAnimNode_ArmCompressionResponse()
+        : FAnimNode_SkeletalControlBase(), HandBone(), LowerArmBone(), UpperArmBone(), bUseEnumSetup(false),
+          HandBoneEnum(EOHSkeletalBone::Hand_R), CompressionThreshold(120.f), MaxCompressionDistance(15.f),
+          CompressionBlendAlpha(1.f), MinCompressionAlpha(0.f), bClampCompression(true), EffectorInterpSpeed(12.f),
+          EffectorBlendAlpha(0.f), bUseEffectorOverride(false), EffectorTarget(FVector::ZeroVector)
+          // referenced by SetEffectorInterpSpeed
+          // :contentReference[oaicite:0]{index=0}:contentReference[oaicite:1]{index=1}
+          ,
+          EffectorSpace(BCS_ComponentSpace)
+          // referenced by SetEffectorBlendAlpha
+          // :contentReference[oaicite:2]{index=2}:contentReference[oaicite:3]{index=3}
+          ,
+          PredictiveOffset(0.f)
+          // referenced by SetEffectorPredictionOffset
+          // :contentReference[oaicite:4]{index=4}:contentReference[oaicite:5]{index=5}
+          ,
+          bMirror(false)
+          // referenced by SetMirror :contentReference[oaicite:6]{index=6}:contentReference[oaicite:7]{index=7}
+          ,
+          MirrorHintAxis(FVector(0.f, 1.f, 0.f)), bEnableDebug(false) {}
 
-	// ----- BoneEnum setup -----
-	virtual void CacheBones_AnyThread(const FAnimationCacheBonesContext& Context) override;
-	virtual bool IsValidToEvaluate(const USkeleton* Skeleton, const FBoneContainer& RequiredBones) override;
-	virtual void EvaluateSkeletalControl_AnyThread(FComponentSpacePoseContext& Output,
-	                                               TArray<FBoneTransform>& OutBoneTransforms) override;
+    // ----- BoneEnum setup -----
+    virtual void CacheBones_AnyThread(const FAnimationCacheBonesContext& Context) override;
+    virtual bool IsValidToEvaluate(const USkeleton* Skeleton, const FBoneContainer& RequiredBones) override;
+    virtual void EvaluateSkeletalControl_AnyThread(FComponentSpacePoseContext& Output,
+                                                   TArray<FBoneTransform>& OutBoneTransforms) override;
 
-	// --- IK bones ---
-	UPROPERTY(EditAnywhere, Category="IK Bones")
-	FBoneReference HandBone;
+    // --- IK bones ---
+    UPROPERTY(EditAnywhere, Category = "IK Bones")
+    FBoneReference HandBone;
 
-	UPROPERTY(EditAnywhere, Category="IK Bones")
-	FBoneReference LowerArmBone;
+    UPROPERTY(EditAnywhere, Category = "IK Bones")
+    FBoneReference LowerArmBone;
 
-	UPROPERTY(EditAnywhere, Category="IK Bones")
-	FBoneReference UpperArmBone;
+    UPROPERTY(EditAnywhere, Category = "IK Bones")
+    FBoneReference UpperArmBone;
 
-	// --- Auto setup via enum ---
-	UPROPERTY(EditAnywhere, Category="Auto Setup")
-	bool bUseEnumSetup;
+    // --- Auto setup via enum ---
+    UPROPERTY(EditAnywhere, Category = "Auto Setup")
+    bool bUseEnumSetup;
 
-	UPROPERTY(EditAnywhere, Category="Auto Setup", meta=(EditCondition="bUseEnumSetup"))
-	EOHSkeletalBone HandBoneEnum;
+    UPROPERTY(EditAnywhere, Category = "Auto Setup", meta = (EditCondition = "bUseEnumSetup"))
+    EOHSkeletalBone HandBoneEnum;
 
+    // ----- Compression parameters -----
+    UPROPERTY(EditAnywhere, Category = "Compression", meta = (ClampMin = "0.0"))
+    float CompressionThreshold;
 
-	// ----- Compression parameters -----
-	UPROPERTY(EditAnywhere, Category="Compression", meta=(ClampMin="0.0"))
-	float CompressionThreshold;
+    UPROPERTY(EditAnywhere, Category = "Compression", meta = (ClampMin = "0.0"))
+    float MaxCompressionDistance;
 
-	UPROPERTY(EditAnywhere, Category="Compression", meta=(ClampMin="0.0"))
-	float MaxCompressionDistance;
+    UPROPERTY(EditAnywhere, Category = "Compression", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float CompressionBlendAlpha;
 
-	UPROPERTY(EditAnywhere, Category="Compression", meta=(ClampMin="0.0", ClampMax="1.0"))
-	float CompressionBlendAlpha;
+    UPROPERTY(EditAnywhere, Category = "Compression", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float MinCompressionAlpha;
 
-	UPROPERTY(EditAnywhere, Category="Compression", meta=(ClampMin="0.0", ClampMax="1.0"))
-	float MinCompressionAlpha;
+    UPROPERTY(EditAnywhere, Category = "Compression")
+    bool bClampCompression;
 
-	UPROPERTY(EditAnywhere, Category="Compression")
-	bool bClampCompression;
+    /** Whether the two-bone chain may stretch past its rest length. */
+    UPROPERTY(EditAnywhere, Category = "Compression")
+    bool bAllowStretching = false;
 
+    /** Maximum extra length (cm) the chain may stretch beyond its rest length. */
+    UPROPERTY(EditAnywhere, Category = "Compression", meta = (ClampMin = "0.0"))
+    float MaxStretchDistance = 10.f;
 
-	/** Whether the two-bone chain may stretch past its rest length. */
-	UPROPERTY(EditAnywhere, Category="Compression")
-	bool bAllowStretching = false;
+    /** Speed (units/sec) to interpolate into/out of the effector override. */
+    UPROPERTY(EditAnywhere, Category = "Compression", meta = (ClampMin = "0.1"))
+    float EffectorInterpSpeed = 5.f;
 
-	/** Maximum extra length (cm) the chain may stretch beyond its rest length. */
-	UPROPERTY(EditAnywhere, Category="Compression", meta=(ClampMin="0.0"))
-	float MaxStretchDistance = 10.f;
+    UPROPERTY(EditAnywhere, Category = "Effector", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+    float EffectorBlendAlpha;
 
-	/** Speed (units/sec) to interpolate into/out of the effector override. */
-	UPROPERTY(EditAnywhere, Category="Compression", meta=(ClampMin="0.1"))
-	float EffectorInterpSpeed = 5.f;
+    float CurrentEffectorAlpha = 0.f; // internal
 
-	UPROPERTY(EditAnywhere, Category="Effector", meta=(ClampMin="0.0", ClampMax="1.0"))
-	float EffectorBlendAlpha;
+    // ----- Effector override -----
+    UPROPERTY(EditAnywhere, Category = "Effector")
+    bool bUseEffectorOverride;
 
-	float CurrentEffectorAlpha = 0.f; // internal
+    UPROPERTY(EditAnywhere, Category = "Effector", meta = (EditCondition = "bUseEffectorOverride"))
+    FVector EffectorTarget;
 
+    UPROPERTY(EditAnywhere, Category = "Effector", meta = (EditCondition = "bUseEffectorOverride"))
+    TEnumAsByte<EBoneControlSpace> EffectorSpace;
 
-	// ----- Effector override -----
-	UPROPERTY(EditAnywhere, Category="Effector")
-	bool bUseEffectorOverride;
+    UPROPERTY(EditAnywhere, Category = "Effector")
+    float PredictiveOffset;
+    // ----- Hinting / mirroring -----
+    UPROPERTY(EditAnywhere, Category = "Hint")
+    bool bMirror;
+    UPROPERTY(EditAnywhere, Category = "Hint")
+    FVector MirrorHintAxis;
 
-	UPROPERTY(EditAnywhere, Category="Effector", meta=(EditCondition="bUseEffectorOverride"))
-	FVector EffectorTarget;
+    UPROPERTY(EditAnywhere, Category = "Hint")
+    FVector JointTargetOffset;
 
-	UPROPERTY(EditAnywhere, Category="Effector", meta=(EditCondition="bUseEffectorOverride"))
-	TEnumAsByte<EBoneControlSpace> EffectorSpace;
+    // ----- Debug -----
+    UPROPERTY(EditAnywhere, Category = "Debug")
+    bool bEnableDebug;
 
-	UPROPERTY(EditAnywhere, Category="Effector")
-	float PredictiveOffset;
-	// ----- Hinting / mirroring -----
-	UPROPERTY(EditAnywhere, Category="Hint")
-	bool bMirror;
-	UPROPERTY(EditAnywhere, Category="Hint")
-	FVector MirrorHintAxis;
-
-	UPROPERTY(EditAnywhere, Category="Hint")
-	FVector JointTargetOffset;
-
-	// ----- Debug -----
-	UPROPERTY(EditAnywhere, Category="Debug")
-	bool bEnableDebug;
-
-protected:
-	/** Build chain from enum if requested */
-	void InitializeChainFromEnum(const FBoneContainer& RequiredBones);
+  protected:
+    /** Build chain from enum if requested */
+    void InitializeChainFromEnum(const FBoneContainer& RequiredBones);
 };
 
 #if 0
