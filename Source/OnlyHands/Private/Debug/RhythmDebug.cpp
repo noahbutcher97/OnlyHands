@@ -3,34 +3,43 @@
 #include "Slate/DeferredCleanupSlateBrush.h"
 #define LOCTEXT_NAMESPACE "UMG"
 
-URhythmDebug::URhythmDebug(const FObjectInitializer &ObjectInitializer)
-    : Super(ObjectInitializer) {}
-
-void URhythmDebug::ReleaseSlateResources(bool bReleaseChildren) {
-  Super::ReleaseSlateResources(bReleaseChildren);
-
-  RhythmSlateRef.Reset();
+URhythmDebug::URhythmDebug(const FObjectInitializer& ObjectInitializer): Super(ObjectInitializer)
+{
 }
 
-void URhythmDebug::UpdateParameters() {}
+void URhythmDebug::ReleaseSlateResources(bool bReleaseChildren)
+{
+Super::ReleaseSlateResources(bReleaseChildren);
 
-void URhythmDebug::SetInputWindows(TArray<FInputWindow> _InputWindows) {
-  this->InputWindows = _InputWindows;
-  RhythmSlateRef->InputWindows = InputWindows;
+   RhythmSlateRef.Reset();
+
 }
 
-TSharedRef<SWidget> URhythmDebug::RebuildWidget() {
+void URhythmDebug::UpdateParameters()
+{
+}
 
-  RhythmSlateRef = SNew(SRhythmDebug);
-  RhythmSlateRef->OwningWidget = this;
-  RhythmSlateRef->InputWindows = this->InputWindows;
-  RhythmSlateRef->TimeScale = this->TimeScale;
+void URhythmDebug::SetInputWindows(TArray<FInputWindow> _InputWindows)
+{
+    this->InputWindows = _InputWindows;
+    RhythmSlateRef->InputWindows = InputWindows;
 
-  return RhythmSlateRef.ToSharedRef();
+}
+
+TSharedRef<SWidget> URhythmDebug::RebuildWidget()
+{
+
+    RhythmSlateRef = SNew(SRhythmDebug);
+    RhythmSlateRef->OwningWidget=this;
+    RhythmSlateRef->InputWindows = this->InputWindows;
+    RhythmSlateRef->TimeScale = this->TimeScale;
+
+    return RhythmSlateRef.ToSharedRef();
 }
 
 #if WITH_EDITOR
-const FText URhythmDebug::GetPaletteCategory() {
-  return LOCTEXT("Mobile", "Mobile");
+const FText URhythmDebug::GetPaletteCategory()
+{
+    return LOCTEXT("Mobile", "Mobile");
 }
-#endif
+#endif 

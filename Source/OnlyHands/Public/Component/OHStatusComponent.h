@@ -2,40 +2,42 @@
 
 #pragma once
 
-#include "Components/ActorComponent.h"
 #include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
 #include "OHStatusComponent.generated.h"
 
-UCLASS(Blueprintable, BlueprintType, ClassGroup = (State),
-       meta = (BlueprintSpawnableComponent))
-class ONLYHANDS_API UOHStatusComponent : public UActorComponent {
-  GENERATED_BODY()
 
-public:
-  // Sets default values for this component's properties
-  UOHStatusComponent();
+UCLASS(Blueprintable, BlueprintType, ClassGroup = (State), meta = (BlueprintSpawnableComponent))
+class ONLYHANDS_API UOHStatusComponent : public UActorComponent
+{
+	GENERATED_BODY()
 
-  /*
-          UFUNCTION(BlueprintCallable, Category = "Status")
-      void TakeDamage(float Amount);
-          UFUNCTION(BlueprintCallable, Category = "Status")
-      void GainStamina(float Amount);
-          UFUNCTION(BlueprintCallable, Category = "Status")
-      void Reset();
+public:	
+	// Sets default values for this component's properties
+	UOHStatusComponent();
 
-  protected:
-      UPROPERTY(EditAnywhere)
-      float MaxStamina = 100.0f;
+/*
+	UFUNCTION(BlueprintCallable, Category = "Status")
+    void TakeDamage(float Amount);
+	UFUNCTION(BlueprintCallable, Category = "Status")
+    void GainStamina(float Amount);
+	UFUNCTION(BlueprintCallable, Category = "Status")
+    void Reset();
 
-      UPROPERTY(EditAnywhere)
-      float MaxHealth = 100.0f;
+protected:
+    UPROPERTY(EditAnywhere)
+    float MaxStamina = 100.0f;
 
-  private:
-          UPROPERTY(VisibleAnywhere, Category = "Status")
-      float CurrentStamina;
-          UPROPERTY(VisibleAnywhere, Category = "Status")
-      float CurrentHealth;
-          UPROPERTY(VisibleAnywhere, Category = "Status")
-      float MomentumLevel;
-      */
+    UPROPERTY(EditAnywhere)
+    float MaxHealth = 100.0f;
+
+private:
+	UPROPERTY(VisibleAnywhere, Category = "Status")
+    float CurrentStamina;
+	UPROPERTY(VisibleAnywhere, Category = "Status")
+    float CurrentHealth;
+	UPROPERTY(VisibleAnywhere, Category = "Status")
+    float MomentumLevel;
+    */
+		
 };

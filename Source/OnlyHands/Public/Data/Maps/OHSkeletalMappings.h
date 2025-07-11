@@ -1,208 +1,182 @@
 ﻿#pragma once
-#include "Component/OHPhysicsManager.h"
 #include "CoreMinimal.h"
+#include "Component/OHPhysicsManager.h"
 #include "Data/Enum/EOHPhysicsEnums.h"
 #include "UObject/NoExportTypes.h"
 
-namespace OHSkeletalMappings {
-// ==========================================
-// Core String Conversions
-// ==========================================
-extern const TMap<EOHSkeletalBone, FName> SkeletalBoneToFNameMap;
-extern const TMap<FName, EOHSkeletalBone> FNameToSkeletalBoneMap;
-extern const TMap<EOHSkeletalBone, FName> PrimaryBoneToFNameMap;
+namespace OHSkeletalMappings
+{
+	// ==========================================
+	// Core String Conversions
+	// ==========================================
+	extern const TMap<EOHSkeletalBone, FName> SkeletalBoneToFNameMap;
+	extern const TMap<FName, EOHSkeletalBone> FNameToSkeletalBoneMap;
+	extern const TMap<EOHSkeletalBone, FName> PrimaryBoneToFNameMap;
 
-// ==========================================
-// COMPLETE ENUM COMBINATIONS - ALL POSSIBLE MAPPINGS
-// ==========================================
+	// ==========================================
+	// COMPLETE ENUM COMBINATIONS - ALL POSSIBLE MAPPINGS
+	// ==========================================
+	
+	// =========================
+	// EOHSkeletalBone <-> EOHBodyZone
+	// =========================
+	// One-to-One
+	extern const TMap<EOHSkeletalBone, EOHBodyZone> BoneToZoneMap;
+	extern const TMap<EOHBodyZone, EOHSkeletalBone> ZoneToBoneMap;
+	
+	// One-to-Many
+	extern const TMap<EOHSkeletalBone, TArray<EOHBodyZone>> BoneToZonesMap;
+	extern const TMap<EOHBodyZone, TArray<EOHSkeletalBone>> ZoneToBonesMap;
+	
+	// Primary Variants
+	extern const TMap<EOHSkeletalBone, EOHBodyZone> PrimaryBoneToZoneMap;
+	extern const TMap<EOHBodyZone, EOHSkeletalBone> ZoneToPrimaryBoneMap;
+	extern const TMap<EOHSkeletalBone, TArray<EOHBodyZone>> PrimaryBoneToZonesMap;
+	extern const TMap<EOHBodyZone, TArray<EOHSkeletalBone>> ZoneToPrimaryBonesMap;
 
-// =========================
-// EOHSkeletalBone <-> EOHBodyZone
-// =========================
-// One-to-One
-extern const TMap<EOHSkeletalBone, EOHBodyZone> BoneToZoneMap;
-extern const TMap<EOHBodyZone, EOHSkeletalBone> ZoneToBoneMap;
+	// =========================
+	// EOHSkeletalBone <-> EOHBodyPart
+	// =========================
+	// One-to-One
+	extern const TMap<EOHSkeletalBone, EOHBodyPart> BoneToBodyPartMap;
+	extern const TMap<EOHBodyPart, EOHSkeletalBone> BodyPartToBoneMap;
+	
+	// One-to-Many
+	extern const TMap<EOHSkeletalBone, TArray<EOHBodyPart>> BoneToBodyPartsMap;
+	extern const TMap<EOHBodyPart, TArray<EOHSkeletalBone>> BodyPartToBonesMap;
+	
+	// Primary Variants
+	extern const TMap<EOHSkeletalBone, EOHBodyPart> PrimaryBoneToBodyPartMap;
+	extern const TMap<EOHBodyPart, EOHSkeletalBone> BodyPartToPrimaryBoneMap;
+	extern const TMap<EOHSkeletalBone, TArray<EOHBodyPart>> PrimaryBoneToBodyPartsMap;
+	extern const TMap<EOHBodyPart, TArray<EOHSkeletalBone>> BodyPartToPrimaryBonesMap;
 
-// One-to-Many
-extern const TMap<EOHSkeletalBone, TArray<EOHBodyZone>> BoneToZonesMap;
-extern const TMap<EOHBodyZone, TArray<EOHSkeletalBone>> ZoneToBonesMap;
+	// =========================
+	// EOHSkeletalBone <-> EOHFunctionalBoneGroup
+	// =========================
+	// One-to-One
+	extern const TMap<EOHSkeletalBone, EOHFunctionalBoneGroup> BoneToFunctionalGroupMap;
+	extern const TMap<EOHFunctionalBoneGroup, EOHSkeletalBone> FunctionalGroupToBoneMap;
+	
+	// One-to-Many
+	extern const TMap<EOHSkeletalBone, TArray<EOHFunctionalBoneGroup>> BoneToFunctionalGroupsMap;
+	extern const TMap<EOHFunctionalBoneGroup, TArray<EOHSkeletalBone>> FunctionalGroupToBonesMap;
+	
+	// Primary Variants
+	extern const TMap<EOHSkeletalBone, EOHFunctionalBoneGroup> PrimaryBoneToFunctionalGroupMap;
+	extern const TMap<EOHFunctionalBoneGroup, EOHSkeletalBone> FunctionalGroupToPrimaryBoneMap;
+	extern const TMap<EOHSkeletalBone, TArray<EOHFunctionalBoneGroup>> PrimaryBoneToFunctionalGroupsMap;
+	extern const TMap<EOHFunctionalBoneGroup, TArray<EOHSkeletalBone>> FunctionalGroupToPrimaryBonesMap;
 
-// Primary Variants
-extern const TMap<EOHSkeletalBone, EOHBodyZone> PrimaryBoneToZoneMap;
-extern const TMap<EOHBodyZone, EOHSkeletalBone> ZoneToPrimaryBoneMap;
-extern const TMap<EOHSkeletalBone, TArray<EOHBodyZone>> PrimaryBoneToZonesMap;
-extern const TMap<EOHBodyZone, TArray<EOHSkeletalBone>> ZoneToPrimaryBonesMap;
+	// =========================
+	// EOHBodyZone <-> EOHBodyPart
+	// =========================
+	// One-to-One
+	extern const TMap<EOHBodyZone, EOHBodyPart> ZoneToBodyPartMap;
+	extern const TMap<EOHBodyPart, EOHBodyZone> BodyPartToZoneMap;
+	
+	// One-to-Many
+	extern const TMap<EOHBodyZone, TArray<EOHBodyPart>> ZoneToBodyPartsMap;
+	extern const TMap<EOHBodyPart, TArray<EOHBodyZone>> BodyPartToZonesMap;
+	
+	// Primary Variants
+	extern const TMap<EOHBodyZone, EOHBodyPart> ZoneToPrimaryBodyPartMap;
+	extern const TMap<EOHBodyPart, EOHBodyZone> BodyPartToPrimaryZoneMap;
+	extern const TMap<EOHBodyZone, TArray<EOHBodyPart>> ZoneToPrimaryBodyPartsMap;
+	extern const TMap<EOHBodyPart, TArray<EOHBodyZone>> BodyPartToPrimaryZonesMap;
 
-// =========================
-// EOHSkeletalBone <-> EOHBodyPart
-// =========================
-// One-to-One
-extern const TMap<EOHSkeletalBone, EOHBodyPart> BoneToBodyPartMap;
-extern const TMap<EOHBodyPart, EOHSkeletalBone> BodyPartToBoneMap;
+	// =========================
+	// EOHBodyZone <-> EOHFunctionalBoneGroup
+	// =========================
+	// One-to-One
+	extern const TMap<EOHBodyZone, EOHFunctionalBoneGroup> ZoneToFunctionalGroupMap;
+	extern const TMap<EOHFunctionalBoneGroup, EOHBodyZone> FunctionalGroupToZoneMap;
+	
+	// One-to-Many
+	extern const TMap<EOHBodyZone, TArray<EOHFunctionalBoneGroup>> ZoneToFunctionalGroupsMap;
+	extern const TMap<EOHFunctionalBoneGroup, TArray<EOHBodyZone>> FunctionalGroupToZonesMap;
+	
+	// Primary Variants
+	extern const TMap<EOHBodyZone, EOHFunctionalBoneGroup> ZoneToPrimaryFunctionalGroupMap;
+	extern const TMap<EOHFunctionalBoneGroup, EOHBodyZone> FunctionalGroupToPrimaryZoneMap;
+	extern const TMap<EOHBodyZone, TArray<EOHFunctionalBoneGroup>> ZoneToPrimaryFunctionalGroupsMap;
+	extern const TMap<EOHFunctionalBoneGroup, TArray<EOHBodyZone>> FunctionalGroupToPrimaryZonesMap;
 
-// One-to-Many
-extern const TMap<EOHSkeletalBone, TArray<EOHBodyPart>> BoneToBodyPartsMap;
-extern const TMap<EOHBodyPart, TArray<EOHSkeletalBone>> BodyPartToBonesMap;
+	// =========================
+	// EOHBodyPart <-> EOHFunctionalBoneGroup
+	// =========================
+	// One-to-One
+	extern const TMap<EOHBodyPart, EOHFunctionalBoneGroup> BodyPartToFunctionalGroupMap;
+	extern const TMap<EOHFunctionalBoneGroup, EOHBodyPart> FunctionalGroupToBodyPartMap;
+	
+	// One-to-Many
+	extern const TMap<EOHBodyPart, TArray<EOHFunctionalBoneGroup>> BodyPartToFunctionalGroupsMap;
+	extern const TMap<EOHFunctionalBoneGroup, TArray<EOHBodyPart>> FunctionalGroupToBodyPartsMap;
+	
+	// Primary Variants
+	extern const TMap<EOHBodyPart, EOHFunctionalBoneGroup> BodyPartToPrimaryFunctionalGroupMap;
+	extern const TMap<EOHFunctionalBoneGroup, EOHBodyPart> FunctionalGroupToPrimaryBodyPartMap;
+	extern const TMap<EOHBodyPart, TArray<EOHFunctionalBoneGroup>> BodyPartToPrimaryFunctionalGroupsMap;
+	extern const TMap<EOHFunctionalBoneGroup, TArray<EOHBodyPart>> FunctionalGroupToPrimaryBodyPartsMap;
 
-// Primary Variants
-extern const TMap<EOHSkeletalBone, EOHBodyPart> PrimaryBoneToBodyPartMap;
-extern const TMap<EOHBodyPart, EOHSkeletalBone> BodyPartToPrimaryBoneMap;
-extern const TMap<EOHSkeletalBone, TArray<EOHBodyPart>>
-    PrimaryBoneToBodyPartsMap;
-extern const TMap<EOHBodyPart, TArray<EOHSkeletalBone>>
-    BodyPartToPrimaryBonesMap;
+	// ==========================================
+	// ADDITIONAL COMBINATION MAPS
+	// ==========================================
+	
+	// =========================
+	// EOHBodyZone -> EOHSkeletalBone (Reverse Primary)
+	// =========================
+	extern const TMap<EOHBodyZone, EOHSkeletalBone> ZoneToPrimaryBoneMap;
+	extern const TMap<EOHBodyZone, TArray<EOHSkeletalBone>> ZoneToPrimaryBonesMap;
+	
+	// =========================
+	// EOHBodyPart -> EOHSkeletalBone (Reverse Primary)
+	// =========================
+	extern const TMap<EOHBodyPart, EOHSkeletalBone> BodyPartToPrimaryBoneMap;
+	extern const TMap<EOHBodyPart, TArray<EOHSkeletalBone>> BodyPartToPrimaryBonesMap;
+	
+	// =========================
+	// EOHFunctionalBoneGroup -> EOHSkeletalBone (Reverse Primary)
+	// =========================
+	extern const TMap<EOHFunctionalBoneGroup, EOHSkeletalBone> FunctionalGroupToPrimarySkeletalBoneMap;
+	extern const TMap<EOHFunctionalBoneGroup, TArray<EOHSkeletalBone>> FunctionalGroupToPrimarySkeletalBonesMap;
 
-// =========================
-// EOHSkeletalBone <-> EOHFunctionalBoneGroup
-// =========================
-// One-to-One
-extern const TMap<EOHSkeletalBone, EOHFunctionalBoneGroup>
-    BoneToFunctionalGroupMap;
-extern const TMap<EOHFunctionalBoneGroup, EOHSkeletalBone>
-    FunctionalGroupToBoneMap;
+	// ==========================================
+	// SPECIAL PURPOSE MAPS
+	// ==========================================
+	
+	// Finger-specific mappings
+	extern const TMap<EOHSkeletalBone, bool> IsFingerBoneMap;
+	extern const TMap<EOHBodyZone, bool> ZoneContainsFingersMap;
+	extern const TMap<EOHBodyPart, bool> BodyPartContainsFingersMap;
+	extern const TMap<EOHFunctionalBoneGroup, bool> FunctionalGroupContainsFingersMap;
+	
+	// Side-specific mappings
+	extern const TMap<EOHSkeletalBone, bool> IsLeftSideBoneMap;
+	extern const TMap<EOHSkeletalBone, bool> IsRightSideBoneMap;
+	extern const TMap<EOHBodyZone, bool> IsLeftSideZoneMap;
+	extern const TMap<EOHBodyZone, bool> IsRightSideZoneMap;
+	extern const TMap<EOHBodyPart, bool> IsLeftSideBodyPartMap;
+	extern const TMap<EOHBodyPart, bool> IsRightSideBodyPartMap;
+	extern const TMap<EOHFunctionalBoneGroup, bool> IsLeftSideFunctionalGroupMap;
+	extern const TMap<EOHFunctionalBoneGroup, bool> IsRightSideFunctionalGroupMap;
 
-// One-to-Many
-extern const TMap<EOHSkeletalBone, TArray<EOHFunctionalBoneGroup>>
-    BoneToFunctionalGroupsMap;
-extern const TMap<EOHFunctionalBoneGroup, TArray<EOHSkeletalBone>>
-    FunctionalGroupToBonesMap;
+	// ==========================================
+	// UTILITY ARRAYS & CONSTANTS
+	// ==========================================
+	extern const TArray<EOHSkeletalBone> EmptyBoneArray;
+	extern const TArray<EOHBodyZone> EmptyZoneArray;
+	extern const TArray<EOHBodyPart> EmptyBodyPartArray;
+	extern const TArray<EOHFunctionalBoneGroup> EmptyGroupArray;
 
-// Primary Variants
-extern const TMap<EOHSkeletalBone, EOHFunctionalBoneGroup>
-    PrimaryBoneToFunctionalGroupMap;
-extern const TMap<EOHFunctionalBoneGroup, EOHSkeletalBone>
-    FunctionalGroupToPrimaryBoneMap;
-extern const TMap<EOHSkeletalBone, TArray<EOHFunctionalBoneGroup>>
-    PrimaryBoneToFunctionalGroupsMap;
-extern const TMap<EOHFunctionalBoneGroup, TArray<EOHSkeletalBone>>
-    FunctionalGroupToPrimaryBonesMap;
+	
+	extern const TArray<EOHSkeletalBone> PrimarySkeletalBones;
+	extern const TArray<EOHSkeletalBone> AllFingerBones;
+	extern const TArray<EOHSkeletalBone> AllPrimaryBones;
+	extern const TArray<EOHSkeletalBone> AllLeftBones;
+	extern const TArray<EOHSkeletalBone> AllRightBones;
 
-// =========================
-// EOHBodyZone <-> EOHBodyPart
-// =========================
-// One-to-One
-extern const TMap<EOHBodyZone, EOHBodyPart> ZoneToBodyPartMap;
-extern const TMap<EOHBodyPart, EOHBodyZone> BodyPartToZoneMap;
-
-// One-to-Many
-extern const TMap<EOHBodyZone, TArray<EOHBodyPart>> ZoneToBodyPartsMap;
-extern const TMap<EOHBodyPart, TArray<EOHBodyZone>> BodyPartToZonesMap;
-
-// Primary Variants
-extern const TMap<EOHBodyZone, EOHBodyPart> ZoneToPrimaryBodyPartMap;
-extern const TMap<EOHBodyPart, EOHBodyZone> BodyPartToPrimaryZoneMap;
-extern const TMap<EOHBodyZone, TArray<EOHBodyPart>> ZoneToPrimaryBodyPartsMap;
-extern const TMap<EOHBodyPart, TArray<EOHBodyZone>> BodyPartToPrimaryZonesMap;
-
-// =========================
-// EOHBodyZone <-> EOHFunctionalBoneGroup
-// =========================
-// One-to-One
-extern const TMap<EOHBodyZone, EOHFunctionalBoneGroup> ZoneToFunctionalGroupMap;
-extern const TMap<EOHFunctionalBoneGroup, EOHBodyZone> FunctionalGroupToZoneMap;
-
-// One-to-Many
-extern const TMap<EOHBodyZone, TArray<EOHFunctionalBoneGroup>>
-    ZoneToFunctionalGroupsMap;
-extern const TMap<EOHFunctionalBoneGroup, TArray<EOHBodyZone>>
-    FunctionalGroupToZonesMap;
-
-// Primary Variants
-extern const TMap<EOHBodyZone, EOHFunctionalBoneGroup>
-    ZoneToPrimaryFunctionalGroupMap;
-extern const TMap<EOHFunctionalBoneGroup, EOHBodyZone>
-    FunctionalGroupToPrimaryZoneMap;
-extern const TMap<EOHBodyZone, TArray<EOHFunctionalBoneGroup>>
-    ZoneToPrimaryFunctionalGroupsMap;
-extern const TMap<EOHFunctionalBoneGroup, TArray<EOHBodyZone>>
-    FunctionalGroupToPrimaryZonesMap;
-
-// =========================
-// EOHBodyPart <-> EOHFunctionalBoneGroup
-// =========================
-// One-to-One
-extern const TMap<EOHBodyPart, EOHFunctionalBoneGroup>
-    BodyPartToFunctionalGroupMap;
-extern const TMap<EOHFunctionalBoneGroup, EOHBodyPart>
-    FunctionalGroupToBodyPartMap;
-
-// One-to-Many
-extern const TMap<EOHBodyPart, TArray<EOHFunctionalBoneGroup>>
-    BodyPartToFunctionalGroupsMap;
-extern const TMap<EOHFunctionalBoneGroup, TArray<EOHBodyPart>>
-    FunctionalGroupToBodyPartsMap;
-
-// Primary Variants
-extern const TMap<EOHBodyPart, EOHFunctionalBoneGroup>
-    BodyPartToPrimaryFunctionalGroupMap;
-extern const TMap<EOHFunctionalBoneGroup, EOHBodyPart>
-    FunctionalGroupToPrimaryBodyPartMap;
-extern const TMap<EOHBodyPart, TArray<EOHFunctionalBoneGroup>>
-    BodyPartToPrimaryFunctionalGroupsMap;
-extern const TMap<EOHFunctionalBoneGroup, TArray<EOHBodyPart>>
-    FunctionalGroupToPrimaryBodyPartsMap;
-
-// ==========================================
-// ADDITIONAL COMBINATION MAPS
-// ==========================================
-
-// =========================
-// EOHBodyZone -> EOHSkeletalBone (Reverse Primary)
-// =========================
-extern const TMap<EOHBodyZone, EOHSkeletalBone> ZoneToPrimaryBoneMap;
-extern const TMap<EOHBodyZone, TArray<EOHSkeletalBone>> ZoneToPrimaryBonesMap;
-
-// =========================
-// EOHBodyPart -> EOHSkeletalBone (Reverse Primary)
-// =========================
-extern const TMap<EOHBodyPart, EOHSkeletalBone> BodyPartToPrimaryBoneMap;
-extern const TMap<EOHBodyPart, TArray<EOHSkeletalBone>>
-    BodyPartToPrimaryBonesMap;
-
-// =========================
-// EOHFunctionalBoneGroup -> EOHSkeletalBone (Reverse Primary)
-// =========================
-extern const TMap<EOHFunctionalBoneGroup, EOHSkeletalBone>
-    FunctionalGroupToPrimarySkeletalBoneMap;
-extern const TMap<EOHFunctionalBoneGroup, TArray<EOHSkeletalBone>>
-    FunctionalGroupToPrimarySkeletalBonesMap;
-
-// ==========================================
-// SPECIAL PURPOSE MAPS
-// ==========================================
-
-// Finger-specific mappings
-extern const TMap<EOHSkeletalBone, bool> IsFingerBoneMap;
-extern const TMap<EOHBodyZone, bool> ZoneContainsFingersMap;
-extern const TMap<EOHBodyPart, bool> BodyPartContainsFingersMap;
-extern const TMap<EOHFunctionalBoneGroup, bool>
-    FunctionalGroupContainsFingersMap;
-
-// Side-specific mappings
-extern const TMap<EOHSkeletalBone, bool> IsLeftSideBoneMap;
-extern const TMap<EOHSkeletalBone, bool> IsRightSideBoneMap;
-extern const TMap<EOHBodyZone, bool> IsLeftSideZoneMap;
-extern const TMap<EOHBodyZone, bool> IsRightSideZoneMap;
-extern const TMap<EOHBodyPart, bool> IsLeftSideBodyPartMap;
-extern const TMap<EOHBodyPart, bool> IsRightSideBodyPartMap;
-extern const TMap<EOHFunctionalBoneGroup, bool> IsLeftSideFunctionalGroupMap;
-extern const TMap<EOHFunctionalBoneGroup, bool> IsRightSideFunctionalGroupMap;
-
-// ==========================================
-// UTILITY ARRAYS & CONSTANTS
-// ==========================================
-extern const TArray<EOHSkeletalBone> EmptyBoneArray;
-extern const TArray<EOHBodyZone> EmptyZoneArray;
-extern const TArray<EOHBodyPart> EmptyBodyPartArray;
-extern const TArray<EOHFunctionalBoneGroup> EmptyGroupArray;
-
-extern const TArray<EOHSkeletalBone> PrimarySkeletalBones;
-extern const TArray<EOHSkeletalBone> AllFingerBones;
-extern const TArray<EOHSkeletalBone> AllPrimaryBones;
-extern const TArray<EOHSkeletalBone> AllLeftBones;
-extern const TArray<EOHSkeletalBone> AllRightBones;
-
-} // namespace OHSkeletalMappings
+}
 
 #if 0
 	// ==========================================
@@ -407,3 +381,4 @@ extern const TArray<EOHSkeletalBone> AllRightBones;
 	EOHFunctionalBoneGroup ResolveFunctionalGroupFromNameSmart(FName RawName, const USkeletalMeshComponent* Mesh, float MinScoreThreshold = 0.75f);
 
 #endif
+	

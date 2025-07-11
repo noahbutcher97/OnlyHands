@@ -3,27 +3,30 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Engine/LocalPlayer.h"
 #include "GameFramework/PlayerController.h"
-#include "OHPhysicsHandleController.generated.h"
+#include "Engine/LocalPlayer.h"
 #include "PhysicsEngine/PhysicsHandleComponent.h"
+#include "OHPhysicsHandleController.generated.h"
 
 UCLASS()
-class ONLYHANDS_API AOHPhysicsHandleController : public APlayerController {
-  GENERATED_BODY()
+class ONLYHANDS_API AOHPhysicsHandleController : public APlayerController
+{
+	GENERATED_BODY()
 
-  AOHPhysicsHandleController();
+	AOHPhysicsHandleController();
 
 public:
-  UFUNCTION(BlueprintCallable)
-  void SetCameraLookMode(bool bEnable);
+	UFUNCTION(BlueprintCallable)
+	void SetCameraLookMode(bool bEnable);
+
 
 protected:
-  virtual void BeginPlay() override;
-  virtual void Tick(float DeltaTime) override;
+	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
 
-  // Input
-  virtual void SetupInputComponent() override;
+	// Input
+	virtual void SetupInputComponent() override;
 
 private:
+
 };

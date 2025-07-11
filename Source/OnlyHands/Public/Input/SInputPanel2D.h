@@ -1,9 +1,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Framework/Application/SlateApplication.h"
 #include "Input/Reply.h"
 #include "Runtime/Launch/Resources/Version.h"
+#include  "Framework/Application/SlateApplication.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SLeafWidget.h"
 
@@ -12,163 +12,162 @@ class FSlateWindowElementList;
 class UInputPanel2D;
 class InputPanel2D;
 
-struct FTouchIndex {
-  int PointerIndex = -1;
-  FVector2D Location;
+
+struct FTouchIndex
+{
+	int PointerIndex = -1;
+	FVector2D Location;
 };
 
 UENUM(BlueprintType)
 enum class EInputState : uint8 {
-  None,
-  Touch,
-  Tap,
-  Swipe,
-  Nudge,
-  Hold,
-  Release
+	None,
+	Touch,
+	Tap,
+	Swipe,
+	Nudge,
+	Hold,
+	Release
 };
 
 UENUM(BlueprintType)
-enum ESwipeDirection {
-  Left,
-  Up,
-  Right,
-  Down,
-  DownRight,
-  DownLeft,
-  UpRight,
-  UpLeft
+enum ESwipeDirection
+{
+	Left,
+	Up,
+	Right,
+	Down,
+	DownRight,
+	DownLeft,
+	UpRight,
+	UpLeft
 };
 
-class ONLYHANDS_API SInputPanel2D : public SLeafWidget {
+
+class ONLYHANDS_API SInputPanel2D : public SLeafWidget
+{
 public:
-  SLATE_BEGIN_ARGS(SInputPanel2D) {}
+	SLATE_BEGIN_ARGS(SInputPanel2D)
+		{
+		}
 
-  SLATE_END_ARGS()
+	SLATE_END_ARGS()
 
-  void Construct(const FArguments &InArgs);
 
-  virtual FVector2D ComputeDesiredSize(float) const override;
-  virtual int32 OnPaint(const FPaintArgs &Args,
-                        const FGeometry &AllottedGeometry,
-                        const FSlateRect &MyCullingRect,
-                        FSlateWindowElementList &OutDrawElements, int32 LayerId,
-                        const FWidgetStyle &InWidgetStyle,
-                        bool bParentEnabled) const override;
-  virtual FReply OnTouchStarted(const FGeometry &MyGeometry,
-                                const FPointerEvent &Event) override;
-  virtual FReply OnTouchMoved(const FGeometry &MyGeometry,
-                              const FPointerEvent &Event) override;
-  void TriggerSwipeEvent();
-  virtual FReply OnTouchEnded(const FGeometry &MyGeometry,
-                              const FPointerEvent &Event) override;
-  virtual void Tick(const FGeometry &AllottedGeometry,
-                    const double InCurrentTime,
-                    const float InDeltaTime) override;
-  virtual bool SupportsKeyboardFocus() const override;
+	void Construct(const FArguments& InArgs);
 
-  bool IsPositionOutsideDeadZone(FVector2D PositionToCheck);
+	virtual FVector2D ComputeDesiredSize(float) const override;
+	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect,
+	                      FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle,
+	                      bool bParentEnabled) const override;
+	virtual FReply OnTouchStarted(const FGeometry& MyGeometry, const FPointerEvent& Event) override;
+	virtual FReply OnTouchMoved(const FGeometry& MyGeometry, const FPointerEvent& Event) override;
+	void TriggerSwipeEvent();
+	virtual FReply OnTouchEnded(const FGeometry& MyGeometry, const FPointerEvent& Event) override;
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+	virtual bool SupportsKeyboardFocus() const override;
 
-  bool ForwardGamepadAxis(const FGamepadKeyNames::Type KeyName,
-                          float AnalogValue);
+	bool IsPositionOutsideDeadZone(FVector2D PositionToCheck);
 
-  virtual ESwipeDirection
-  GetSwipeDirection(const FVector2D _SwipePosition,
-                    const FVector2D OriginPosition) const;
+	bool ForwardGamepadAxis(const FGamepadKeyNames::Type KeyName, float AnalogValue);
 
-  bool CheckCurve(FVector2D StartPosition, FVector2D EndPosition,
-                  FVector2D OriginPosition, float Tolerance);
+	virtual ESwipeDirection GetSwipeDirection(const FVector2D _SwipePosition, const FVector2D OriginPosition) const;
 
-  void StateTransition(EInputState NewState);
+	bool CheckCurve(FVector2D StartPosition, FVector2D EndPosition, FVector2D OriginPosition, float Tolerance);
 
-  void CancelSwipe();
+	void StateTransition(EInputState NewState);
+
+	void CancelSwipe();
 
 public:
-  /* Show helper gizmos on screen. */
-  bool bHelpersEnabled = false;
 
-  FSlateBrush *GhostMat;
-  /* Reference to widget. */
-  UInputPanel2D *OwningWidget;
+	/* Show helper gizmos on screen. */
+	bool bHelpersEnabled = false;
 
-  FVector2D DeadZone = FVector2D(10.0f, 10.0f);
+	FSlateBrush* GhostMat;
+	/* Reference to widget. */
+	UInputPanel2D* OwningWidget;
 
-  /* Frame delay to register finger held on screen. Consequently also the time
-   * frame to press and release for tap recognition. */
-  int HoldFrames = 2;
+	FVector2D DeadZone = FVector2D(10.0f,10.0f);
 
-  int AutoTapFrames = -1;
+	/* Frame delay to register finger held on screen. Consequently also the time frame to press and release for tap recognition. */
+	int HoldFrames = 2;
 
-  //----------Swipe Params-----------
-  /* Minimum speed to move finger for swipe registration. */
-  float MinSwipeVelocity = 1000.f;
-  /* Distance to move finger for short swipe. */
-  float ShortSwipeThreshold = 100.f;
-  /* Distance to move finger for long swipe. */
-  float LongSwipeThreshold = 200.f;
-  /* Time to complete swipe, ie time to switch from swipe to hold state if no
-   * swipe is triggered. */
-  float SwipeTimeOut = 0.016666f;
-  //----------Swipe Params-----------
+	int AutoTapFrames = -1;
 
-  /* Toggle diagonal vs vert/horiz swipe and tap inputs. */
-  bool bUseDiagonalSwipeInputs;
+//----------Swipe Params-----------
+	/* Minimum speed to move finger for swipe registration. */
+	float MinSwipeVelocity = 1000.f;
+	/* Distance to move finger for short swipe. */
+	float ShortSwipeThreshold = 100.f;
+	/* Distance to move finger for long swipe. */
+	float LongSwipeThreshold = 200.f;
+	/* Time to complete swipe, ie time to switch from swipe to hold state if no swipe is triggered. */
+	float SwipeTimeOut = 0.016666f;
+//----------Swipe Params-----------
 
-  /* Bounds of virtual joystick. */
-  FVector2D JoystickLimit;
+	/* Toggle diagonal vs vert/horiz swipe and tap inputs. */
+	bool bUseDiagonalSwipeInputs;
 
-  /* Radius of virtual joystick thumb widget. */
-  float JoystickThumbRadius = 40.f;
+	/* Bounds of virtual joystick. */
+	FVector2D JoystickLimit;
 
-  float CurveTolerance = 0.8f;
+	/* Radius of virtual joystick thumb widget. */
+	float JoystickThumbRadius = 40.f;
 
-  int CurveRankThreshold = 3;
+	float CurveTolerance = 0.8f;
 
-  float MinNudgeVelocity = 200.f;
+	int CurveRankThreshold = 3;
 
-  //-------------Experimental-------------
-  /* Enables triggering swipe while finger held, hold->swipe->hold->swipe->...
-   * Default behavior: swipe is triggered on release. */
-  bool bHoldSwipeTrigger = true;
-  /* Frames to trigger swipe while finger held. */
-  int SwipeEventFrameCount = 3;
-  //-------------Experimental-------------
+	float MinNudgeVelocity = 200.f;
 
-  /* Center of widget, set at runtime. */
-  FVector2D WidgetCenter = FVector2D(0.f, 0.f);
+//-------------Experimental-------------
+	/* Enables triggering swipe while finger held, hold->swipe->hold->swipe->... Default behavior: swipe is triggered on release. */
+	bool bHoldSwipeTrigger = true;
+	/* Frames to trigger swipe while finger held. */
+	int SwipeEventFrameCount = 3;
+//-------------Experimental-------------
+
+	/* Center of widget, set at runtime. */
+	FVector2D WidgetCenter = FVector2D(0.f, 0.f);
 
 protected:
-  EInputState InputState;
-  /* Modified position when moving held finger. */
-  FVector2D TouchPosition;
-  /* Initial position on touch start. */
-  FVector2D InitialTouchPosition;
-  float TouchTimeStamp;
-  FVector2D SwipePosition;
-  /* Position on touch end. */
-  FVector2D ReleasePosition;
-  /* List of positions recorded during on touch move event. */
-  TArray<FVector2D> SwipePositions;
-  /* Frame counter to determine touch -> hold transition. */
-  int FramesSinceTouch = 0;
 
-  FColor GhostColor = FColor::White;
 
-  float t = 0.f;
 
-  float SwipeTimeStamp;
+	EInputState InputState;
+	/* Modified position when moving held finger. */
+	FVector2D TouchPosition;
+	/* Initial position on touch start. */
+	FVector2D InitialTouchPosition;
+	float TouchTimeStamp;
+	FVector2D SwipePosition;
+	/* Position on touch end. */
+	FVector2D ReleasePosition;
+	/* List of positions recorded during on touch move event. */
+	TArray<FVector2D> SwipePositions;
+	/* Frame counter to determine touch -> hold transition. */
+	int FramesSinceTouch = 0;
 
-  float TouchStartTimestamp;
+	FColor GhostColor = FColor::White;
 
-  float SwipeStartTimestamp;
+	float t = 0.f;
 
-  FVector2D JoystickPosition;
+	float SwipeTimeStamp;
 
-  FVector2D AxisOutput;
+	float TouchStartTimestamp;
 
-  bool bInputAccept = true;
+	float SwipeStartTimestamp;
 
-  bool bTapGate;
+	FVector2D JoystickPosition;
+
+	FVector2D AxisOutput;
+
+	bool bInputAccept = true;
+
+	bool bTapGate;
 
 private:
+
+
 };

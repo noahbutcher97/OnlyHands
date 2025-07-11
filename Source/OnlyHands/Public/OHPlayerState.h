@@ -2,33 +2,36 @@
 
 #pragma once
 
-#include "AbilitySystem/OHCombatAbilitySystemComponent.h"
-#include "AbilitySystem/OHCombatAttributeSet.h"
-#include "AbilitySystemInterface.h"
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerState.h"
+#include "AbilitySystem/OHCombatAttributeSet.h"
+#include "AbilitySystem/OHCombatAbilitySystemComponent.h"
+#include "AbilitySystemInterface.h"
 #include "OHPlayerState.generated.h"
 
 /**
- *
+ * 
  */
 UCLASS()
-class ONLYHANDS_API AOHPlayerState : public APlayerState,
-                                     public IAbilitySystemInterface {
-  GENERATED_BODY()
+class ONLYHANDS_API AOHPlayerState : public APlayerState, public IAbilitySystemInterface
+{
+	GENERATED_BODY()
 
 public:
-  AOHPlayerState();
+	AOHPlayerState();
 
-  // Implement IAbilitySystemInterface
-  class UAbilitySystemComponent *GetAbilitySystemComponent() const override;
+	// Implement IAbilitySystemInterface
+	class UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
-  class UOHCombatAttributeSet *GetAttributeSet() const;
+	class UOHCombatAttributeSet* GetAttributeSet() const;
 
 protected:
-  UPROPERTY()
-  class UOHCombatAbilitySystemComponent *AbilitySystemComponent;
 
-  UPROPERTY()
-  class UOHCombatAttributeSet *CombatAttributeSet;
+	UPROPERTY()
+	class UOHCombatAbilitySystemComponent* AbilitySystemComponent;
+
+	UPROPERTY()
+	class UOHCombatAttributeSet* CombatAttributeSet;
+
+	
 };

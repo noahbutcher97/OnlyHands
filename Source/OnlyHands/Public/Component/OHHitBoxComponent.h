@@ -2,28 +2,30 @@
 
 #pragma once
 
-#include "Components/SceneComponent.h"
 #include "CoreMinimal.h"
+#include "Components/SceneComponent.h"
 #include "OHHitBoxComponent.generated.h"
 
-UCLASS(Blueprintable, BlueprintType, ClassGroup = (State),
-       meta = (BlueprintSpawnableComponent))
-class ONLYHANDS_API UOHHitBoxComponent : public USceneComponent {
-  GENERATED_BODY()
 
-public:
-  // Sets default values for this component's properties
-  UOHHitBoxComponent();
+UCLASS(Blueprintable, BlueprintType, ClassGroup = (State), meta = (BlueprintSpawnableComponent))
+class ONLYHANDS_API UOHHitBoxComponent : public USceneComponent
+{
+	GENERATED_BODY()
 
-  /*:
-      void ActivateHitbox();
-      void Reset();
+public:	
+	// Sets default values for this component's properties
+	UOHHitBoxComponent();
 
-  protected:
-      UPROPERTY(EditAnywhere)
-      FVector BoxExtent = FVector(50.0f, 50.0f, 50.0f);
+/*:
+    void ActivateHitbox();
+    void Reset();
 
-  private:
-      bool bIsActive = false;
-      */
+protected:
+    UPROPERTY(EditAnywhere)
+    FVector BoxExtent = FVector(50.0f, 50.0f, 50.0f);
+
+private:
+    bool bIsActive = false;
+    */
+		
 };

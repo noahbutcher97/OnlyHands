@@ -2,34 +2,35 @@
 
 #pragma once
 
-#include "Components/ActorComponent.h"
 #include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
 #include "OHDefenseComponent.generated.h"
 
-UCLASS(Blueprintable, BlueprintType, ClassGroup = (State),
-       meta = (BlueprintSpawnableComponent))
-class ONLYHANDS_API UOHDefenseComponent : public UActorComponent {
-  GENERATED_BODY()
 
-public:
-  // Sets default values for this component's properties
-  UOHDefenseComponent();
-  /*
-      UFUNCTION(BlueprintCallable, Category = "Combat")
-      void TryParry(float CurrentTime);
+UCLASS(Blueprintable, BlueprintType, ClassGroup = (State), meta = (BlueprintSpawnableComponent))
+class ONLYHANDS_API UOHDefenseComponent : public UActorComponent
+{
+	GENERATED_BODY()
 
-      UFUNCTION(BlueprintCallable, Category = "Combat")
-      void Reset();
+public:	
+	// Sets default values for this component's properties
+	UOHDefenseComponent();
+/*
+    UFUNCTION(BlueprintCallable, Category = "Combat")
+    void TryParry(float CurrentTime);
 
-  protected:
-      UPROPERTY(EditAnywhere)
-      float ParryWindowStart = 0.2f;
+    UFUNCTION(BlueprintCallable, Category = "Combat")
+    void Reset();
 
-      UPROPERTY(EditAnywhere)
-      float ParryWindowEnd = 0.6f;
+protected:
+    UPROPERTY(EditAnywhere)
+    float ParryWindowStart = 0.2f;
 
-  private:
-      UPROPERTY(VisibleAnywhere, Category = "Combat")
-      bool bIsParrying = false;
-          */
+    UPROPERTY(EditAnywhere)
+    float ParryWindowEnd = 0.6f;
+
+private:
+    UPROPERTY(VisibleAnywhere, Category = "Combat")
+    bool bIsParrying = false;
+	*/	
 };
