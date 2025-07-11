@@ -3,20 +3,15 @@
 #include "Slate/DeferredCleanupSlateBrush.h"
 #define LOCTEXT_NAMESPACE "UMG"
 
-UInputPanel2D::UInputPanel2D(const FObjectInitializer& ObjectInitializer): Super(ObjectInitializer)
-{
+UInputPanel2D::UInputPanel2D(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer) {}
+
+void UInputPanel2D::ReleaseSlateResources(bool bReleaseChildren) {
+    Super::ReleaseSlateResources(bReleaseChildren);
+
+    InputPanelRef.Reset();
 }
 
-void UInputPanel2D::ReleaseSlateResources(bool bReleaseChildren)
-{
-Super::ReleaseSlateResources(bReleaseChildren);
-
-   InputPanelRef.Reset();
-    
-}
-
-void UInputPanel2D::UpdateParameters()
-{
+void UInputPanel2D::UpdateParameters() {
     InputPanelRef->GhostMat = &GhostMat;
     InputPanelRef->HoldFrames = HoldFrames;
     InputPanelRef->DeadZone = FVector2D(DeadZone, DeadZone);
@@ -26,7 +21,7 @@ void UInputPanel2D::UpdateParameters()
     InputPanelRef->bUseDiagonalSwipeInputs = bUseDiagonalSwipeInputs;
     InputPanelRef->MinSwipeVelocity = MinSwipeVelocity;
     InputPanelRef->SwipeTimeOut = SwipeTimeOut;
-	InputPanelRef->JoystickLimit = JoystickLimit;
+    InputPanelRef->JoystickLimit = JoystickLimit;
     InputPanelRef->JoystickThumbRadius = JoystickThumbSize;
     InputPanelRef->bHoldSwipeTrigger = bHoldSwipeTrigger;
     InputPanelRef->SwipeEventFrameCount = HoldSwipeEventFrames;
@@ -35,11 +30,10 @@ void UInputPanel2D::UpdateParameters()
     InputPanelRef->MinNudgeVelocity = MinNudgeVelocity;
 }
 
-TSharedRef<SWidget> UInputPanel2D::RebuildWidget()
-{
+TSharedRef<SWidget> UInputPanel2D::RebuildWidget() {
 
     InputPanelRef = SNew(SInputPanel2D);
-    InputPanelRef->OwningWidget=this;
+    InputPanelRef->OwningWidget = this;
 
     InputPanelRef->GhostMat = &GhostMat;
     InputPanelRef->HoldFrames = HoldFrames;
@@ -50,7 +44,7 @@ TSharedRef<SWidget> UInputPanel2D::RebuildWidget()
     InputPanelRef->bUseDiagonalSwipeInputs = bUseDiagonalSwipeInputs;
     InputPanelRef->MinSwipeVelocity = MinSwipeVelocity;
     InputPanelRef->SwipeTimeOut = SwipeTimeOut;
-	InputPanelRef->JoystickLimit = JoystickLimit;
+    InputPanelRef->JoystickLimit = JoystickLimit;
     InputPanelRef->JoystickThumbRadius = JoystickThumbSize;
     InputPanelRef->bHoldSwipeTrigger = bHoldSwipeTrigger;
     InputPanelRef->SwipeEventFrameCount = HoldSwipeEventFrames;
@@ -63,8 +57,7 @@ TSharedRef<SWidget> UInputPanel2D::RebuildWidget()
 }
 
 #if WITH_EDITOR
-const FText UInputPanel2D::GetPaletteCategory()
-{
+const FText UInputPanel2D::GetPaletteCategory() {
     return LOCTEXT("Mobile", "Mobile");
 }
-#endif 
+#endif

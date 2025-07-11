@@ -10,28 +10,24 @@
 #include "OHPlayerState.generated.h"
 
 /**
- * 
+ *
  */
 UCLASS()
-class ONLYHANDS_API AOHPlayerState : public APlayerState, public IAbilitySystemInterface
-{
-	GENERATED_BODY()
+class ONLYHANDS_API AOHPlayerState : public APlayerState, public IAbilitySystemInterface {
+    GENERATED_BODY()
 
-public:
-	AOHPlayerState();
+  public:
+    AOHPlayerState();
 
-	// Implement IAbilitySystemInterface
-	class UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+    // Implement IAbilitySystemInterface
+    class UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
-	class UOHCombatAttributeSet* GetAttributeSet() const;
+    class UOHCombatAttributeSet* GetAttributeSet() const;
 
-protected:
+  protected:
+    UPROPERTY()
+    class UOHCombatAbilitySystemComponent* AbilitySystemComponent;
 
-	UPROPERTY()
-	class UOHCombatAbilitySystemComponent* AbilitySystemComponent;
-
-	UPROPERTY()
-	class UOHCombatAttributeSet* CombatAttributeSet;
-
-	
+    UPROPERTY()
+    class UOHCombatAttributeSet* CombatAttributeSet;
 };

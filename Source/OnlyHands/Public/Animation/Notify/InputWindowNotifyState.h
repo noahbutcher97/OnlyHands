@@ -6,17 +6,14 @@
 #include "InputWindowNotifyState.generated.h"
 
 UCLASS()
-class ONLYHANDS_API UInputWindowNotifyState : public UAnimNotifyState
-{
+class ONLYHANDS_API UInputWindowNotifyState : public UAnimNotifyState {
     GENERATED_BODY()
 
-public:
-
+  public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input Window")
     FName WindowName;
 
-    virtual FString GetNotifyName_Implementation() const override
-    {
+    virtual FString GetNotifyName_Implementation() const override {
         return FString::Printf(TEXT("%s"), *WindowName.ToString());
     }
 };
