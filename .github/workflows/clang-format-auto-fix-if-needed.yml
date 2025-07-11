@@ -1,0 +1,40 @@
+name: Clang Format Auto Fix If Needed
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  clang-format:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+
+      - name: Check formatting
+        id: check_format
+        run: |
+          if find Source -type f \( -name "*.cpp" -o -name "*.h" \) -exec clang-format --dry-run --Werror {} \;; then
+            echo "formatted=true" >> $GITHUB_OUTPUT
+          else
+            echo "formatted=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Auto-fix and push if needed
+        if: steps.check_format.outputs.formatted == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          find Source -type f \( -name "*.cpp" -o -name "*.h" \) -exec clang-format -i {} \;
+          git add Source
+          git commit -m "chore: auto-fix clang-format"
+          git push
