@@ -15,11 +15,11 @@ class ONLYHANDS_API UOHStatusComponent : public UActorComponent {
     UOHStatusComponent();
 
     /*
-            UFUNCTION(BlueprintCallable, Category = "Status")
+        UFUNCTION(BlueprintCallable, Category = "Status")
         void TakeDamage(float Amount);
-            UFUNCTION(BlueprintCallable, Category = "Status")
+        UFUNCTION(BlueprintCallable, Category = "Status")
         void GainStamina(float Amount);
-            UFUNCTION(BlueprintCallable, Category = "Status")
+        UFUNCTION(BlueprintCallable, Category = "Status")
         void Reset();
 
     protected:
@@ -30,11 +30,11 @@ class ONLYHANDS_API UOHStatusComponent : public UActorComponent {
         float MaxHealth = 100.0f;
 
     private:
-            UPROPERTY(VisibleAnywhere, Category = "Status")
+        UPROPERTY(VisibleAnywhere, Category = "Status")
         float CurrentStamina;
-            UPROPERTY(VisibleAnywhere, Category = "Status")
+        UPROPERTY(VisibleAnywhere, Category = "Status")
         float CurrentHealth;
-            UPROPERTY(VisibleAnywhere, Category = "Status")
+        UPROPERTY(VisibleAnywhere, Category = "Status")
         float MomentumLevel;
         */
 };

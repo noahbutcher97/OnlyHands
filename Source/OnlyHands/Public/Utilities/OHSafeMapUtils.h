@@ -50,7 +50,7 @@ FORCEINLINE ValueType& GetMutableReferenceChecked(TMap<KeyType, ValueType>& Map,
 
 template <typename TContext, typename TValue, typename TStruct, typename TField = TValue>
 EOHMutationResult TryApplyRuntimeMutation(
-    const TContext& ContextID, const TValue& NewValue, TField TStruct::*CachedFieldPtr,
+    const TContext& ContextID, const TValue& NewValue, TField TStruct::* CachedFieldPtr,
     TFunctionRef<bool(TStruct&, const TValue&)> ApplyToLiveInstanceFn, TStruct& TargetStruct,
     const FString& DebugLabel = TEXT("UnnamedField"), bool bStrict = false, int32* OutMutationCounter = nullptr,
     TFunctionRef<void()> OnMutation = []() {}) {

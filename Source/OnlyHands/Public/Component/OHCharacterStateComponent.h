@@ -15,10 +15,10 @@ class ONLYHANDS_API UOHCharacterStateComponent : public UActorComponent {
     UOHCharacterStateComponent();
 
     /*
-            UFUNCTION(BlueprintCallable, Category = "State")
+        UFUNCTION(BlueprintCallable, Category = "State")
         void SetState(FName NewState);
 
-            UFUNCTION(BlueprintCallable, Category = "State")
+        UFUNCTION(BlueprintCallable, Category = "State")
         FName GetCurrentState() const;
 
         UFUNCTION(BlueprintCallable, Category = "State")

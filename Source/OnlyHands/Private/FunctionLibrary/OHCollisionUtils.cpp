@@ -1097,70 +1097,70 @@ void UOHCollisionUtils::ComputeConvexHullWithIndices(const TArray<FVector>& Inpu
 
 /*
 void UOHCollisionUtils::ComputeConvexHullWithIndices(
-        const TArray<FVector>& InputPoints,
-        TArray<FVector>& OutVertices,
-        TArray<int32>& OutTriangleIndices)
+    const TArray<FVector>& InputPoints,
+    TArray<FVector>& OutVertices,
+    TArray<int32>& OutTriangleIndices)
 {
-        OutVertices.Empty();
-        OutTriangleIndices.Empty();
+    OutVertices.Empty();
+    OutTriangleIndices.Empty();
 
-        if (InputPoints.Num() < 4) return;
+    if (InputPoints.Num() < 4) return;
 
-        // Step 1: Find extremes on X
-        int32 MinX = 0, MaxX = 0;
-        for (int32 i = 1; i < InputPoints.Num(); ++i)
+    // Step 1: Find extremes on X
+    int32 MinX = 0, MaxX = 0;
+    for (int32 i = 1; i < InputPoints.Num(); ++i)
+    {
+        if (InputPoints[i].X < InputPoints[MinX].X) MinX = i;
+        if (InputPoints[i].X > InputPoints[MaxX].X) MaxX = i;
+    }
+    FVector A = InputPoints[MinX];
+    FVector B = InputPoints[MaxX];
+
+    // Step 2: Farthest from AB
+    int32 MaxAreaIdx = -1;
+    float MaxArea = -1.f;
+    for (int32 i = 0; i < InputPoints.Num(); ++i)
+    {
+        if (i == MinX || i == MaxX) continue;
+        FVector AreaVec = FVector::CrossProduct(B - A, InputPoints[i] - A);
+        float Area = AreaVec.Size();
+        if (Area > MaxArea)
         {
-                if (InputPoints[i].X < InputPoints[MinX].X) MinX = i;
-                if (InputPoints[i].X > InputPoints[MaxX].X) MaxX = i;
+            MaxArea = Area;
+            MaxAreaIdx = i;
         }
-        FVector A = InputPoints[MinX];
-        FVector B = InputPoints[MaxX];
+    }
+    if (MaxAreaIdx == -1) return;
+    FVector C = InputPoints[MaxAreaIdx];
 
-        // Step 2: Farthest from AB
-        int32 MaxAreaIdx = -1;
-        float MaxArea = -1.f;
-        for (int32 i = 0; i < InputPoints.Num(); ++i)
+    // Step 3: Farthest from triangle plane
+    FVector Normal = FVector::CrossProduct(B - A, C - A).GetSafeNormal();
+    int32 MaxDepthIdx = -1;
+    float MaxDist = -1.f;
+    for (int32 i = 0; i < InputPoints.Num(); ++i)
+    {
+        if (i == MinX || i == MaxX || i == MaxAreaIdx) continue;
+        float Dist = FMath::Abs(FVector::DotProduct(InputPoints[i] - A, Normal));
+        if (Dist > MaxDist)
         {
-                if (i == MinX || i == MaxX) continue;
-                FVector AreaVec = FVector::CrossProduct(B - A, InputPoints[i] - A);
-                float Area = AreaVec.Size();
-                if (Area > MaxArea)
-                {
-                        MaxArea = Area;
-                        MaxAreaIdx = i;
-                }
+            MaxDist = Dist;
+            MaxDepthIdx = i;
         }
-        if (MaxAreaIdx == -1) return;
-        FVector C = InputPoints[MaxAreaIdx];
+    }
+    if (MaxDepthIdx == -1) return;
+    FVector D = InputPoints[MaxDepthIdx];
 
-        // Step 3: Farthest from triangle plane
-        FVector Normal = FVector::CrossProduct(B - A, C - A).GetSafeNormal();
-        int32 MaxDepthIdx = -1;
-        float MaxDist = -1.f;
-        for (int32 i = 0; i < InputPoints.Num(); ++i)
-        {
-                if (i == MinX || i == MaxX || i == MaxAreaIdx) continue;
-                float Dist = FMath::Abs(FVector::DotProduct(InputPoints[i] - A, Normal));
-                if (Dist > MaxDist)
-                {
-                        MaxDist = Dist;
-                        MaxDepthIdx = i;
-                }
-        }
-        if (MaxDepthIdx == -1) return;
-        FVector D = InputPoints[MaxDepthIdx];
+    // Add tetrahedron vertices
+    OutVertices.Add(A); // 0
+    OutVertices.Add(B); // 1
+    OutVertices.Add(C); // 2
+    OutVertices.Add(D); // 3
 
-        // Add tetrahedron vertices
-        OutVertices.Add(A); // 0
-        OutVertices.Add(B); // 1
-        OutVertices.Add(C); // 2
-        OutVertices.Add(D); // 3
-
-        // Build 4 triangle faces (wound outward)
-        OutTriangleIndices.Append({0, 1, 2}); // ABC
-        OutTriangleIndices.Append({0, 3, 1}); // ADB
-        OutTriangleIndices.Append({0, 2, 3}); // ACD
-        OutTriangleIndices.Append({1, 3, 2}); // BDC
+    // Build 4 triangle faces (wound outward)
+    OutTriangleIndices.Append({0, 1, 2}); // ABC
+    OutTriangleIndices.Append({0, 3, 1}); // ADB
+    OutTriangleIndices.Append({0, 2, 3}); // ACD
+    OutTriangleIndices.Append({1, 3, 2}); // BDC
 }
 */
 void UOHCollisionUtils::DebugConvexIntersectionCheck(const UObject* WorldContextObject, const TArray<FVector>& PointsA,

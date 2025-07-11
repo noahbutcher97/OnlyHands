@@ -237,7 +237,7 @@ FReply SInputPanel2D::OnTouchEnded(const FGeometry& MyGeometry, const FPointerEv
 }
 
 /*
-        -----------------TICK---------------------
+    -----------------TICK---------------------
 */
 void SInputPanel2D::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) {
     if (WidgetCenter == FVector2D::ZeroVector) {

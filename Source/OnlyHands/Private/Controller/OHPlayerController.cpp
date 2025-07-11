@@ -26,15 +26,15 @@ void AOHPlayerController::HandleMoveForward(float Value) {
     OnMoveForwardInput.Broadcast(Value);
     BroadcastCombinedInput();
     /*#if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
-            if (GEngine)
-            {
-                    GEngine->AddOnScreenDebugMessage(
-                            (uint64)((PTRINT)this)+12345, // unique key for forward
-                            0.05f, // Short duration
-                            FColor::Green,
-                            FString::Printf(TEXT("Controller Forward Axis: %.2f"), Value)
-                    );
-            }
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(
+                (uint64)((PTRINT)this)+12345, // unique key for forward
+                0.05f, // Short duration
+                FColor::Green,
+                FString::Printf(TEXT("Controller Forward Axis: %.2f"), Value)
+            );
+        }
     #endif*/
 }
 
@@ -43,15 +43,15 @@ void AOHPlayerController::HandleMoveRight(float Value) {
     OnMoveRightInput.Broadcast(Value);
     BroadcastCombinedInput();
     /*#if UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT
-            if (GEngine)
-            {
-                    GEngine->AddOnScreenDebugMessage(
-                            (uint64)((PTRINT)this)+12346, // unique key for right
-                            0.05f,
-                            FColor::Cyan,
-                            FString::Printf(TEXT("Controller Right Axis: %.2f"), Value)
-                    );
-            }
+        if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(
+                (uint64)((PTRINT)this)+12346, // unique key for right
+                0.05f,
+                FColor::Cyan,
+                FString::Printf(TEXT("Controller Right Axis: %.2f"), Value)
+            );
+        }
     #endif*/
 }
 

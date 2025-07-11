@@ -1748,10 +1748,10 @@ struct FOHBoneData {
 /*USTRUCT(BlueprintType)
 struct FOHBoneNameArrayWrapper
 {
-        GENERATED_BODY()
+    GENERATED_BODY()
 
-        UPROPERTY()
-        TArray<FName> Bones;
+    UPROPERTY()
+    TArray<FName> Bones;
 };
 */
 #pragma endregion
@@ -1761,10 +1761,10 @@ struct FOHBoneNameArrayWrapper
 USTRUCT(BlueprintType)
 struct FOHConstraintInstanceArrayWrapper
 {
-        GENERATED_BODY()
+    GENERATED_BODY()
 
-        UPROPERTY()
-        TArray<FOHConstraintInstanceData> Constraints;
+    UPROPERTY()
+    TArray<FOHConstraintInstanceData> Constraints;
 };
 */
 #pragma endregion
@@ -1820,9 +1820,9 @@ struct FOHPhysicsGraphNode {
 
     // -- ParentToChildrenMap --
     /* FORCEINLINE const TMap<FName, FOHBoneNameArrayWrapper>& GetParentToChildrenMap() const { return
-       ParentToChildrenMap; } FORCEINLINE TMap<FName, FOHBoneNameArrayWrapper>& GetParentToChildrenMap() { return
-       ParentToChildrenMap; } FORCEINLINE void SetParentToChildrenMap(const TMap<FName, FOHBoneNameArrayWrapper>& InMap)
-       { ParentToChildrenMap = InMap; }*/
+     ParentToChildrenMap; } FORCEINLINE TMap<FName, FOHBoneNameArrayWrapper>& GetParentToChildrenMap() { return
+     ParentToChildrenMap; } FORCEINLINE void SetParentToChildrenMap(const TMap<FName, FOHBoneNameArrayWrapper>& InMap) {
+     ParentToChildrenMap = InMap; }*/
     /// Returns all child bones for the given parent (O(1) via TMultiMap)
     /// Raw, O(1) parent→children via TMultiMap
     FORCEINLINE TArray<FName> GetChildrenOfBone(FName ParentBone) const {
@@ -1838,9 +1838,9 @@ struct FOHPhysicsGraphNode {
 
     // -- BoneToConstraintsMap --
     /* FORCEINLINE const TMap<FName, FOHConstraintInstanceArrayWrapper>& GetBoneToConstraintsMap() const { return
-       BoneToConstraintsMap; } FORCEINLINE TMap<FName, FOHConstraintInstanceArrayWrapper>& GetBoneToConstraintsMap() {
-       return BoneToConstraintsMap; } FORCEINLINE void SetBoneToConstraintsMap(const TMap<FName,
-       FOHConstraintInstanceArrayWrapper>& InMap) { BoneToConstraintsMap = InMap; }*/
+     BoneToConstraintsMap; } FORCEINLINE TMap<FName, FOHConstraintInstanceArrayWrapper>& GetBoneToConstraintsMap() {
+     return BoneToConstraintsMap; } FORCEINLINE void SetBoneToConstraintsMap(const TMap<FName,
+     FOHConstraintInstanceArrayWrapper>& InMap) { BoneToConstraintsMap = InMap; }*/
     /// Returns all constraints attached to the given bone as child or parent
     /// Raw, O(1) bone→constraints via TMultiMap
     FORCEINLINE TArray<FOHConstraintInstanceData> GetConstraintsOfBone(FName BoneName) const {

@@ -82,17 +82,17 @@ void UOHPhysicsComponent::SetupPhysicsAnimationSystem() {
             UE_LOG(LogTemp, Warning, TEXT("[OHPhysicsComponent] Used DefaultPhysicsAsset for %s."), *GetName());
         }
         /*#if WITH_EDITOR
-                        else
-                        {
-                                // Try to auto-generate a PhysicsAsset in editor
-                                PhysicsAsset =
-        GeneratePhysicsAssetForMesh(SkeletalMeshComponent->GetSkeletalMeshAsset()); if (PhysicsAsset)
-                                {
-                                        SkeletalMeshComponent->SetPhysicsAsset(PhysicsAsset, false);
-                                        UE_LOG(LogTemp, Warning, TEXT("[OHPhysicsComponent] Auto-generated PhysicsAsset
-        for %s."), *GetName());
-                                }
-                        }
+                else
+                {
+                    // Try to auto-generate a PhysicsAsset in editor
+                    PhysicsAsset = GeneratePhysicsAssetForMesh(SkeletalMeshComponent->GetSkeletalMeshAsset());
+                    if (PhysicsAsset)
+                    {
+                        SkeletalMeshComponent->SetPhysicsAsset(PhysicsAsset, false);
+                        UE_LOG(LogTemp, Warning, TEXT("[OHPhysicsComponent] Auto-generated PhysicsAsset for %s."),
+        *GetName());
+                    }
+                }
         #endif*/
     }
     if (!PhysicsAsset) {
@@ -232,9 +232,9 @@ FConstraintInstance* UOHPhysicsComponent::EnsureConstraintBetweenBones_Static(
     if (FoundIdx == INDEX_NONE) {
         FString ConstraintName = FString::Printf(TEXT("Constraint_%s_%s"), *Bone1.ToString(), *Bone2.ToString());
         /*  int32 NewIdx = FPhysicsAssetUtils::CreateNewConstraint(PhysicsAsset, FName(*ConstraintName));
-                  if (NewIdx != INDEX_NONE)
-                  {
-                          UPhysicsConstraintTemplate* NewConstraint = PhysicsAsset->ConstraintSetup[NewIdx];
+          if (NewIdx != INDEX_NONE)
+          {
+              UPhysicsConstraintTemplate* NewConstraint = PhysicsAsset->ConstraintSetup[NewIdx];
              NewConstraint->DefaultInstance.ConstraintBone1 = Bone1;
              NewConstraint->DefaultInstance.ConstraintBone2 = Bone2;
               UE_LOG(LogTemp, Warning, TEXT("[OHPhysicsComponent] (Static) Created new constraint between %s and %s."),
@@ -898,26 +898,26 @@ void UOHPhysicsComponent::RecoverChain(FPhysicalAnimationChainRuntime& Chain) {
 /*
 TArray<int32> UOHPhysicsComponent::GetBoneIndicesInChain(FName StartBone, FName EndBone) const
 {
-        TArray<int32> Indices;
-        if (!SkeletalMeshComponent) return Indices;
+    TArray<int32> Indices;
+    if (!SkeletalMeshComponent) return Indices;
 
-        const FReferenceSkeleton& RefSkeleton = SkeletalMeshComponent->GetSkeletalMeshAsset()->GetRefSkeleton();
+    const FReferenceSkeleton& RefSkeleton = SkeletalMeshComponent->GetSkeletalMeshAsset()->GetRefSkeleton();
 
-        int32 StartIdx = RefSkeleton.FindBoneIndex(StartBone);
-        int32 EndIdx = RefSkeleton.FindBoneIndex(EndBone);
-        if (StartIdx == INDEX_NONE || EndIdx == INDEX_NONE) return Indices;
+    int32 StartIdx = RefSkeleton.FindBoneIndex(StartBone);
+    int32 EndIdx = RefSkeleton.FindBoneIndex(EndBone);
+    if (StartIdx == INDEX_NONE || EndIdx == INDEX_NONE) return Indices;
 
-        // Traverse from start to end in skeleton hierarchy
-        int32 CurrentIdx = StartIdx;
-        while (CurrentIdx != INDEX_NONE)
-        {
-                Indices.Add(CurrentIdx);
-                if (CurrentIdx == EndIdx)
-                        break;
-                CurrentIdx = RefSkeleton.GetChildBoneIndex(CurrentIdx, 0); // May need more logic for complex branches
-        }
+    // Traverse from start to end in skeleton hierarchy
+    int32 CurrentIdx = StartIdx;
+    while (CurrentIdx != INDEX_NONE)
+    {
+        Indices.Add(CurrentIdx);
+        if (CurrentIdx == EndIdx)
+            break;
+        CurrentIdx = RefSkeleton.GetChildBoneIndex(CurrentIdx, 0); // May need more logic for complex branches
+    }
 
-        return Indices;
+    return Indices;
 }
 */
 

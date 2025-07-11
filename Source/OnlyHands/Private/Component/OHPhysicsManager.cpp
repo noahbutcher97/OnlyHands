@@ -760,55 +760,54 @@ void UOHPhysicsManager::PropagateImpulse(FName OriginBone, FVector Impulse, floa
 
 /*void UOHPhysicsManager::ApplySimSettingsToBone(const FName& Bone, const FPhysicalAnimationData& BaseProfile)
 {
-        if (!PhysicalAnimationComponent || !SkeletalMesh) return;
+    if (!PhysicalAnimationComponent || !SkeletalMesh) return;
 
-        // === PAC Tweaks ===
-        float PACMultiplier = 1.f, LinearDamping = 5.f, AngularDamping = 3.f;
-        ComputePhysicsTweaksForBone(Bone, PACMultiplier, LinearDamping, AngularDamping);
+    // === PAC Tweaks ===
+    float PACMultiplier = 1.f, LinearDamping = 5.f, AngularDamping = 3.f;
+    ComputePhysicsTweaksForBone(Bone, PACMultiplier, LinearDamping, AngularDamping);
 
-        FPhysicalAnimationData ScaledProfile = BaseProfile;
-        ScaledProfile.OrientationStrength *= PACMultiplier;
-        ScaledProfile.PositionStrength *= PACMultiplier;
-        ScaledProfile.VelocityStrength *= PACMultiplier;
+    FPhysicalAnimationData ScaledProfile = BaseProfile;
+    ScaledProfile.OrientationStrength *= PACMultiplier;
+    ScaledProfile.PositionStrength *= PACMultiplier;
+    ScaledProfile.VelocityStrength *= PACMultiplier;
 
-        // Apply PAC
-        PhysicalAnimationComponent->ApplyPhysicalAnimationSettings(Bone, ScaledProfile);
-        ActiveBonePACData.Add(Bone, ScaledProfile);
+    // Apply PAC
+    PhysicalAnimationComponent->ApplyPhysicalAnimationSettings(Bone, ScaledProfile);
+    ActiveBonePACData.Add(Bone, ScaledProfile);
 
-        // === Damping & Sim ===
-        if (FBodyInstance* Body = SkeletalMesh->GetBodyInstance(Bone))
+    // === Damping & Sim ===
+    if (FBodyInstance* Body = SkeletalMesh->GetBodyInstance(Bone))
+    {
+        Body->SetInstanceSimulatePhysics(true);
+        Body->LinearDamping = LinearDamping;
+        Body->AngularDamping = AngularDamping;
+    }
+
+    // === Constraint Tuning ===
+    if (UPhysicsAsset* PhysicsAsset = SkeletalMesh->GetPhysicsAsset())
+    {
+        const int32 ConstraintIndex = PhysicsAsset->FindConstraintIndex(Bone);
+        if (ConstraintIndex != INDEX_NONE)
         {
-                Body->SetInstanceSimulatePhysics(true);
-                Body->LinearDamping = LinearDamping;
-                Body->AngularDamping = AngularDamping;
+            // Ensure the setup pointer is valid
+            if (PhysicsAsset->ConstraintSetup.IsValidIndex(ConstraintIndex) &&
+                PhysicsAsset->ConstraintSetup[ConstraintIndex] != nullptr)
+            {
+                FConstraintInstance& Constraint = PhysicsAsset->ConstraintSetup[ConstraintIndex]->DefaultInstance;
+                FConstraintProfileProperties Profile = Constraint.ProfileInstance;
+
+                ComputeOptimalConstraintSettings(&Constraint, Profile, Bone);
+                Constraint.ProfileInstance = Profile;
+
+                UE_LOG(LogTemp, Log, TEXT("[OHPhysicsManager] [%s] Applied PAC x%.2f | Damping L %.2f A %.2f |
+Constraint tuned to %s"), *GetOwner()->GetName(), PACMultiplier, LinearDamping, AngularDamping, *Bone.ToString());
+                return;
+            }
         }
+    }
 
-        // === Constraint Tuning ===
-        if (UPhysicsAsset* PhysicsAsset = SkeletalMesh->GetPhysicsAsset())
-        {
-                const int32 ConstraintIndex = PhysicsAsset->FindConstraintIndex(Bone);
-                if (ConstraintIndex != INDEX_NONE)
-                {
-                        // Ensure the setup pointer is valid
-                        if (PhysicsAsset->ConstraintSetup.IsValidIndex(ConstraintIndex) &&
-                                PhysicsAsset->ConstraintSetup[ConstraintIndex] != nullptr)
-                        {
-                                FConstraintInstance& Constraint =
-PhysicsAsset->ConstraintSetup[ConstraintIndex]->DefaultInstance; FConstraintProfileProperties Profile =
-Constraint.ProfileInstance;
-
-                                ComputeOptimalConstraintSettings(&Constraint, Profile, Bone);
-                                Constraint.ProfileInstance = Profile;
-
-                                UE_LOG(LogTemp, Log, TEXT("[OHPhysicsManager] [%s] Applied PAC x%.2f | Damping L %.2f A
-%.2f | Constraint tuned to %s"), *GetOwner()->GetName(), PACMultiplier, LinearDamping, AngularDamping,
-*Bone.ToString()); return;
-                        }
-                }
-        }
-
-        // Fallback log if constraint not applied
-        UE_LOG(LogTemp, Log, TEXT("[OHPhysicsManager] [%s] Applied PAC x%.2f | Damping L %.2f A %.2f to %s (No
+    // Fallback log if constraint not applied
+    UE_LOG(LogTemp, Log, TEXT("[OHPhysicsManager] [%s] Applied PAC x%.2f | Damping L %.2f A %.2f to %s (No
 constraint)"), *GetOwner()->GetName(), PACMultiplier, LinearDamping, AngularDamping, *Bone.ToString());
 }*/
 

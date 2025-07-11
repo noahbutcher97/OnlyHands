@@ -51,14 +51,14 @@ void UOHMovementComponent::BeginPlay() {
 
     /*if (bIsPlayerControlled)
     {
-            if (AOHPlayerController* PC = Cast<AOHPlayerController>(Controller))
-            {
-                    PC->OnMoveForwardInput.AddDynamic(this, &UOHMovementComponent::OnReceiveMoveForward);
-                    PC->OnMoveRightInput.AddDynamic(this, &UOHMovementComponent::OnReceiveMoveRight);
-                    PC->OnMoveInputVector.AddDynamic(this, &UOHMovementComponent::OnReceiveMoveVector);
-                    UE_LOG(LogTemp, Warning, TEXT("MC: Delegates bound to PlayerController!"));
+        if (AOHPlayerController* PC = Cast<AOHPlayerController>(Controller))
+        {
+            PC->OnMoveForwardInput.AddDynamic(this, &UOHMovementComponent::OnReceiveMoveForward);
+            PC->OnMoveRightInput.AddDynamic(this, &UOHMovementComponent::OnReceiveMoveRight);
+            PC->OnMoveInputVector.AddDynamic(this, &UOHMovementComponent::OnReceiveMoveVector);
+            UE_LOG(LogTemp, Warning, TEXT("MC: Delegates bound to PlayerController!"));
 
-            }
+        }
     }*/
 }
 

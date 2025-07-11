@@ -30,5 +30,5 @@ class ONLYHANDS_API UOHDefenseComponent : public UActorComponent {
     private:
         UPROPERTY(VisibleAnywhere, Category = "Combat")
         bool bIsParrying = false;
-            */
+        */
 };

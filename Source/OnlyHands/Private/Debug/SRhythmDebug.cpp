@@ -10,7 +10,7 @@ bool SRhythmDebug::SupportsKeyboardFocus() const {
 void SRhythmDebug::Construct(const FArguments& InArgs) {}
 
 /*
-        -----------------TICK---------------------
+    -----------------TICK---------------------
 */
 void SRhythmDebug::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) {
     if (WidgetCenter == FVector2D::ZeroVector) {

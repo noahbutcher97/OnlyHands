@@ -14,7 +14,7 @@ UOHAttackComponent::UOHAttackComponent() {
 /*
 void UOHAttackComponent::TryAttack()
 {
-        return;
+    return;
     if (!bIsAttacking)
     {
         bIsAttacking = true;
@@ -26,7 +26,7 @@ void UOHAttackComponent::TryAttack()
 
 void UOHAttackComponent::Reset()
 {
-        return;
+    return;
 
     bIsAttacking = false;
     ComboStep = 0;
