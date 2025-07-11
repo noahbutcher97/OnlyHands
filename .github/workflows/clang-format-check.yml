@@ -14,7 +14,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install clang-format-20 from LLVM
+      - name: Install LLVM 20 clang-format
         run: |
           sudo apt-get update
           sudo apt-get install -y wget gnupg lsb-release
@@ -25,9 +25,11 @@ jobs:
 
       - name: Run clang-format check
         run: |
+          echo "Checking for formatting issues..."
           FORMAT_DIFF=$(find Source -type f \( -name "*.cpp" -o -name "*.h" \) -exec clang-format -output-replacements-xml {} \; | grep "<replacement " || true)
           if [ -n "$FORMAT_DIFF" ]; then
             echo "❌ clang-format found formatting issues."
+            echo "Run locally: clang-format -i (Get-ChildItem -Recurse -Include *.cpp,*.h | Select-Object -ExpandProperty FullName)"
             exit 1
           else
             echo "✅ All files are correctly formatted."
