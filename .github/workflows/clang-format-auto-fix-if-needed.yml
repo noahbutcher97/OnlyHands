@@ -23,15 +23,20 @@ jobs:
       - name: Check formatting
         id: check_format
         run: |
+          echo "Checking formatting with clang-format..."
           if find Source -type f \( -name "*.cpp" -o -name "*.h" \) -exec clang-format --dry-run --Werror {} \;; then
+            echo "✅ All files formatted correctly."
             echo "formatted=true" >> $GITHUB_OUTPUT
           else
+            echo "❌ Formatting issues found."
             echo "formatted=false" >> $GITHUB_OUTPUT
+            exit 1
           fi
 
       - name: Auto-fix and push if needed
-        if: steps.check_format.outputs.formatted == 'false'
+        if: failure() && steps.check_format.outputs.formatted == 'false'
         run: |
+          echo "Running auto-fix..."
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           find Source -type f \( -name "*.cpp" -o -name "*.h" \) -exec clang-format -i {} \;
