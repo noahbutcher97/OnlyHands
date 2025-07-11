@@ -1182,6 +1182,9 @@ void UOHPACManager::PlayCustomHitReaction(FName BoneName, const FPhysicalAnimati
         ApplyPhysicalAnimationProfile(BoneName, CustomProfile);
     }
 
+    // Preserve velocity as an impulse for smoother transitions
+    ApplyPoseInertia(BoneName);
+
     // Create blend state with unique ID
     FOHBlendState BlendState;
     BlendState.BlendID = NextBlendID++;
@@ -1190,9 +1193,10 @@ void UOHPACManager::PlayCustomHitReaction(FName BoneName, const FPhysicalAnimati
     BlendState.HoldDuration = Hold;
     BlendState.BlendOutDuration = BlendOut;
     BlendState.ReactionTag = ReactionTag;
+    const float CurrentAlpha = FMath::Clamp(GetBlendAlpha(BoneName), 0.f, 1.f);
+    BlendState.BlendAlpha = CurrentAlpha;
     BlendState.Phase = EOHBlendPhase::BlendIn;
-    BlendState.BlendAlpha = 0.f;
-    BlendState.ElapsedTime = 0.f;
+    BlendState.ElapsedTime = CurrentAlpha * BlendIn;
 
     // Add to blend array for this bone
     TArray<FOHBlendState>& BoneBlends = ActiveBlends.FindOrAdd(BoneName);
@@ -1337,6 +1341,32 @@ void UOHPACManager::ApplyImpulseToChain(FName RootBone, const FVector& Direction
     for (const FName& BoneName : Chain) {
         ApplyImpulse(BoneName, Direction, CurrentMagnitude);
         CurrentMagnitude *= Attenuation;
+    }
+}
+
+void UOHPACManager::ApplyPoseInertia(FName BoneName, float Scale) {
+    if (const FOHBoneMotionData* Data = BoneMotionMap.Find(BoneName)) {
+        if (FBodyInstance* Body = GetBodyInstanceDirect(BoneName)) {
+            if (Body->IsInstanceSimulatingPhysics()) {
+                const FVector Impulse = Data->GetLinearVelocity() * Body->GetBodyMass() * Scale;
+                Body->AddImpulse(Impulse, true);
+            }
+        }
+    }
+}
+
+void UOHPACManager::TuneConstraintStrength(FName BoneName, float StiffnessMul, float DampingMul) {
+    if (FOHConstraintData* Data = ConstraintDataMap.Find(BoneName)) {
+        if (FConstraintInstance* CI = Data->GetConstraintInstance()) {
+            FConstraintProfileProperties& Profile = CI->ProfileInstance;
+            Profile.ConeLimit.Stiffness *= StiffnessMul;
+            Profile.ConeLimit.Damping *= DampingMul;
+            Profile.TwistLimit.Stiffness *= StiffnessMul;
+            Profile.TwistLimit.Damping *= DampingMul;
+
+            CI->SetAngularDriveParams(Profile.ConeLimit.Stiffness, Profile.ConeLimit.Damping, 0.f);
+            CI->UpdateAngularLimit();
+        }
     }
 }
 #pragma endregion
