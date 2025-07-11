@@ -1,20 +1,22 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
+
 #include "Component/OHAttackComponent.h"
 
 // Sets default values for this component's properties
-UOHAttackComponent::UOHAttackComponent() {
-    // Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these
-    // features off to improve performance if you don't need them.
-    PrimaryComponentTick.bCanEverTick = false;
+UOHAttackComponent::UOHAttackComponent()
+{
+	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
+	// off to improve performance if you don't need them.
+	PrimaryComponentTick.bCanEverTick = false;
 
-    // ...
+	// ...
 }
 
 /*
 void UOHAttackComponent::TryAttack()
 {
-        return;
+	return;
     if (!bIsAttacking)
     {
         bIsAttacking = true;
@@ -26,8 +28,8 @@ void UOHAttackComponent::TryAttack()
 
 void UOHAttackComponent::Reset()
 {
-        return;
-
+	return;
+	
     bIsAttacking = false;
     ComboStep = 0;
 }

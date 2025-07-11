@@ -7,11 +7,13 @@
  * Returns a single shared physics profile for all bones.
  * Useful for testing how PAC parameters affect different body parts uniformly.
  */
-class FOHDebugStrategy : public IOHPhysicsBehaviorStrategy {
-  public:
+class FOHDebugStrategy : public IOHPhysicsBehaviorStrategy
+{
+public:
     FOHResolvedPhysicsTargets DebugTargets;
 
-    FOHDebugStrategy() {
+    FOHDebugStrategy()
+    {
         DebugTargets.OrientationStrength = 100.f;
         DebugTargets.PositionStrength = 75.f;
         DebugTargets.VelocityStrength = 50.f;
@@ -23,11 +25,13 @@ class FOHDebugStrategy : public IOHPhysicsBehaviorStrategy {
         DebugTargets.ProxyBlendAlpha = 0.35f;
     }
 
-    virtual FOHResolvedPhysicsTargets Resolve(const FBoneState& BoneState, EOHSkeletalBone Bone) const override {
+    virtual FOHResolvedPhysicsTargets Resolve(const FBoneState& BoneState, EOHSkeletalBone Bone) const override
+    {
         return DebugTargets;
     }
 
-    virtual FString GetStrategyName() const override {
+    virtual FString GetStrategyName() const override
+    {
         return TEXT("DebugStrategy");
     }
 };
