@@ -6,13 +6,13 @@
 AOHPlayerState::AOHPlayerState() {
     //	// Create ability system component, and set it to be explicitly replicated
     //	AbilitySystemComponent =
-    //CreateDefaultSubobject<UOHCombatAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
+    // CreateDefaultSubobject<UOHCombatAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
     //	AbilitySystemComponent->SetIsReplicated(true);
     //
     //	// Mixed mode means we only are replicated the GEs to ourself, not the GEs to simulated proxies. If another
-    //GDPlayerState (Hero) receives a GE,
+    // GDPlayerState (Hero) receives a GE,
     //	// we won't be told about it by the Server. Attributes, GameplayTags, and GameplayCues will still replicate to
-    //us. 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
+    // us. 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
     //
     //	// Create the attribute set, this replicates by default
     //	// Adding it as a subobject of the owning actor of an AbilitySystemComponent

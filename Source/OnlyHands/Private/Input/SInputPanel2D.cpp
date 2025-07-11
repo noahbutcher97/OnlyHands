@@ -529,7 +529,7 @@ int32 SInputPanel2D::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGe
 
             // Draw polygon
             //	FSlateResourceHandle ResourceHandle =
-            //FSlateApplication::Get().GetRenderer()->GetResourceHandle(*GhostMat);
+            // FSlateApplication::Get().GetRenderer()->GetResourceHandle(*GhostMat);
             //
             //	TArray<FSlateVertex> Vertices;
             //	TArray<SlateIndex> Indices;
@@ -541,11 +541,11 @@ int32 SInputPanel2D::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGe
             //	FColor FillColor = FColor::Green;
             //
             //	Vertices.Add(FSlateVertex::Make<ESlateVertexRounding::Disabled>(AllottedGeometry.ToPaintGeometry().GetAccumulatedRenderTransform(),
-            //P0, FVector2f::ZeroVector, FillColor));
+            // P0, FVector2f::ZeroVector, FillColor));
             //	Vertices.Add(FSlateVertex::Make<ESlateVertexRounding::Disabled>(AllottedGeometry.ToPaintGeometry().GetAccumulatedRenderTransform(),
-            //P1, FVector2f::ZeroVector, FillColor));
+            // P1, FVector2f::ZeroVector, FillColor));
             //	Vertices.Add(FSlateVertex::Make<ESlateVertexRounding::Disabled>(AllottedGeometry.ToPaintGeometry().GetAccumulatedRenderTransform(),
-            //P2, FVector2f::ZeroVector, FillColor));
+            // P2, FVector2f::ZeroVector, FillColor));
             //
             //	Indices.Add(0);
             //	Indices.Add(1);
