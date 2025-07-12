@@ -1344,10 +1344,17 @@ void UOHPACManager::UpdateBlendState(FOHBlendState& Blend, float DeltaTime) {
 
 void UOHPACManager::ApplyBlendAlpha(FName BoneName, float Alpha) {
     if (FBodyInstance* Body = GetBodyInstanceDirect(BoneName)) {
-        Body->PhysicsBlendWeight = Alpha;
+        const float Clamped = FMath::Clamp(Alpha, 0.f, 1.f);
+#if !UE_BUILD_SHIPPING
+        if (!FMath::IsNearlyEqual(Alpha, Clamped)) {
+            UE_LOG(LogOHPAC, Verbose, TEXT("[PAC] Clamped BlendAlpha for %s: %f -> %f"), *BoneName.ToString(), Alpha,
+                   Clamped);
+        }
+#endif
+        Body->PhysicsBlendWeight = Clamped;
 
         // Ensure the body is awakened when blend weight > 0
-        if (Alpha > 0.f && Body->IsInstanceSimulatingPhysics()) {
+        if (Clamped > 0.f && Body->IsInstanceSimulatingPhysics()) {
             Body->WakeInstance();
         }
     }
