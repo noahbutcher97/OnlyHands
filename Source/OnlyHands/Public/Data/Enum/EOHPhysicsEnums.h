@@ -587,11 +587,12 @@ enum class EOHHitDirection : uint8 {
     FrontLeft UMETA(DisplayName = "Front Left")
 };
 
-UENUM()
+UENUM(BlueprintType)
 enum class EOHBlendPhase : uint8 {
-    BlendIn,
-    Hold,
-    BlendOut,
+    BlendIn UMETA(DisplayName = "Blending In"),
+    Hold UMETA(DisplayName = "Hold Phase"),
+    BlendOut UMETA(DisplayName = "Blending Out"),
+    Permanent UMETA(DisplayName = "Permanent Active") // NEW: Never blends out
 };
 
 UENUM(BlueprintType)

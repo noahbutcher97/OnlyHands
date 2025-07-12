@@ -16,7 +16,9 @@ struct FOHMotionSample;
 struct FOHConstraintRuntimeState;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOHPACBoneEvent, FName, BoneName);
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOHPACHitReaction, FName, RootBone, const TArray<FName>&, AffectedBones);
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnHitReactionStarted, FName, RootBone, const TArray<FName>&,
                                                AffectedBones, FName, ReactionTag);
 
@@ -24,6 +26,46 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnHitReactionStarted, FName, Roo
 // CORE DATA STRUCTURES
 // ============================================================================
 #pragma region CORE DATA STRUCTURES
+
+UENUM(BlueprintType)
+enum class EOHBoneType : uint8 {
+    UpperBodyBones UMETA(DisplayName = "Upper Body"),
+    LowerBodyBones UMETA(DisplayName = "Lower Body"),
+    SpineBones UMETA(DisplayName = "Spine"),
+    HeadBones UMETA(DisplayName = "Head"),
+    LeftArmBones UMETA(DisplayName = "Left Arm"),
+    RightArmBones UMETA(DisplayName = "Right Arm"),
+    ArmBones UMETA(DisplayName = "All Arms"),
+    ClavicleBones UMETA(DisplayName = "Clavicles"),
+    UpperArmBones UMETA(DisplayName = "Upper Arms"),
+    LowerArmBones UMETA(DisplayName = "Lower Arms"),
+    HandBones UMETA(DisplayName = "Hands"),
+    LeftLegBones UMETA(DisplayName = "Left Leg"),
+    RightLegBones UMETA(DisplayName = "Right Leg"),
+    LegBones UMETA(DisplayName = "All Legs"),
+    ThighBones UMETA(DisplayName = "Thighs"),
+    CalfBones UMETA(DisplayName = "Calves"),
+    FootBones UMETA(DisplayName = "Feet"),
+};
+
+UENUM(BlueprintType)
+enum class EOHProfileIntensity : uint8 {
+    VeryLight UMETA(DisplayName = "Very Light"),
+    Light UMETA(DisplayName = "Light"),
+    Medium UMETA(DisplayName = "Medium"),
+    Strong UMETA(DisplayName = "Strong"),
+    VeryStrong UMETA(DisplayName = "Very Strong")
+};
+
+// Add enum for target alpha modes
+UENUM(BlueprintType)
+enum class EOHTargetAlphaMode : uint8 {
+    Full UMETA(DisplayName = "Full Physics (1.0)"),
+    IdlePose UMETA(DisplayName = "Idle Pose Retention"),
+    Secondary UMETA(DisplayName = "Secondary Motion"),
+    Subtle UMETA(DisplayName = "Subtle Physics"),
+    Custom UMETA(DisplayName = "Custom Value")
+};
 
 #pragma region FOHBoneMotionData
 USTRUCT(BlueprintType)
@@ -225,8 +267,174 @@ struct ONLYHANDS_API FOHConstraintData {
     bool IsOverstressed(float Threshold = 1.5f) const;
 };
 #pragma endregion
+#pragma region FOHConstraintDriveData
+USTRUCT(BlueprintType)
+struct ONLYHANDS_API FOHConstraintDriveData {
+    GENERATED_BODY()
+
+    UPROPERTY()
+    float LinearStiffnessX;
+    UPROPERTY()
+    float LinearStiffnessY;
+    UPROPERTY()
+    float LinearStiffnessZ;
+
+    UPROPERTY()
+    float LinearDampingX;
+    UPROPERTY()
+    float LinearDampingY;
+    UPROPERTY()
+    float LinearDampingZ;
+
+    UPROPERTY()
+    float AngularStiffnessSlerp;
+    UPROPERTY()
+    float AngularStiffnessSwing;
+    UPROPERTY()
+    float AngularStiffnessTwist;
+
+    UPROPERTY()
+    float AngularDampingSlerp;
+    UPROPERTY()
+    float AngularDampingSwing;
+    UPROPERTY()
+    float AngularDampingTwist;
+
+    UPROPERTY()
+    float LinearForceLimit;
+    UPROPERTY()
+    float AngularForceLimit;
+
+    UPROPERTY()
+    bool bLinearXDriveEnabled;
+    UPROPERTY()
+    bool bLinearYDriveEnabled;
+    UPROPERTY()
+    bool bLinearZDriveEnabled;
+
+    UPROPERTY()
+    bool bAngularSlerpDriveEnabled;
+    UPROPERTY()
+    bool bAngularSwingDriveEnabled;
+    UPROPERTY()
+    bool bAngularTwistDriveEnabled;
+
+    FOHConstraintDriveData() {
+        LinearStiffnessX = 0.f;
+        LinearStiffnessY = 0.f;
+        LinearStiffnessZ = 0.f;
+
+        LinearDampingX = 0.f;
+        LinearDampingY = 0.f;
+        LinearDampingZ = 0.f;
+
+        AngularStiffnessSlerp = 0.f;
+        AngularStiffnessSwing = 0.f;
+        AngularStiffnessTwist = 0.f;
+
+        AngularDampingSlerp = 0.f;
+        AngularDampingSwing = 0.f;
+        AngularDampingTwist = 0.f;
+
+        LinearForceLimit = 0.f;
+        AngularForceLimit = 0.f;
+
+        bLinearXDriveEnabled = false;
+        bLinearYDriveEnabled = false;
+        bLinearZDriveEnabled = false;
+
+        bAngularSlerpDriveEnabled = false;
+        bAngularSwingDriveEnabled = false;
+        bAngularTwistDriveEnabled = false;
+    }
+};
+#pragma endregion
+
+#pragma region BoneProperties
+
+USTRUCT(BlueprintType)
+struct ONLYHANDS_API FOHBoneProperties {
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly)
+    FName BoneName = NAME_None;
+
+    UPROPERTY(BlueprintReadOnly)
+    float Mass = 1.0f;
+
+    UPROPERTY(BlueprintReadOnly)
+    float MomentOfInertia = 0.027f;
+
+    UPROPERTY(BlueprintReadOnly)
+    float Length = 20.0f;
+
+    UPROPERTY(BlueprintReadOnly)
+    int32 HierarchyLevel = 0;
+
+    UPROPERTY(BlueprintReadOnly)
+    FName Category = NAME_None;
+
+    UPROPERTY(BlueprintReadOnly)
+    bool bHasValidPhysics = false;
+
+    UPROPERTY(BlueprintReadOnly)
+    float EffectiveMass = 1.0f;
+
+    UPROPERTY(BlueprintReadOnly)
+    float StabilityFactor = 1.0f;
+
+    FOHBoneProperties() {
+        BoneName = NAME_None;
+        Mass = 1.0f;
+        MomentOfInertia = 0.027f;
+        Length = 20.0f;
+        HierarchyLevel = 0;
+        Category = NAME_None;
+        bHasValidPhysics = false;
+        EffectiveMass = 1.0f;
+        StabilityFactor = 1.0f;
+    }
+};
+#pragma endregion
+
+#pragma region FOHChainAnalysis
+USTRUCT(BlueprintType)
+struct ONLYHANDS_API FOHChainAnalysis {
+    GENERATED_BODY()
+
+    UPROPERTY(BlueprintReadOnly)
+    TArray<FName> ChainBones;
+
+    UPROPERTY(BlueprintReadOnly)
+    int32 ChainLength = 0;
+
+    UPROPERTY(BlueprintReadOnly)
+    float TotalChainMass = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly)
+    TArray<bool> SimulationStates; // Which bones are simulated
+
+    UPROPERTY(BlueprintReadOnly)
+    int32 ContinuousSimCount = 0; // Consecutive simulated bones
+
+    UPROPERTY(BlueprintReadOnly)
+    bool bHasKinematicAnchors = false; // Has kinematic endpoints
+
+    UPROPERTY(BlueprintReadOnly)
+    float StabilityRisk = 0.0f; // 0-1, higher = more unstable
+
+    FOHChainAnalysis() {
+        ChainLength = 0;
+        TotalChainMass = 0.0f;
+        ContinuousSimCount = 0;
+        bHasKinematicAnchors = false;
+        StabilityRisk = 0.0f;
+    }
+};
+#pragma endregion
 
 #pragma region FOHBlendState
+
 USTRUCT(BlueprintType)
 struct ONLYHANDS_API FOHBlendState {
     GENERATED_BODY()
@@ -253,7 +461,16 @@ struct ONLYHANDS_API FOHBlendState {
     float HoldDuration = 0.25f;
 
     UPROPERTY()
+    bool bIsPermanent = false; // If true, never auto-blend-out
+
+    UPROPERTY()
     float BlendOutDuration = 0.2f;
+
+    UPROPERTY()
+    float CustomTargetAlpha = 1.0f; // Custom target alpha (when not using 1.0)
+
+    UPROPERTY()
+    EOHTargetAlphaMode TargetAlphaMode = EOHTargetAlphaMode::Full;
 
     UPROPERTY()
     FName ReactionTag = NAME_None;
@@ -280,7 +497,12 @@ struct ONLYHANDS_API FOHBlendState {
     FORCEINLINE bool IsPaused() const {
         return PauseCount > 0;
     }
+    // Update IsComplete to handle permanent blends:
     FORCEINLINE bool IsComplete() const {
+        // Permanent blends are never "complete" unless forced to blend out
+        if (bIsPermanent && Phase == EOHBlendPhase::Permanent) {
+            return false;
+        }
         return Phase == EOHBlendPhase::BlendOut && ElapsedTime >= BlendOutDuration;
     }
     FORCEINLINE float GetTotalDuration() const {
@@ -341,19 +563,187 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
     // === PHYSICS SETUP ===
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager")
     UPhysicsAsset* OverridePhysicsAsset = nullptr;
+#pragma region Static Bone Lookups
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Tracking")
     TSet<FName> TrackedBones = {"pelvis",     "spine_01",   "spine_02",   "spine_03",   "neck_01",
                                 "head",       "clavicle_l", "clavicle_r", "upperarm_l", "upperarm_r",
                                 "lowerarm_l", "lowerarm_r", "hand_l",     "hand_r",     "thigh_l",
                                 "thigh_r",    "calf_l",     "calf_r",     "foot_l",     "foot_r"};
-
+    // Bones that are excluded from simulation, but still tracked
+    // This is useful for bones that are not simulated, but are still used for IK
+    // For example, the hand bones are simulated, but the hand joints are not
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Tracking")
-    TSet<FName> SimulationExclusions = {"root", "pelvis", "neck_01"};
+    TSet<FName> SimulationExclusions = {"root", "pelvis"};
 
+    UPROPERTY()
+    TArray<FName> UpperBodyBones = {"spine_01",   "spine_02",   "spine_03",   "clavicle_l", "clavicle_r",
+                                    "upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r", "hand_l",
+                                    "hand_r",     "neck_01",    "head"};
+
+    UPROPERTY()
+    TArray<FName> LowerBodyBones = {"pelvis", "thigh_l", "thigh_r", "calf_l", "calf_r", "foot_l", "foot_r"};
+
+    UPROPERTY()
+    TArray<FName> LeftLegBones = {"thigh_l", "calf_l", "foot_l"};
+
+    UPROPERTY()
+    TArray<FName> RightLegBones = {"thigh_r", "calf_r", "foot_r"};
+
+    UPROPERTY()
+    TArray<FName> LegBones = {"thigh_l", "thigh_r", "calf_l", "calf_r", "foot_l", "foot_r"};
+
+    UPROPERTY()
+    TArray<FName> ThighBones = {"thigh_l", "thigh_r"};
+
+    UPROPERTY()
+    TArray<FName> CalfBones = {"calf_l", "calf_r"};
+
+    UPROPERTY()
+    TArray<FName> FootBones = {"foot_l", "foot_r"};
+
+    UPROPERTY()
+    TArray<FName> SpineBones = {"spine_01", "spine_02", "spine_03"};
+
+    UPROPERTY()
+    TArray<FName> HeadBones = {"neck_01", "head"};
+
+    UPROPERTY()
+    TArray<FName> LeftArmBones = {"clavicle_l", "upperarm_l", "lowerarm_l", "hand_l"};
+
+    UPROPERTY()
+    TArray<FName> RightArmBones = {"clavicle_r", "upperarm_r", "lowerarm_r", "hand_r"};
+
+    UPROPERTY()
+    TArray<FName> ArmBones = {"clavicle_l", "upperarm_l", "clavicle_r", "upperarm_r",
+                              "lowerarm_l", "lowerarm_r", "hand_l",     "hand_r"};
+
+    UPROPERTY()
+    TArray<FName> ClavicleBones = {"clavicle_l", "clavicle_r"};
+
+    UPROPERTY()
+    TArray<FName> UpperArmBones = {"upperarm_l", "upperarm_r"};
+
+    UPROPERTY()
+    TArray<FName> LowerArmBones = {"lowerarm_l", "lowerarm_r"};
+
+    UPROPERTY()
+    TArray<FName> HandBones = {"hand_l", "hand_r"};
+
+    UFUNCTION(BlueprintPure, Category = "Bones")
+    TArray<FName> GetBonesByType(EOHBoneType BoneType) const;
+
+#pragma endregion
     // === PHYSICS PROFILES ===
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physics Profiles")
     TMap<EOHPhysicsProfile, FPhysicalAnimationData> PhysicsProfiles;
+
+#pragma endregion
+
+#pragma region TARGET ALPHA CONFIGURATION
+    // === TARGET ALPHA PRESETS ===
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Target Alpha Presets",
+              meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+    float IdlePoseRetentionAlpha = 0.7f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Target Alpha Presets",
+              meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+    float SecondaryMotionAlpha = 0.4f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Target Alpha Presets",
+              meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+    float HitReactionAlpha = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Target Alpha Presets",
+              meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+    float SubtlePhysicsAlpha = 0.25f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Target Alpha Presets",
+              meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+    float MaximumPhysicsAlpha = 1.0f;
+
+    // === BONE-SPECIFIC ALPHA SCALING ===
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Alpha Scaling")
+    float SpineAlphaMultiplier = 0.8f; // Spine usually wants less physics
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Alpha Scaling")
+    float ArmAlphaMultiplier = 1.0f; // Arms can handle full physics
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Alpha Scaling")
+    float HandAlphaMultiplier = 0.9f; // Hands want mostly physics but some animation control
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Alpha Scaling")
+    float NeckAlphaMultiplier = 0.6f; // Neck wants significant animation control
+#pragma endregion
+
+#pragma region CHAIN TUNING CONFIGURATION
+    // === CHAIN STABILITY TUNING ===
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Chain Tuning",
+              meta = (ClampMin = "0.5", ClampMax = "5.0", UIMin = "0.5", UIMax = "5.0"))
+    float ChainRootStrengthMultiplier = 2.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Chain Tuning",
+              meta = (ClampMin = "0.5", ClampMax = "3.0", UIMin = "0.5", UIMax = "3.0"))
+    float ChainMiddleStrengthMultiplier = 1.5f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Chain Tuning",
+              meta = (ClampMin = "0.5", ClampMax = "2.0", UIMin = "0.5", UIMax = "2.0"))
+    float ChainEndStrengthMultiplier = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Chain Tuning",
+              meta = (ClampMin = "1.0", ClampMax = "5.0", UIMin = "1.0", UIMax = "5.0"))
+    float MaxStabilityRiskMultiplier = 2.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Chain Tuning",
+              meta = (ClampMin = "1.0", ClampMax = "4.0", UIMin = "1.0", UIMax = "4.0"))
+    float MaxDampingMultiplier = 2.5f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Chain Tuning",
+              meta = (ClampMin = "1.0", ClampMax = "3.0", UIMin = "1.0", UIMax = "3.0"))
+    float CoreBoneExtraMultiplier = 1.5f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Chain Tuning",
+              meta = (ClampMin = "1.0", ClampMax = "3.0", UIMin = "1.0", UIMax = "3.0"))
+    float ContinuousChainMultiplier = 1.8f;
+
+    // === PROFILE STRENGTH BOUNDS ===
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Profile Bounds")
+    float MinPositionStrength = 500.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Profile Bounds")
+    float MaxPositionStrength = 25000.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Profile Bounds")
+    float MinOrientationStrength = 5000.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Profile Bounds")
+    float MaxOrientationStrength = 200000.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Profile Bounds")
+    float MinVelocityStrength = 50.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Profile Bounds")
+    float MaxVelocityStrength = 3000.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Profile Bounds")
+    float MinAngularVelocityStrength = 200.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Profile Bounds")
+    float MaxAngularVelocityStrength = 20000.0f;
+
+    // === TEST CONFIGURATION ===
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Testing")
+    float DefaultTestDuration = 10.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Testing")
+    bool bUsePersistentSimulation = true;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Testing")
+    float TestBlendInDuration = 0.3f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PAC Manager|Testing")
+    float TestBlendOutDuration = 0.5f;
+#pragma endregion
 
     // === DELEGATES ===
     UPROPERTY(BlueprintAssignable, Category = "PAC Events")
@@ -483,6 +873,9 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
     UFUNCTION(BlueprintPure, Category = "PAC Manager|Constraints")
     float GetConstraintStrain(FName BoneName) const;
 
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Validation")
+    void FixBlendSystemDiscrepancies();
+
     // === SIMULATION CONTROL ===
     UFUNCTION(BlueprintCallable, Category = "PAC Manager|Physics")
     bool StartBonePhysicalAnimation(FName BoneName, const FPhysicalAnimationData& Profile, bool bEnableCollision = true,
@@ -506,6 +899,52 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
     void StopChainPhysicalAnimation_Filtered(FName RootBone, bool bUseNativePropagation,
                                              TFunctionRef<bool(FName)> BoneFilter, bool bClearVelocities,
                                              bool bPutToSleep, bool bVerboseLog);
+
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Physics Blending")
+    bool StartPhysicsBlend(FName BoneName, const FPhysicalAnimationData& Profile, float BlendInDuration = 0.2f,
+                           float HoldDuration = -1.0f, // -1 = infinite hold
+                           float BlendOutDuration = 0.3f, FName BlendTag = NAME_None);
+
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Physics Blending")
+    bool StartPhysicsBlendChain(FName RootBoneName, const FPhysicalAnimationData& Profile, float BlendInDuration = 0.2f,
+                                float HoldDuration = -1.0f, float BlendOutDuration = 0.3f, FName BlendTag = NAME_None);
+    bool StartPhysicsBlendWithAlpha(FName BoneName, const FPhysicalAnimationData& Profile, float TargetAlpha,
+                                    float BlendInDuration, float HoldDuration, float BlendOutDuration, FName BlendTag);
+    bool StartPhysicsBlendWithMode(FName BoneName, const FPhysicalAnimationData& Profile, EOHTargetAlphaMode AlphaMode,
+                                   float BlendInDuration, float HoldDuration, float BlendOutDuration, FName BlendTag);
+
+    bool StartPermanentPhysicsBlendWithAlpha(FName BoneName, const FPhysicalAnimationData& Profile, float TargetAlpha,
+                                             float BlendInDuration, FName BlendTag);
+    float GetTargetAlphaForMode(EOHTargetAlphaMode AlphaMode) const;
+    float ApplyBoneAlphaScaling(FName BoneName, float BaseAlpha) const;
+    FOHBlendState CreateSmartBlendStateWithAlpha(FName BoneName, float TargetAlpha, float BlendIn, float Hold,
+                                                 float BlendOut, FName ReactionTag);
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Physics Blending")
+    void StopPhysicsBlend(FName BoneName, float BlendOutDuration = 0.3f);
+
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Physics Blending")
+    void StopPhysicsBlendChain(FName RootBoneName, float BlendOutDuration = 0.3f);
+
+    // === PERMANENT PHYSICS BLENDS ===
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Permanent Physics")
+    bool StartPermanentPhysicsBlend(FName BoneName, const FPhysicalAnimationData& Profile, float BlendInDuration = 0.3f,
+                                    FName BlendTag = NAME_None);
+
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Permanent Physics")
+    bool StartPermanentPhysicsBlendChain(FName RootBoneName, const FPhysicalAnimationData& Profile,
+                                         float BlendInDuration = 0.3f, FName BlendTag = NAME_None);
+
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Permanent Physics")
+    void TransitionToPermanent(FName BoneName);
+
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Permanent Physics")
+    void ForceBlendOutPermanent(FName BoneName, float BlendOutDuration = 0.5f);
+
+    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Testing")
+    void TestPermanentPoseRetention();
+
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Testing")
+    void StopPermanentPoseRetention(float BlendOutDuration = 0.5f);
 
     UFUNCTION(BlueprintCallable, Category = "PAC Manager|Physics")
     void EnsureBoneSimulatingPhysics(FName BoneName, bool bEnableChain = true);
@@ -544,11 +983,8 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
     UFUNCTION(BlueprintCallable, Category = "PAC Manager|Debug")
     void DrawDebugOverlay() const;
     bool IsBoneDrivenByPhysicalAnimation(const FName& BoneName) const;
-    void LogAllPhysicallyDrivenBonesWithDriveValues() const;
-    void VisualizeActivePhysicalAnimationDrives() const;
-    void CheckSimulatingBonesForPhysicalAnimationDrives() const;
-    void DebugBodyInstanceSimulation() const;
-    void DebugPhysicalAnimationConstraints();
+    static bool HasPhysicalAnimationDrives(const FConstraintInstance* Constraint);
+    FConstraintInstance* FindPhysicalAnimationConstraint(FName BoneName) const;
     void DebugBodyPhysicsStates();
 
     // === BONE CHAIN ACCESS ===
@@ -595,13 +1031,17 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
     TMap<FName, FOHBoneMotionData> BoneMotionMap;
 
     // === DIRECT ACCESS CACHES ===
-    TMap<FName, FBodyInstance*> BodyInstanceCache;
-    TMap<FName, FConstraintInstance*> ConstraintInstanceCache;
-    TMap<FName, int32> BoneIndexCache;
+    mutable TMap<FName, FBodyInstance*> BodyInstanceCache;
+    mutable TMap<FName, FConstraintInstance*> ConstraintInstanceCache;
+    mutable TMap<FName, int32> BoneIndexCache;
 
     // === CONSTRAINT DATA ===
     UPROPERTY()
     TMap<FName, FOHConstraintData> ConstraintDataMap;
+
+    // === PERSISTENT SIMULATIONS ===
+    UPROPERTY()
+    TMap<FName, FName> PersistentSimulations; // BoneName -> SimulationTag
 
     // === BLEND STATES ===
     TMap<FName, TArray<FOHBlendState>> ActiveBlends;
@@ -682,6 +1122,13 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
     void FinalizeAllBlendsForBone(FName BoneName);
     void FinalizeBlendByID(FName BoneName, int32 BlendID);
 
+    // === ENHANCED BLEND PROCESSING ===
+    static float CalculateEffectiveBlendAlpha(const TArray<FOHBlendState>& BoneBlends);
+    bool HasActivePermanentBlend(FName BoneName) const;
+    static FPhysicalAnimationData GetStrongerProfile(const FPhysicalAnimationData& ProfileA,
+                                                     const FPhysicalAnimationData& ProfileB);
+    int32 GetTotalActiveBlendCount() const;
+
     // === SIMULATION CONTROL ===
     bool StartSimulation(FName BoneName, const FPhysicalAnimationData& Profile, bool bAllBelow = false,
                          bool bEnableCollision = true);
@@ -695,9 +1142,9 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
     void WakePhysicsBody(FName BoneName);
 
     // === DIRECT ACCESS HELPERS ===
-    FBodyInstance* GetBodyInstanceDirect(FName BoneName);
-    FConstraintInstance* GetConstraintInstanceDirect(FName BoneName);
-    int32 GetBoneIndexDirect(FName BoneName);
+    FBodyInstance* GetBodyInstanceDirect(FName BoneName) const;
+    FConstraintInstance* GetConstraintInstanceDirect(FName BoneName) const;
+    int32 GetBoneIndexDirect(FName BoneName) const;
 
     // === BONE VALIDATION ===
     bool IsBoneValidForSimulation(FName BoneName) const;
@@ -712,6 +1159,133 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
     static void SafeLog(const FString& Message, bool bWarning = false, bool bOnScreen = false);
 
 #pragma endregion
+
+#pragma region BoneAnalysis
+
+  public:
+    // === MATHEMATICAL PROFILE CALCULATION ===
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Profile Calculation")
+    FPhysicalAnimationData CalculateOptimalPACProfile(FName BoneName,
+                                                      EOHProfileIntensity Intensity = EOHProfileIntensity::Medium,
+                                                      bool bUseCriticalDamping = true,
+                                                      float MassOverride = -1.0f) const;
+
+    UFUNCTION(BlueprintPure, Category = "PAC Manager|Bone Analysis")
+    FOHBoneProperties AnalyzeBoneProperties(FName BoneName, float MassOverride = -1.0f) const;
+
+    // === TESTING & VALIDATION ===
+    // Remove default arguments from UFUNCTION declarations
+    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Testing")
+    void StartIdlePoseRetention(const TArray<FName>& TestBones, EOHProfileIntensity Intensity,
+                                bool bValidateCalculations);
+
+    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Testing")
+    void StopIdlePoseRetention(const TArray<FName>& BonesToStop, float BlendOutDuration = 0.5f);
+
+    // Add convenience functions with no parameters for Blueprint/Editor use
+    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Testing")
+    void StartIdlePoseRetentionDefault();
+
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Testing")
+    void StopIdlePoseRetentionDefault();
+
+    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Analysis")
+    void AnalyzeAllBones();
+
+    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Testing")
+    void QuickIdleTest();
+
+    UFUNCTION(BlueprintPure, Category = "PAC Manager|Testing")
+    TArray<FName> GetIdleTestBones() const;
+
+  private:
+    // === BONE ANALYSIS HELPERS ===
+    float CalculateActualBoneMass(FName BoneName) const;
+    float CalculateActualMomentOfInertia(FName BoneName) const;
+    static float EstimateBoneMassFromAnatomy(FName BoneName);
+    static float EstimateMomentOfInertiaFromAnatomy(FName BoneName, float Mass);
+    static FName ClassifyBoneByStructure(FName BoneName);
+    float CalculateBoneLength(FName BoneName) const;
+    static float EstimateBoneLengthFromAnatomy(FName BoneName);
+    int32 CalculateHierarchyLevel(FName BoneName) const;
+    float CalculateEffectiveMass(const FOHBoneProperties& Props) const;
+    static float CalculateStabilityFactor(const FOHBoneProperties& Props);
+    static float CalculateBoneScalar(const FOHBoneProperties& Props);
+    bool HasValidPhysicsBody(FName BoneName) const;
+    static float GetIntensityMultiplier(EOHProfileIntensity Intensity);
+
+    // === POSE RETENTION HELPERS ===
+    bool ApplyIdlePoseRetention(FName BoneName, EOHProfileIntensity Intensity);
+    void ValidateBoneCalculations(const TArray<FName>& BonesToValidate);
+    void LogPoseRetentionSummary(const TArray<FName>& TestedBones);
+
+#pragma endregion
+
+#pragma region ChainAnalysis
+  public:
+    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Testing")
+    void TestFullChainSimulation();
+
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Chain Analysis")
+    FPhysicalAnimationData CalculateChainAwareProfile(FName BoneName,
+                                                      EOHProfileIntensity BaseIntensity = EOHProfileIntensity::Medium,
+                                                      bool bAccountForChainPosition = true) const;
+
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Chain Analysis")
+    void ApplyChainStabilization(const TArray<FName>& ChainBones,
+                                 EOHProfileIntensity BaseIntensity = EOHProfileIntensity::Medium);
+
+    UFUNCTION(BlueprintPure, Category = "PAC Manager|Chain Analysis")
+    FOHChainAnalysis AnalyzeChain(FName RootBone) const;
+
+  private:
+    // === CHAIN ANALYSIS HELPERS ===
+    FOHChainAnalysis AnalyzeChainForBone(FName BoneName) const;
+    FName FindChainRoot(FName BoneName) const;
+    float CalculateChainStabilityMultiplier(FName BoneName, const FOHChainAnalysis& ChainInfo) const;
+    float CalculatePositionInChainMultiplier(FName BoneName, const FOHChainAnalysis& ChainInfo) const;
+    float CalculateContinuityMultiplier(const FOHChainAnalysis& ChainInfo) const;
+
+#pragma endregion
+
+#pragma region ReversePACCalculations
+    // ============================================================================
+    // REVERSE PAC PROFILE CALCULATION FROM RUNTIME DATA
+    // ============================================================================
+  public:
+    // Add to OHPACManager.h public API:
+    UFUNCTION(BlueprintPure, Category = "PAC Manager|Profile Analysis")
+    FPhysicalAnimationData GetCurrentPhysicalAnimationProfile(FName BoneName) const;
+
+    UFUNCTION(BlueprintPure, Category = "PAC Manager|Profile Analysis")
+    bool GetConstraintDriveParameters(FName BoneName, float& OutLinearStiffness, float& OutLinearDamping,
+                                      float& OutAngularStiffness, float& OutAngularDamping) const;
+
+    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Analysis")
+    void CompareCalculatedVsActualProfiles();
+    static FPhysicalAnimationData GetBaselineProfile();
+    static float CalculatePercentageDifference(float ValueA, float ValueB);
+    FPhysicalAnimationData ReversePACProfileFromDrives(const FOHConstraintDriveData& DriveData, FName BoneName) const;
+
+    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Testing")
+    void TestCustomAlphaBlends(EOHBoneType BoneType);
+
+    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Testing")
+    void TestSubtlePhysicsMode(EOHBoneType BoneType);
+
+  private:
+    static bool GetConstraintDriveParametersFromInstance(FConstraintInstance* Constraint, float& OutLinearStiffness,
+                                                         float& OutLinearDamping, float& OutAngularStiffness,
+                                                         float& OutAngularDamping);
+    FPhysicalAnimationData ConvertDriveParametersToPACProfile(FName BoneName, float LinearStiffness,
+                                                              float LinearDamping, float AngularStiffness,
+                                                              float AngularDamping) const;
+
+    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Analysis")
+    void AnalyzeCurrentPACConstraints();
+    static FOHConstraintDriveData ExtractConstraintDriveData(const FConstraintInstance* Constraint);
+
+    FConstraintInstance* FindPACConstraintForBone(FName BoneName) const;
 
 #pragma endregion
 };

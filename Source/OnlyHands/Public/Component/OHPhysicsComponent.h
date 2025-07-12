@@ -5,10 +5,11 @@
 #include "Components/ActorComponent.h"
 #include "PhysicsEngine/ConstraintInstance.h"
 #include "OHPhysicsComponent.generated.h"
-
+/*
 // --------- DRIVE SETTINGS (like Epic's, but ready for expansion) ---------
 USTRUCT(BlueprintType)
-struct FPhysicalAnimationDriveSettings {
+struct FPhysicalAnimationDriveSettings
+{
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physical Animation")
@@ -35,7 +36,8 @@ struct FPhysicalAnimationDriveSettings {
 
 // --------- BONE DRIVE RUNTIME DATA ---------
 USTRUCT()
-struct FPhysicalAnimationBoneDriveInstance {
+struct FPhysicalAnimationBoneDriveInstance
+{
     GENERATED_BODY()
 
     UPROPERTY()
@@ -57,12 +59,17 @@ struct FPhysicalAnimationBoneDriveInstance {
     bool bActive = false;
 
     FPhysicalAnimationBoneDriveInstance()
-        : TargetActor(), ConstraintInstance(nullptr), BlendAlpha(1.f), bActive(false) {}
+        : TargetActor()
+        , ConstraintInstance(nullptr)
+        , BlendAlpha(1.f)
+        , bActive(false)
+    {}
 };
 
 // --------- USER-DEFINED CHAIN SETTINGS ---------
 USTRUCT(BlueprintType)
-struct FPhysicalAnimationChainSettings {
+struct FPhysicalAnimationChainSettings
+{
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physical Animation")
@@ -86,7 +93,8 @@ struct FPhysicalAnimationChainSettings {
 
 // --------- RUNTIME CHAIN STATE ---------
 USTRUCT()
-struct FPhysicalAnimationChainRuntime {
+struct FPhysicalAnimationChainRuntime
+{
     GENERATED_BODY()
 
     UPROPERTY() FName ChainName;
@@ -106,7 +114,8 @@ struct FPhysicalAnimationChainRuntime {
 
 // --------- STABILITY/SANITY CHECK SETTINGS (Optional/Advanced) ---------
 USTRUCT(BlueprintType)
-struct FPhysicalAnimationStabilitySettings {
+struct FPhysicalAnimationStabilitySettings
+{
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stability")
@@ -124,24 +133,25 @@ UDELEGATE(BlueprintAuthorityOnly)
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPhysicsInstability, FName, ChainName);
 // --------- MAIN COMPONENT ---------
 UCLASS(Blueprintable, BlueprintType, ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
-class ONLYHANDS_API UOHPhysicsComponent : public UActorComponent {
+class ONLYHANDS_API UOHPhysicsComponent : public UActorComponent
+{
     GENERATED_BODY()
 
-  public:
+public:
     UOHPhysicsComponent();
 
     // Chain definitions
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physical Animation")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Physical Animation")
     TArray<FPhysicalAnimationChainSettings> Chains;
 
     // Instantly apply drive to a bone/chain, or remove it
-    UFUNCTION(CallInEditor, BlueprintCallable, Category = "Physical Animation")
+    UFUNCTION(CallInEditor, BlueprintCallable, Category="Physical Animation")
     void EnablePhysicsOnChain(FName ChainName, bool bEnable);
 
-    UFUNCTION(CallInEditor, BlueprintCallable, Category = "Physical Animation")
+    UFUNCTION(CallInEditor, BlueprintCallable, Category="Physical Animation")
     void SetDriveProfileForChain(FName ChainName, UOHPhysicalAnimationProfileDataAsset* Profile);
 
-    UFUNCTION(CallInEditor, BlueprintCallable, Category = "Physical Animation")
+    UFUNCTION(CallInEditor, BlueprintCallable, Category="Physical Animation")
     void PreviewChainsInEditor();
 
     FPhysicalAnimationDriveSettings GetDefaultDriveForChain(FName StartBone, FName EndBone);
@@ -170,27 +180,28 @@ class ONLYHANDS_API UOHPhysicsComponent : public UActorComponent {
     UFUNCTION(CallInEditor, BlueprintCallable, Category = "Physical Animation|Setup")
     void AutoPopulateDefaultUE5Chains();
 
-    UFUNCTION(CallInEditor, BlueprintCallable, Category = "Physical Animation|Setup")
+    UFUNCTION(CallInEditor, BlueprintCallable, Category="Physical Animation|Setup")
     void AutoPopulateChainsForCurrentMesh();
 
     UFUNCTION(CallInEditor, BlueprintCallable, Category = "Physical Animation|Setup")
     void AutoPopulateChainsFromSkeleton();
 
-    UFUNCTION(CallInEditor, BlueprintCallable, Category = "Physical Animation")
+    UFUNCTION(CallInEditor, BlueprintCallable, Category="Physical Animation")
     void VisualizeChainsInEditor();
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Debug")
     bool bDebugDraw = false;
 
-    UFUNCTION(BlueprintCallable, Category = "Debug")
+    UFUNCTION(BlueprintCallable, Category="Debug")
     void SetDebugDrawEnabled(bool bEnable);
 
-    UFUNCTION(BlueprintCallable, Category = "Debug")
+    UFUNCTION(BlueprintCallable, Category="Debug")
     void DrawDebugInfo();
+
 
     // --- Properties ---
 
-    UPROPERTY(EditAnywhere, Category = "Physical Animation")
+    UPROPERTY(EditAnywhere, Category="Physical Animation")
     UPhysicsAsset* DefaultPhysicsAsset = nullptr; // Fallback if mesh has no asset
 
     UPhysicsAsset* PhysicsAsset = nullptr; // Runtime reference (private)
@@ -202,6 +213,8 @@ class ONLYHANDS_API UOHPhysicsComponent : public UActorComponent {
     void SetupPhysicsAnimationSystem();
     void TeardownPhysicsAnimationSystem();
 
+
+
 #if WITH_EDITOR
 
     void ValidateRuntimePhysicsAgainstTemplate();
@@ -212,10 +225,11 @@ class ONLYHANDS_API UOHPhysicsComponent : public UActorComponent {
 
 #if WITH_EDITOR
 
-    static void FixAllMissingPhysicsForComponent(USkeletalMeshComponent* SkeletalMeshComponent,
-                                                 UPhysicsAsset* PhysicsAsset,
-                                                 UObject* WorldContext = nullptr // For debug drawing if needed
-    );
+    static void FixAllMissingPhysicsForComponent(
+       USkeletalMeshComponent* SkeletalMeshComponent,
+       UPhysicsAsset* PhysicsAsset,
+       UObject* WorldContext = nullptr // For debug drawing if needed
+   );
     static FBodyInstance* EnsureBodyForBone_Static(FName BoneName, USkeletalMeshComponent* SkeletalMeshComponent,
                                                    UPhysicsAsset* PhysicsAsset);
     static FConstraintInstance* EnsureConstraintBetweenBones_Static(FName Bone1, FName Bone2,
@@ -231,31 +245,34 @@ class ONLYHANDS_API UOHPhysicsComponent : public UActorComponent {
     void CleanupEditorVisualization();
 #endif
 
+
     // --------- Core Overrides ---------
-  protected:
+protected:
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-    virtual void TickComponent(float DeltaTime, ELevelTick TickType,
-                               FActorComponentTickFunction* ThisTickFunction) override;
+    virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+override;
+
 
     // Recommended: Expose default drive profiles for easy tuning in editor!
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physical Animation|Setup")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Physical Animation|Setup")
     FPhysicalAnimationDriveSettings DefaultSpineDrive;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physical Animation|Setup")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Physical Animation|Setup")
     FPhysicalAnimationDriveSettings DefaultArmDrive;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physical Animation|Setup")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Physical Animation|Setup")
     FPhysicalAnimationDriveSettings DefaultLegDrive;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physical Animation|Setup")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Physical Animation|Setup")
     FPhysicalAnimationDriveSettings DefaultHeadDrive;
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Physical Animation|Setup")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Physical Animation|Setup")
     FPhysicalAnimationDriveSettings DefaultGeneralDrive;
 
+
     // --------- Internal Helpers & Data ---------
-  private:
+private:
     // The controlled skeletal mesh
     UPROPERTY()
     USkeletalMeshComponent* SkeletalMeshComponent = nullptr;
@@ -278,12 +295,16 @@ class ONLYHANDS_API UOHPhysicsComponent : public UActorComponent {
     TArray<int32> GetBoneIndicesInChain(FName StartBone, FName EndBone) const;
 
     // Create/destroy constraints and kinematic targets
-    void CreateBoneDriveInstance(FPhysicalAnimationBoneDriveInstance& BoneDrive,
-                                 const FPhysicalAnimationDriveSettings& DriveSettings,
-                                 const FTransform& InitialTargetTM);
-    static void DestroyBoneDriveInstance(FPhysicalAnimationBoneDriveInstance& BoneDrive);
+    void CreateBoneDriveInstance(FPhysicalAnimationBoneDriveInstance& BoneDrive, const FPhysicalAnimationDriveSettings&
+DriveSettings, const FTransform& InitialTargetTM); static void
+DestroyBoneDriveInstance(FPhysicalAnimationBoneDriveInstance& BoneDrive);
 
     // Move target actor and update constraint drives
     static void UpdateBoneDriveInstance(FPhysicalAnimationBoneDriveInstance& BoneDrive, const FTransform& TargetTM,
-                                        const FPhysicalAnimationDriveSettings& DriveSettings, float BlendAlpha);
-};
+const FPhysicalAnimationDriveSettings& DriveSettings, float BlendAlpha);
+
+
+
+
+
+};*/
