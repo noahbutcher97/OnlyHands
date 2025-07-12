@@ -4926,6 +4926,8 @@ FOHConstraintDriveData UOHPACManager::ExtractConstraintDriveData(const FConstrai
     const auto& LinearDrive = Constraint->ProfileInstance.LinearDrive;
     const auto& AngularDrive = Constraint->ProfileInstance.AngularDrive;
 
+    DriveData.AngularDriveMode = Constraint->GetAngularDriveMode();
+
     // Extract linear drive values
     DriveData.LinearStiffnessX = LinearDrive.XDrive.Stiffness;
     DriveData.LinearStiffnessY = LinearDrive.YDrive.Stiffness;
@@ -4944,9 +4946,14 @@ FOHConstraintDriveData UOHPACManager::ExtractConstraintDriveData(const FConstrai
     DriveData.AngularDampingSwing = AngularDrive.SwingDrive.Damping;
     DriveData.AngularDampingTwist = AngularDrive.TwistDrive.Damping;
 
-    // Extract force limits
-    DriveData.LinearForceLimit = LinearDrive.XDrive.MaxForce; // Assuming same for all axes
-    DriveData.AngularForceLimit = AngularDrive.SlerpDrive.MaxForce;
+    // Extract force limits per axis
+    DriveData.LinearForceLimitX = LinearDrive.XDrive.MaxForce;
+    DriveData.LinearForceLimitY = LinearDrive.YDrive.MaxForce;
+    DriveData.LinearForceLimitZ = LinearDrive.ZDrive.MaxForce;
+
+    DriveData.AngularForceLimitSlerp = AngularDrive.SlerpDrive.MaxForce;
+    DriveData.AngularForceLimitSwing = AngularDrive.SwingDrive.MaxForce;
+    DriveData.AngularForceLimitTwist = AngularDrive.TwistDrive.MaxForce;
 
     // Check if drives are enabled
     DriveData.bLinearXDriveEnabled = LinearDrive.XDrive.bEnablePositionDrive || LinearDrive.XDrive.bEnableVelocityDrive;
@@ -5050,15 +5057,18 @@ FPhysicalAnimationData UOHPACManager::ReversePACProfileFromDrives(const FOHConst
     float AvgLinearStiffness = 0.0f;
     int32 ActiveLinearAxes = 0;
 
-    if (DriveData.bLinearXDriveEnabled && DriveData.LinearStiffnessX > KINDA_SMALL_NUMBER) {
+    if (DriveData.bLinearXDriveEnabled && DriveData.LinearForceLimitX > KINDA_SMALL_NUMBER &&
+        DriveData.LinearStiffnessX > KINDA_SMALL_NUMBER) {
         AvgLinearStiffness += DriveData.LinearStiffnessX;
         ActiveLinearAxes++;
     }
-    if (DriveData.bLinearYDriveEnabled && DriveData.LinearStiffnessY > KINDA_SMALL_NUMBER) {
+    if (DriveData.bLinearYDriveEnabled && DriveData.LinearForceLimitY > KINDA_SMALL_NUMBER &&
+        DriveData.LinearStiffnessY > KINDA_SMALL_NUMBER) {
         AvgLinearStiffness += DriveData.LinearStiffnessY;
         ActiveLinearAxes++;
     }
-    if (DriveData.bLinearZDriveEnabled && DriveData.LinearStiffnessZ > KINDA_SMALL_NUMBER) {
+    if (DriveData.bLinearZDriveEnabled && DriveData.LinearForceLimitZ > KINDA_SMALL_NUMBER &&
+        DriveData.LinearStiffnessZ > KINDA_SMALL_NUMBER) {
         AvgLinearStiffness += DriveData.LinearStiffnessZ;
         ActiveLinearAxes++;
     }
@@ -5069,15 +5079,18 @@ FPhysicalAnimationData UOHPACManager::ReversePACProfileFromDrives(const FOHConst
     float AvgLinearDamping = 0.0f;
     int32 ActiveLinearDampingAxes = 0;
 
-    if (DriveData.bLinearXDriveEnabled && DriveData.LinearDampingX > KINDA_SMALL_NUMBER) {
+    if (DriveData.bLinearXDriveEnabled && DriveData.LinearForceLimitX > KINDA_SMALL_NUMBER &&
+        DriveData.LinearDampingX > KINDA_SMALL_NUMBER) {
         AvgLinearDamping += DriveData.LinearDampingX;
         ActiveLinearDampingAxes++;
     }
-    if (DriveData.bLinearYDriveEnabled && DriveData.LinearDampingY > KINDA_SMALL_NUMBER) {
+    if (DriveData.bLinearYDriveEnabled && DriveData.LinearForceLimitY > KINDA_SMALL_NUMBER &&
+        DriveData.LinearDampingY > KINDA_SMALL_NUMBER) {
         AvgLinearDamping += DriveData.LinearDampingY;
         ActiveLinearDampingAxes++;
     }
-    if (DriveData.bLinearZDriveEnabled && DriveData.LinearDampingZ > KINDA_SMALL_NUMBER) {
+    if (DriveData.bLinearZDriveEnabled && DriveData.LinearForceLimitZ > KINDA_SMALL_NUMBER &&
+        DriveData.LinearDampingZ > KINDA_SMALL_NUMBER) {
         AvgLinearDamping += DriveData.LinearDampingZ;
         ActiveLinearDampingAxes++;
     }
@@ -5089,17 +5102,23 @@ FPhysicalAnimationData UOHPACManager::ReversePACProfileFromDrives(const FOHConst
     float AvgAngularStiffness = 0.0f;
     int32 ActiveAngularAxes = 0;
 
-    if (DriveData.bAngularSlerpDriveEnabled && DriveData.AngularStiffnessSlerp > KINDA_SMALL_NUMBER) {
-        AvgAngularStiffness += DriveData.AngularStiffnessSlerp;
-        ActiveAngularAxes++;
-    }
-    if (DriveData.bAngularSwingDriveEnabled && DriveData.AngularStiffnessSwing > KINDA_SMALL_NUMBER) {
-        AvgAngularStiffness += DriveData.AngularStiffnessSwing;
-        ActiveAngularAxes++;
-    }
-    if (DriveData.bAngularTwistDriveEnabled && DriveData.AngularStiffnessTwist > KINDA_SMALL_NUMBER) {
-        AvgAngularStiffness += DriveData.AngularStiffnessTwist;
-        ActiveAngularAxes++;
+    if (DriveData.AngularDriveMode == EAngularDriveMode::SLERP) {
+        if (DriveData.bAngularSlerpDriveEnabled && DriveData.AngularForceLimitSlerp > KINDA_SMALL_NUMBER &&
+            DriveData.AngularStiffnessSlerp > KINDA_SMALL_NUMBER) {
+            AvgAngularStiffness += DriveData.AngularStiffnessSlerp;
+            ActiveAngularAxes++;
+        }
+    } else {
+        if (DriveData.bAngularSwingDriveEnabled && DriveData.AngularForceLimitSwing > KINDA_SMALL_NUMBER &&
+            DriveData.AngularStiffnessSwing > KINDA_SMALL_NUMBER) {
+            AvgAngularStiffness += DriveData.AngularStiffnessSwing;
+            ActiveAngularAxes++;
+        }
+        if (DriveData.bAngularTwistDriveEnabled && DriveData.AngularForceLimitTwist > KINDA_SMALL_NUMBER &&
+            DriveData.AngularStiffnessTwist > KINDA_SMALL_NUMBER) {
+            AvgAngularStiffness += DriveData.AngularStiffnessTwist;
+            ActiveAngularAxes++;
+        }
     }
 
     ReversedProfile.OrientationStrength = ActiveAngularAxes > 0 ? (AvgAngularStiffness / ActiveAngularAxes) : 0.0f;
@@ -5108,17 +5127,23 @@ FPhysicalAnimationData UOHPACManager::ReversePACProfileFromDrives(const FOHConst
     float AvgAngularDamping = 0.0f;
     int32 ActiveAngularDampingAxes = 0;
 
-    if (DriveData.bAngularSlerpDriveEnabled && DriveData.AngularDampingSlerp > KINDA_SMALL_NUMBER) {
-        AvgAngularDamping += DriveData.AngularDampingSlerp;
-        ActiveAngularDampingAxes++;
-    }
-    if (DriveData.bAngularSwingDriveEnabled && DriveData.AngularDampingSwing > KINDA_SMALL_NUMBER) {
-        AvgAngularDamping += DriveData.AngularDampingSwing;
-        ActiveAngularDampingAxes++;
-    }
-    if (DriveData.bAngularTwistDriveEnabled && DriveData.AngularDampingTwist > KINDA_SMALL_NUMBER) {
-        AvgAngularDamping += DriveData.AngularDampingTwist;
-        ActiveAngularDampingAxes++;
+    if (DriveData.AngularDriveMode == EAngularDriveMode::SLERP) {
+        if (DriveData.bAngularSlerpDriveEnabled && DriveData.AngularForceLimitSlerp > KINDA_SMALL_NUMBER &&
+            DriveData.AngularDampingSlerp > KINDA_SMALL_NUMBER) {
+            AvgAngularDamping += DriveData.AngularDampingSlerp;
+            ActiveAngularDampingAxes++;
+        }
+    } else {
+        if (DriveData.bAngularSwingDriveEnabled && DriveData.AngularForceLimitSwing > KINDA_SMALL_NUMBER &&
+            DriveData.AngularDampingSwing > KINDA_SMALL_NUMBER) {
+            AvgAngularDamping += DriveData.AngularDampingSwing;
+            ActiveAngularDampingAxes++;
+        }
+        if (DriveData.bAngularTwistDriveEnabled && DriveData.AngularForceLimitTwist > KINDA_SMALL_NUMBER &&
+            DriveData.AngularDampingTwist > KINDA_SMALL_NUMBER) {
+            AvgAngularDamping += DriveData.AngularDampingTwist;
+            ActiveAngularDampingAxes++;
+        }
     }
 
     ReversedProfile.AngularVelocityStrength =

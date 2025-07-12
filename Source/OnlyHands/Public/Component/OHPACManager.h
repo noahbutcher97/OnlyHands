@@ -301,9 +301,21 @@ struct ONLYHANDS_API FOHConstraintDriveData {
     float AngularDampingTwist;
 
     UPROPERTY()
-    float LinearForceLimit;
+    float LinearForceLimitX;
     UPROPERTY()
-    float AngularForceLimit;
+    float LinearForceLimitY;
+    UPROPERTY()
+    float LinearForceLimitZ;
+
+    UPROPERTY()
+    float AngularForceLimitSlerp;
+    UPROPERTY()
+    float AngularForceLimitSwing;
+    UPROPERTY()
+    float AngularForceLimitTwist;
+
+    UPROPERTY()
+    TEnumAsByte<EAngularDriveMode::Type> AngularDriveMode;
 
     UPROPERTY()
     bool bLinearXDriveEnabled;
@@ -336,8 +348,15 @@ struct ONLYHANDS_API FOHConstraintDriveData {
         AngularDampingSwing = 0.f;
         AngularDampingTwist = 0.f;
 
-        LinearForceLimit = 0.f;
-        AngularForceLimit = 0.f;
+        LinearForceLimitX = 0.f;
+        LinearForceLimitY = 0.f;
+        LinearForceLimitZ = 0.f;
+
+        AngularForceLimitSlerp = 0.f;
+        AngularForceLimitSwing = 0.f;
+        AngularForceLimitTwist = 0.f;
+
+        AngularDriveMode = EAngularDriveMode::SLERP;
 
         bLinearXDriveEnabled = false;
         bLinearYDriveEnabled = false;
