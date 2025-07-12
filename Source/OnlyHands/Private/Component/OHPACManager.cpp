@@ -996,8 +996,8 @@ void UOHPACManager::UpdateConstraintStates(float DeltaTime) {
 // ============================================================================
 #pragma region BLEND PROCESSING
 
-FOHBlendState UOHPACManager::CreateSmartBlendState(FName BoneName, float BlendIn, float Hold, float BlendOut,
-                                                   FName ReactionTag) {
+FOHBlendState UOHPACManager::CreateSmartBlendState(FName BoneName, float DesiredAlpha, float BlendIn, float Hold,
+                                                   float BlendOut, FName ReactionTag) {
     FOHBlendState NewBlend;
     NewBlend.BlendID = ++NextBlendID;
     NewBlend.RootBone = BoneName;
@@ -1013,7 +1013,7 @@ FOHBlendState UOHPACManager::CreateSmartBlendState(FName BoneName, float BlendIn
     if (ExistingBlend != nullptr) {
         // SMOOTH TRANSITION: Start from current alpha
         NewBlend.StartAlpha = CurrentAlpha;
-        NewBlend.TargetAlpha = 1.0f;
+        NewBlend.TargetAlpha = DesiredAlpha;
         NewBlend.bInheritedFromPrevious = true;
 
         // OPTIMIZATION: If already at high alpha, skip blend-in
@@ -1034,7 +1034,7 @@ FOHBlendState UOHPACManager::CreateSmartBlendState(FName BoneName, float BlendIn
     } else {
         // NORMAL START: No existing blend, start from 0
         NewBlend.StartAlpha = 0.0f;
-        NewBlend.TargetAlpha = 1.0f;
+        NewBlend.TargetAlpha = DesiredAlpha;
         NewBlend.bInheritedFromPrevious = false;
         NewBlend.Phase = EOHBlendPhase::BlendIn;
         NewBlend.BlendAlpha = 0.0f;
@@ -1491,7 +1491,7 @@ void UOHPACManager::PlayCustomHitReaction(FName BoneName, const FPhysicalAnimati
     }
 
     //  STEP 2: Create smart blend state AFTER successful activation
-    FOHBlendState BlendState = CreateSmartBlendState(BoneName, BlendIn, Hold, BlendOut, ReactionTag);
+    FOHBlendState BlendState = CreateSmartBlendState(BoneName, 1.0f, BlendIn, Hold, BlendOut, ReactionTag);
 
     // Add blend state to the bone's blend array
     AddBlendToBone(BoneName, BlendState);
@@ -2224,8 +2224,10 @@ void UOHPACManager::StopChainPhysicalAnimation_Filtered(
     }
 }
 
-bool UOHPACManager::StartPhysicsBlend(FName BoneName, const FPhysicalAnimationData& Profile, float BlendInDuration,
-                                      float HoldDuration, float BlendOutDuration, FName BlendTag) {
+bool UOHPACManager::StartPhysicsBlendInternal(FName BoneName, const FPhysicalAnimationData& Profile,
+                                              float TargetAlpha, float BlendIn, float Hold, float BlendOut,
+                                              FName BlendTag, bool bPermanent)
+{
     if (!IsBoneValidForSimulation(BoneName)) {
         SafeLog(FString::Printf(TEXT("Bone not valid for blending: %s"), *BoneName.ToString()), true);
         return false;
@@ -2236,38 +2238,47 @@ bool UOHPACManager::StartPhysicsBlend(FName BoneName, const FPhysicalAnimationDa
         return false;
     }
 
-    // STEP 1: Activate physics for the bone using reference counting
     if (!TryActivateSimForBone(BoneName, Profile)) {
         SafeLog(FString::Printf(TEXT("Failed to activate physics for bone: %s"), *BoneName.ToString()), true);
         return false;
     }
 
-    // STEP 2: Create smart blend state for smooth transitions
-    FOHBlendState BlendState =
-        CreateSmartBlendState(BoneName, BlendInDuration, HoldDuration, BlendOutDuration, BlendTag);
+    const float FinalAlpha = ApplyBoneAlphaScaling(BoneName, FMath::Clamp(TargetAlpha, 0.f, 1.f));
 
-    // STEP 3: Add blend state to the bone's blend array
+    FOHBlendState BlendState = CreateSmartBlendState(BoneName, FinalAlpha, BlendIn, Hold, BlendOut, BlendTag);
+    if (bPermanent)
+    {
+        BlendState.bIsPermanent = true;
+        BlendState.HoldDuration = 0.f;
+        BlendState.BlendOutDuration = 0.f;
+    }
+
     AddBlendToBone(BoneName, BlendState);
 
-    // STEP 4: Ensure bone starts in correct pose (no impulse, just pose retention)
-    if (FBodyInstance* Body = GetBodyInstanceDirect(BoneName)) {
-        // Clear any existing velocities for clean start
+    if (FBodyInstance* Body = GetBodyInstanceDirect(BoneName))
+    {
         Body->SetLinearVelocity(FVector::ZeroVector, false);
         Body->SetAngularVelocityInRadians(FVector::ZeroVector, false);
-
-        // Ensure body is awake for physics simulation
         Body->WakeInstance();
     }
 
-    if (bVerboseLogging) {
-        UE_LOG(LogTemp, Warning, TEXT("✅ Started physics blend for %s (BlendID: %d, Tag: %s)"), *BoneName.ToString(),
+    if (bVerboseLogging)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("✅ Started %sphysics blend for %s (BlendID: %d, Tag: %s)"),
+               bPermanent ? TEXT("PERMANENT ") : TEXT(""), *BoneName.ToString(),
                BlendState.BlendID, *BlendTag.ToString());
     }
 
     return true;
 }
 
-bool UOHPACManager::StartPhysicsBlendChain(FName RootBoneName, const FPhysicalAnimationData& Profile,
+bool UOHPACManager::StartPhysicsBlend(FName BoneName, const FPhysicalAnimationData& Profile, float TargetAlpha,
+                                      float BlendInDuration, float HoldDuration, float BlendOutDuration, FName BlendTag) {
+    return StartPhysicsBlendInternal(BoneName, Profile, TargetAlpha, BlendInDuration, HoldDuration, BlendOutDuration,
+                                     BlendTag, false);
+}
+
+bool UOHPACManager::StartPhysicsBlendChain(FName RootBoneName, const FPhysicalAnimationData& Profile, float TargetAlpha,
                                            float BlendInDuration, float HoldDuration, float BlendOutDuration,
                                            FName BlendTag) {
     TArray<FName> Chain = GetBoneChain(RootBoneName, 0);
@@ -2280,7 +2291,7 @@ bool UOHPACManager::StartPhysicsBlendChain(FName RootBoneName, const FPhysicalAn
 
     // Apply blending to each bone in the chain
     for (const FName& ChainBone : Chain) {
-        if (StartPhysicsBlend(ChainBone, Profile, BlendInDuration, HoldDuration, BlendOutDuration, BlendTag)) {
+        if (StartPhysicsBlend(ChainBone, Profile, TargetAlpha, BlendInDuration, HoldDuration, BlendOutDuration, BlendTag)) {
             SuccessfulBones.Add(ChainBone);
         } else {
             SafeLog(FString::Printf(TEXT("Failed to start blend for chain bone: %s"), *ChainBone.ToString()), true);
@@ -2302,197 +2313,6 @@ bool UOHPACManager::StartPhysicsBlendChain(FName RootBoneName, const FPhysicalAn
     return true;
 }
 
-bool UOHPACManager::StartPhysicsBlendWithAlpha(FName BoneName, const FPhysicalAnimationData& Profile, float TargetAlpha,
-                                               float BlendInDuration, float HoldDuration, float BlendOutDuration,
-                                               FName BlendTag) {
-    if (!IsBoneValidForSimulation(BoneName)) {
-        SafeLog(FString::Printf(TEXT("Bone not valid for alpha blending: %s"), *BoneName.ToString()), true);
-        return false;
-    }
-
-    if (!IsSkeletalMeshBindingValid(true, bVerboseLogging)) {
-        SafeLog(TEXT("Aborting alpha blend: SkeletalMesh binding is invalid!"), true);
-        return false;
-    }
-
-    // Clamp and apply bone-specific scaling to target alpha
-    float ScaledTargetAlpha = ApplyBoneAlphaScaling(BoneName, FMath::Clamp(TargetAlpha, 0.0f, 1.0f));
-
-    // Activate physics for the bone
-    if (!TryActivateSimForBone(BoneName, Profile)) {
-        SafeLog(FString::Printf(TEXT("Failed to activate physics for alpha blend: %s"), *BoneName.ToString()), true);
-        return false;
-    }
-
-    // Create blend state with custom target alpha
-    FOHBlendState BlendState = CreateSmartBlendStateWithAlpha(BoneName, ScaledTargetAlpha, BlendInDuration,
-                                                              HoldDuration, BlendOutDuration, BlendTag);
-
-    // Add blend state
-    AddBlendToBone(BoneName, BlendState);
-
-    // Clean initial state
-    if (FBodyInstance* Body = GetBodyInstanceDirect(BoneName)) {
-        Body->SetLinearVelocity(FVector::ZeroVector, false);
-        Body->SetAngularVelocityInRadians(FVector::ZeroVector, false);
-        Body->WakeInstance();
-    }
-
-    if (bVerboseLogging) {
-        UE_LOG(LogTemp, Warning, TEXT("✅ Started alpha blend for %s: Target=%.2f (Scaled=%.2f), Tag=%s"),
-               *BoneName.ToString(), TargetAlpha, ScaledTargetAlpha, *BlendTag.ToString());
-    }
-
-    return true;
-}
-
-bool UOHPACManager::StartPhysicsBlendWithMode(FName BoneName, const FPhysicalAnimationData& Profile,
-                                              EOHTargetAlphaMode AlphaMode, float BlendInDuration, float HoldDuration,
-                                              float BlendOutDuration, FName BlendTag) {
-    float TargetAlpha = GetTargetAlphaForMode(AlphaMode);
-    return StartPhysicsBlendWithAlpha(BoneName, Profile, TargetAlpha, BlendInDuration, HoldDuration, BlendOutDuration,
-                                      BlendTag);
-}
-
-bool UOHPACManager::StartPermanentPhysicsBlendWithAlpha(FName BoneName, const FPhysicalAnimationData& Profile,
-                                                        float TargetAlpha, float BlendInDuration, FName BlendTag) {
-    if (!IsBoneValidForSimulation(BoneName)) {
-        return false;
-    }
-
-    // Clamp and apply bone-specific scaling
-    float ScaledTargetAlpha = ApplyBoneAlphaScaling(BoneName, FMath::Clamp(TargetAlpha, 0.0f, 1.0f));
-
-    // Activate physics
-    if (!TryActivateSimForBone(BoneName, Profile)) {
-        return false;
-    }
-
-    // Create permanent blend with custom alpha
-    FOHBlendState BlendState;
-    BlendState.BlendID = ++NextBlendID;
-    BlendState.RootBone = BoneName;
-    BlendState.BlendInDuration = BlendInDuration;
-    BlendState.HoldDuration = 0.0f;
-    BlendState.BlendOutDuration = 0.0f;
-    BlendState.ReactionTag = BlendTag;
-    BlendState.bIsPermanent = true;
-    BlendState.CustomTargetAlpha = ScaledTargetAlpha;
-    BlendState.TargetAlphaMode = EOHTargetAlphaMode::Custom;
-
-    // Handle existing blends
-    const float CurrentAlpha = GetBlendAlpha(BoneName);
-    FOHBlendState* ExistingBlend = GetActiveBlendForBone(BoneName);
-
-    if (ExistingBlend != nullptr) {
-        BlendState.StartAlpha = CurrentAlpha;
-        BlendState.TargetAlpha = ScaledTargetAlpha;
-        BlendState.bInheritedFromPrevious = true;
-        BlendState.Phase =
-            (CurrentAlpha >= ScaledTargetAlpha - 0.1f) ? EOHBlendPhase::Permanent : EOHBlendPhase::BlendIn;
-        BlendState.BlendAlpha = CurrentAlpha;
-        BlendState.ElapsedTime = 0.0f;
-    } else {
-        BlendState.StartAlpha = 0.0f;
-        BlendState.TargetAlpha = ScaledTargetAlpha;
-        BlendState.bInheritedFromPrevious = false;
-        BlendState.Phase = EOHBlendPhase::BlendIn;
-        BlendState.BlendAlpha = 0.0f;
-        BlendState.ElapsedTime = 0.0f;
-    }
-
-    AddBlendToBone(BoneName, BlendState);
-
-    if (bVerboseLogging) {
-        UE_LOG(LogTemp, Warning, TEXT("✅ Started PERMANENT alpha blend for %s: Target=%.2f (Scaled=%.2f)"),
-               *BoneName.ToString(), TargetAlpha, ScaledTargetAlpha);
-    }
-
-    return true;
-}
-
-float UOHPACManager::GetTargetAlphaForMode(EOHTargetAlphaMode AlphaMode) const {
-    switch (AlphaMode) {
-    case EOHTargetAlphaMode::Full:
-        return MaximumPhysicsAlpha;
-    case EOHTargetAlphaMode::IdlePose:
-        return IdlePoseRetentionAlpha;
-    case EOHTargetAlphaMode::Secondary:
-        return SecondaryMotionAlpha;
-    case EOHTargetAlphaMode::Subtle:
-        return SubtlePhysicsAlpha;
-    case EOHTargetAlphaMode::Custom:
-    default:
-        return 1.0f; // Custom mode should specify alpha separately
-    }
-}
-
-float UOHPACManager::ApplyBoneAlphaScaling(FName BoneName, float BaseAlpha) const {
-    if (BaseAlpha <= 0.0f) {
-        return 0.0f;
-    }
-
-    const FString BoneStr = BoneName.ToString().ToLower();
-    float Multiplier = 1.0f;
-
-    // Apply bone-specific multipliers
-    if (BoneStr.Contains(TEXT("spine")) || BoneStr.Contains(TEXT("chest")))
-        Multiplier = SpineAlphaMultiplier;
-    else if (BoneStr.Contains(TEXT("arm")) || BoneStr.Contains(TEXT("clavicle")))
-        Multiplier = ArmAlphaMultiplier;
-    else if (BoneStr.Contains(TEXT("hand")))
-        Multiplier = HandAlphaMultiplier;
-    else if (BoneStr.Contains(TEXT("neck")) || BoneStr.Contains(TEXT("head")))
-        Multiplier = NeckAlphaMultiplier;
-
-    return FMath::Clamp(BaseAlpha * Multiplier, 0.0f, 1.0f);
-}
-
-// Helper function to create blend state with custom alpha
-FOHBlendState UOHPACManager::CreateSmartBlendStateWithAlpha(FName BoneName, float TargetAlpha, float BlendIn,
-                                                            float Hold, float BlendOut, FName ReactionTag) {
-    FOHBlendState NewBlend;
-    NewBlend.BlendID = ++NextBlendID;
-    NewBlend.RootBone = BoneName;
-    NewBlend.BlendInDuration = BlendIn;
-    NewBlend.HoldDuration = Hold;
-    NewBlend.BlendOutDuration = BlendOut;
-    NewBlend.ReactionTag = ReactionTag;
-    NewBlend.CustomTargetAlpha = TargetAlpha;
-    NewBlend.TargetAlphaMode = EOHTargetAlphaMode::Custom;
-
-    // Check for existing blend
-    const float CurrentAlpha = GetBlendAlpha(BoneName);
-    FOHBlendState* ExistingBlend = GetActiveBlendForBone(BoneName);
-
-    if (ExistingBlend != nullptr) {
-        // Smooth transition from current alpha to target alpha
-        NewBlend.StartAlpha = CurrentAlpha;
-        NewBlend.TargetAlpha = TargetAlpha;
-        NewBlend.bInheritedFromPrevious = true;
-
-        // Check if we're already close to target
-        if (FMath::Abs(CurrentAlpha - TargetAlpha) < 0.1f) {
-            NewBlend.Phase = (Hold < 0.0f) ? EOHBlendPhase::Permanent : EOHBlendPhase::Hold;
-            NewBlend.BlendAlpha = TargetAlpha;
-            NewBlend.ElapsedTime = 0.0f;
-        } else {
-            NewBlend.Phase = EOHBlendPhase::BlendIn;
-            NewBlend.BlendAlpha = CurrentAlpha;
-            NewBlend.ElapsedTime = 0.0f;
-        }
-    } else {
-        // Fresh start
-        NewBlend.StartAlpha = 0.0f;
-        NewBlend.TargetAlpha = TargetAlpha;
-        NewBlend.bInheritedFromPrevious = false;
-        NewBlend.Phase = EOHBlendPhase::BlendIn;
-        NewBlend.BlendAlpha = 0.0f;
-        NewBlend.ElapsedTime = 0.0f;
-    }
-
-    return NewBlend;
-}
 
 void UOHPACManager::StopPhysicsBlend(FName BoneName, float BlendOutDuration) {
     TArray<FOHBlendState>* BoneBlends = ActiveBlends.Find(BoneName);
@@ -2539,76 +2359,12 @@ void UOHPACManager::StopPhysicsBlendChain(FName RootBoneName, float BlendOutDura
     }
 }
 
-bool UOHPACManager::StartPermanentPhysicsBlend(FName BoneName, const FPhysicalAnimationData& Profile,
+bool UOHPACManager::StartPermanentPhysicsBlend(FName BoneName, const FPhysicalAnimationData& Profile, float TargetAlpha,
                                                float BlendInDuration, FName BlendTag) {
-    if (!IsBoneValidForSimulation(BoneName)) {
-        SafeLog(FString::Printf(TEXT("Bone not valid for permanent blending: %s"), *BoneName.ToString()), true);
-        return false;
-    }
-
-    if (!IsSkeletalMeshBindingValid(true, bVerboseLogging)) {
-        SafeLog(TEXT("Aborting permanent blend: SkeletalMesh binding is invalid!"), true);
-        return false;
-    }
-
-    // STEP 1: Activate physics for the bone
-    if (!TryActivateSimForBone(BoneName, Profile)) {
-        SafeLog(FString::Printf(TEXT("Failed to activate physics for permanent blend: %s"), *BoneName.ToString()),
-                true);
-        return false;
-    }
-
-    // STEP 2: Create permanent blend state
-    FOHBlendState BlendState;
-    BlendState.BlendID = ++NextBlendID;
-    BlendState.RootBone = BoneName;
-    BlendState.BlendInDuration = BlendInDuration;
-    BlendState.HoldDuration = 0.0f;     // No hold phase needed
-    BlendState.BlendOutDuration = 0.0f; // No blend-out planned
-    BlendState.ReactionTag = BlendTag;
-    BlendState.bIsPermanent = true; // Mark as permanent
-
-    // Check for existing blend for smooth transition
-    const float CurrentAlpha = GetBlendAlpha(BoneName);
-    FOHBlendState* ExistingBlend = GetActiveBlendForBone(BoneName);
-
-    if (ExistingBlend != nullptr) {
-        // Smooth transition from current state
-        BlendState.StartAlpha = CurrentAlpha;
-        BlendState.TargetAlpha = 1.0f;
-        BlendState.bInheritedFromPrevious = true;
-        BlendState.Phase = CurrentAlpha > 0.9f ? EOHBlendPhase::Permanent : EOHBlendPhase::BlendIn;
-        BlendState.BlendAlpha = CurrentAlpha;
-        BlendState.ElapsedTime = 0.0f;
-    } else {
-        // Fresh start
-        BlendState.StartAlpha = 0.0f;
-        BlendState.TargetAlpha = 1.0f;
-        BlendState.bInheritedFromPrevious = false;
-        BlendState.Phase = EOHBlendPhase::BlendIn;
-        BlendState.BlendAlpha = 0.0f;
-        BlendState.ElapsedTime = 0.0f;
-    }
-
-    // STEP 3: Add blend state
-    AddBlendToBone(BoneName, BlendState);
-
-    // STEP 4: Clean initial state
-    if (FBodyInstance* Body = GetBodyInstanceDirect(BoneName)) {
-        Body->SetLinearVelocity(FVector::ZeroVector, false);
-        Body->SetAngularVelocityInRadians(FVector::ZeroVector, false);
-        Body->WakeInstance();
-    }
-
-    if (bVerboseLogging) {
-        UE_LOG(LogTemp, Warning, TEXT("✅ Started PERMANENT physics blend for %s (BlendID: %d, Tag: %s)"),
-               *BoneName.ToString(), BlendState.BlendID, *BlendTag.ToString());
-    }
-
-    return true;
+    return StartPhysicsBlendInternal(BoneName, Profile, TargetAlpha, BlendInDuration, 0.f, 0.f, BlendTag, true);
 }
 
-bool UOHPACManager::StartPermanentPhysicsBlendChain(FName RootBoneName, const FPhysicalAnimationData& Profile,
+bool UOHPACManager::StartPermanentPhysicsBlendChain(FName RootBoneName, const FPhysicalAnimationData& Profile, float TargetAlpha,
                                                     float BlendInDuration, FName BlendTag) {
     TArray<FName> Chain = GetBoneChain(RootBoneName, 0);
     TArray<FName> SuccessfulBones;
@@ -2619,7 +2375,7 @@ bool UOHPACManager::StartPermanentPhysicsBlendChain(FName RootBoneName, const FP
     }
 
     for (const FName& ChainBone : Chain) {
-        if (StartPermanentPhysicsBlend(ChainBone, Profile, BlendInDuration, BlendTag)) {
+        if (StartPermanentPhysicsBlend(ChainBone, Profile, TargetAlpha, BlendInDuration, BlendTag)) {
             SuccessfulBones.Add(ChainBone);
         }
     }
@@ -4116,242 +3872,31 @@ float UOHPACManager::GetIntensityMultiplier(EOHProfileIntensity Intensity) {
     }
 }
 
+float UOHPACManager::ApplyBoneAlphaScaling(FName BoneName, float BaseAlpha) const {
+    if (BaseAlpha <= 0.f) {
+        return 0.f;
+    }
+
+    const FString BoneStr = BoneName.ToString().ToLower();
+    float Multiplier = 1.f;
+
+    if (BoneStr.Contains(TEXT("spine")) || BoneStr.Contains(TEXT("chest"))) {
+        Multiplier = SpineAlphaMultiplier;
+    } else if (BoneStr.Contains(TEXT("arm")) || BoneStr.Contains(TEXT("clavicle"))) {
+        Multiplier = ArmAlphaMultiplier;
+    } else if (BoneStr.Contains(TEXT("hand"))) {
+        Multiplier = HandAlphaMultiplier;
+    } else if (BoneStr.Contains(TEXT("neck")) || BoneStr.Contains(TEXT("head"))) {
+        Multiplier = NeckAlphaMultiplier;
+    }
+
+    return FMath::Clamp(BaseAlpha * Multiplier, 0.f, 1.f);
+}
+
 #pragma endregion
 
-#pragma region IDLE POSE RETENTION
-
-void UOHPACManager::StartIdlePoseRetention(const TArray<FName>& TestBones, EOHProfileIntensity Intensity,
-                                           bool bValidateCalculations) {
-    if (!bIsInitialized) {
-        SafeLog(TEXT("PAC Manager not initialized - run InitializePACManager first"), true);
-        return;
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("=== Testing Idle Pose Retention ==="));
-
-    // Determine bones to test
-    TArray<FName> BonesToTest = TestBones;
-    if (BonesToTest.Num() == 0) {
-        // Use upper body bones for idle test
-        BonesToTest = GetIdleTestBones();
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("Testing %d bones for idle pose retention"), BonesToTest.Num());
-
-    // Validate calculations if requested
-    if (bValidateCalculations) {
-        ValidateBoneCalculations(BonesToTest);
-    }
-
-    // Apply pose retention profiles
-    int32 SuccessfulBones = 0;
-    for (const FName& BoneName : BonesToTest) {
-        if (ApplyIdlePoseRetention(BoneName, Intensity)) {
-            SuccessfulBones++;
-        }
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("✅ Idle pose retention applied to %d/%d bones"), SuccessfulBones, BonesToTest.Num());
-
-    // Log summary
-    LogPoseRetentionSummary(BonesToTest);
-}
-
-void UOHPACManager::StartIdlePoseRetentionDefault() {
-    StartIdlePoseRetention(TArray<FName>(), EOHProfileIntensity::Light, true);
-}
-
-void UOHPACManager::StopIdlePoseRetention(const TArray<FName>& BonesToStop, float BlendOutDuration) {
-    TArray<FName> BonesToProcess = BonesToStop;
-    if (BonesToProcess.Num() == 0) {
-        BonesToProcess = GetIdleTestBones();
-    }
-
-    int32 StoppedCount = 0;
-    for (const FName& BoneName : BonesToProcess) {
-        if (ActiveBlends.Contains(BoneName)) {
-            StopPhysicsBlend(BoneName, BlendOutDuration);
-            StoppedCount++;
-        } else if (IsBoneSimulating(BoneName)) {
-            StopBonePhysicalAnimation(BoneName, true, true, bVerboseLogging);
-            StoppedCount++;
-        }
-    }
-    UE_LOG(LogTemp, Warning, TEXT("Smoothly stopping pose retention on %d bones over %.2fs"), StoppedCount,
-           BlendOutDuration);
-}
-
-void UOHPACManager::StopIdlePoseRetentionDefault() {
-    StopIdlePoseRetention(TArray<FName>(), 0.5f);
-}
-
-void UOHPACManager::QuickIdleTest() {
-    // Simple one-button test for idle pose retention
-    StartIdlePoseRetention(TArray<FName>(), EOHProfileIntensity::Light, true);
-}
-
-bool UOHPACManager::ApplyIdlePoseRetention(FName BoneName, EOHProfileIntensity Intensity) {
-    if (!IsBoneValidForSimulation(BoneName)) {
-        return false;
-    }
-
-    // Calculate optimal profile for idle pose retention
-    FPhysicalAnimationData IdleProfile = CalculateOptimalPACProfile(BoneName, Intensity, true);
-
-    if (IdleProfile.PositionStrength <= 0.0f) {
-        SafeLog(FString::Printf(TEXT("Invalid profile calculated for bone: %s"), *BoneName.ToString()), true);
-        return false;
-    }
-
-    // Get current bone state before applying physics
-    const FTransform InitialTransform = SkeletalMesh->GetSocketTransform(BoneName);
-
-    // Start physics simulation with pose retention
-    bool bSuccess = StartBonePhysicalAnimation(BoneName, IdleProfile, true, true, bVerboseLogging);
-
-    if (bSuccess) {
-        // Ensure bone starts in correct pose
-        if (FBodyInstance* Body = GetBodyInstanceDirect(BoneName)) {
-            // Set initial state to match animation
-            Body->SetBodyTransform(InitialTransform, ETeleportType::ResetPhysics);
-            Body->SetLinearVelocity(FVector::ZeroVector, false);
-            Body->SetAngularVelocityInRadians(FVector::ZeroVector, false);
-
-            // Ensure physics blend weight is set for pose retention
-            Body->PhysicsBlendWeight = 1.0f;
-
-            // Wake body to start physics
-            Body->WakeInstance();
-        }
-
-        if (bVerboseLogging) {
-            UE_LOG(LogTemp, Log, TEXT("Applied idle pose retention to %s: Pos=%.1f, Ori=%.1f"), *BoneName.ToString(),
-                   IdleProfile.PositionStrength, IdleProfile.OrientationStrength);
-        }
-    } else {
-        SafeLog(FString::Printf(TEXT("Failed to apply pose retention to bone: %s"), *BoneName.ToString()), true);
-    }
-
-    return bSuccess;
-}
-
-TArray<FName> UOHPACManager::GetIdleTestBones() const {
-    TArray<FName> IdleBones;
-
-    // Conservative bone set for idle testing (upper body focus)
-    const TArray<FName> CandidateBones = {
-        "spine_01",   "spine_02",   "spine_03",   "head",       "clavicle_l",
-        "clavicle_r", "upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r",
-    };
-
-    // Only include bones that are actually simulatable
-    for (const FName& BoneName : CandidateBones) {
-        if (SimulatableBones.Contains(BoneName) && IsBoneValidForSimulation(BoneName)) {
-            IdleBones.Add(BoneName);
-        }
-    }
-
-    return IdleBones;
-}
-
-void UOHPACManager::ValidateBoneCalculations(const TArray<FName>& BonesToValidate) {
-    UE_LOG(LogTemp, Warning, TEXT("=== Validating Bone Calculations ==="));
-
-    for (const FName& BoneName : BonesToValidate) {
-        // Analyze bone properties
-        FOHBoneProperties Props = AnalyzeBoneProperties(BoneName);
-
-        // Calculate profile
-        FPhysicalAnimationData Profile = CalculateOptimalPACProfile(BoneName, EOHProfileIntensity::Medium, true);
-
-        // Validate critical damping ratios
-        float ExpectedVelocityStrength = 2.0f * FMath::Sqrt(Profile.PositionStrength * Props.Mass);
-        float ExpectedAngularVelocityStrength = 2.0f * FMath::Sqrt(Profile.OrientationStrength * Props.MomentOfInertia);
-
-        float VelocityRatio = Profile.VelocityStrength / ExpectedVelocityStrength;
-        float AngularRatio = Profile.AngularVelocityStrength / ExpectedAngularVelocityStrength;
-
-        // Check if ratios are close to 1.0 (indicating proper critical damping)
-        bool bVelocityValid = FMath::Abs(VelocityRatio - 1.0f) < 0.15f;
-        bool bAngularValid = FMath::Abs(AngularRatio - 1.0f) < 0.15f;
-
-        FString ValidationStatus = (bVelocityValid && bAngularValid) ? TEXT("✅") : TEXT("⚠️");
-
-        UE_LOG(LogTemp, Log, TEXT("%s %s: Mass=%.2f, Inertia=%.4f, Length=%.1f, Category=%s"), *ValidationStatus,
-               *BoneName.ToString(), Props.Mass, Props.MomentOfInertia, Props.Length, *Props.Category.ToString());
-
-        UE_LOG(LogTemp, Log, TEXT("    Profile: Pos=%.1f, Vel=%.1f (ratio=%.2f), Ori=%.1f, AngVel=%.1f (ratio=%.2f)"),
-               Profile.PositionStrength, Profile.VelocityStrength, VelocityRatio, Profile.OrientationStrength,
-               Profile.AngularVelocityStrength, AngularRatio);
-
-        if (!bVelocityValid || !bAngularValid) {
-            UE_LOG(LogTemp, Warning, TEXT("    ⚠️ Critical damping ratios out of range - may cause instability"));
-        }
-    }
-}
-
-void UOHPACManager::LogPoseRetentionSummary(const TArray<FName>& TestedBones) {
-    UE_LOG(LogTemp, Warning, TEXT("=== Pose Retention Summary ==="));
-
-    int32 SimulatingCount = 0;
-    int32 ValidPhysicsCount = 0;
-    float TotalMass = 0.0f;
-
-    for (const FName& BoneName : TestedBones) {
-        FOHBoneProperties Props = AnalyzeBoneProperties(BoneName);
-
-        if (Props.bHasValidPhysics) {
-            ValidPhysicsCount++;
-            TotalMass += Props.Mass;
-        }
-
-        if (IsBoneSimulating(BoneName)) {
-            SimulatingCount++;
-        }
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("Tested Bones: %d"), TestedBones.Num());
-    UE_LOG(LogTemp, Warning, TEXT("Valid Physics Bodies: %d"), ValidPhysicsCount);
-    UE_LOG(LogTemp, Warning, TEXT("Currently Simulating: %d"), SimulatingCount);
-    UE_LOG(LogTemp, Warning, TEXT("Total Mass: %.2f kg"), TotalMass);
-
-    // Performance estimate
-    float EstimatedFrameTime = SimulatingCount * 0.5f; // Rough estimate: 0.5ms per bone
-    UE_LOG(LogTemp, Warning, TEXT("Estimated Performance Impact: %.1f ms/frame"), EstimatedFrameTime);
-
-    if (SimulatingCount < TestedBones.Num()) {
-        UE_LOG(LogTemp, Warning, TEXT("⚠️ Some bones failed to simulate - check bone validity and physics setup"));
-    }
-}
-#pragma endregion
 
 // Testing function for full chain simulation
-void UOHPACManager::TestFullChainSimulation() {
-    UE_LOG(LogTemp, Warning, TEXT("=== Testing Full Chain Simulation ==="));
-    // Test spine + neck + head chain
-    TArray<FName> SpineChain = {"pelvis", "spine_01", "spine_02", "spine_03", "neck_01", "head"};
-
-    // Test arm chains including hands
-    TArray<FName> LeftArmChain = {"clavicle_l", "upperarm_l", "lowerarm_l", "hand_l"};
-
-    TArray<FName> RightArmChain = {"clavicle_r", "upperarm_r", "lowerarm_r", "hand_r"};
-
-    // Apply chain-aware stabilization
-    ApplyChainStabilization(SpineChain, EOHProfileIntensity::Strong);
-    ApplyChainStabilization(LeftArmChain, EOHProfileIntensity::Medium);
-    ApplyChainStabilization(RightArmChain, EOHProfileIntensity::Medium);
-
-    // Analyze chains
-    FOHChainAnalysis SpineAnalysis = AnalyzeChain("pelvis");
-    FOHChainAnalysis ArmAnalysis = AnalyzeChain("clavicle_l");
-
-    UE_LOG(LogTemp, Warning, TEXT("Spine Chain: Length=%d, Risk=%.2f, Anchors=%s"), SpineAnalysis.ChainLength,
-           SpineAnalysis.StabilityRisk, SpineAnalysis.bHasKinematicAnchors ? TEXT("Yes") : TEXT("No"));
-
-    UE_LOG(LogTemp, Warning, TEXT("Arm Chain: Length=%d, Risk=%.2f, Anchors=%s"), ArmAnalysis.ChainLength,
-           ArmAnalysis.StabilityRisk, ArmAnalysis.bHasKinematicAnchors ? TEXT("Yes") : TEXT("No"));
-}
-
 #pragma region Chain Analysis
 FPhysicalAnimationData UOHPACManager::CalculateChainAwareProfile(FName BoneName, EOHProfileIntensity BaseIntensity,
                                                                  bool bAccountForChainPosition) const {
@@ -4522,106 +4067,6 @@ float UOHPACManager::CalculateContinuityMultiplier(const FOHChainAnalysis& Chain
     }
 }
 
-void UOHPACManager::ApplyChainStabilization(const TArray<FName>& ChainBones, EOHProfileIntensity BaseIntensity) {
-    UE_LOG(LogTemp, Warning, TEXT("=== Applying Chain Stabilization ==="));
-
-    for (const FName& BoneName : ChainBones) {
-        if (!IsBoneValidForSimulation(BoneName)) {
-            continue;
-        }
-
-        // Calculate chain-aware profile
-        FPhysicalAnimationData StabilizedProfile = CalculateChainAwareProfile(BoneName, BaseIntensity, true);
-
-        // Apply immediately for testing
-        if (ApplyIdlePoseRetention(BoneName, BaseIntensity)) {
-            // Override with stabilized profile
-            ApplyPhysicalAnimationProfile(BoneName, StabilizedProfile);
-
-            UE_LOG(LogTemp, Log, TEXT("Applied stabilized profile to %s: Pos=%.1f, Ori=%.1f"), *BoneName.ToString(),
-                   StabilizedProfile.PositionStrength, StabilizedProfile.OrientationStrength);
-        }
-    }
-}
-
-void UOHPACManager::AnalyzeAllBones() {
-    UE_LOG(LogTemp, Warning, TEXT("=== Complete Bone Analysis ==="));
-
-    if (!bIsInitialized) {
-        SafeLog(TEXT("PAC Manager not initialized"), true);
-        return;
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("Analyzing %d simulatable bones"), SimulatableBones.Num());
-
-    // Categories for analysis
-    TMap<FName, TArray<FName>> BonesByCategory;
-
-    for (const FName& BoneName : SimulatableBones) {
-        FOHBoneProperties Props = AnalyzeBoneProperties(BoneName);
-
-        // Group by category
-        TArray<FName>& CategoryBones = BonesByCategory.FindOrAdd(Props.Category);
-        CategoryBones.Add(BoneName);
-
-        UE_LOG(LogTemp, Log, TEXT("%s: Mass=%.2f kg, Inertia=%.4f, Length=%.1f cm, Level=%d, Category=%s, Physics=%s"),
-               *BoneName.ToString(), Props.Mass, Props.MomentOfInertia, Props.Length, Props.HierarchyLevel,
-               *Props.Category.ToString(), Props.bHasValidPhysics ? TEXT("Valid") : TEXT("Invalid"));
-    }
-
-    // Summary by category
-    UE_LOG(LogTemp, Warning, TEXT("=== Bone Categories ==="));
-    for (const auto& CategoryPair : BonesByCategory) {
-        const FName& Category = CategoryPair.Key;
-        const TArray<FName>& Bones = CategoryPair.Value;
-
-        UE_LOG(LogTemp, Warning, TEXT("%s: %d bones"), *Category.ToString(), Bones.Num());
-    }
-}
-#pragma endregion
-
-#pragma region Permanent Pose Retention
-
-// ============================================================================
-// TESTING FUNCTIONS FOR PERMANENT BLENDS
-// ============================================================================
-
-void UOHPACManager::TestPermanentPoseRetention() {
-    UE_LOG(LogTemp, Warning, TEXT("=== Testing PERMANENT Pose Retention ==="));
-
-    // Test with smooth blend-in but permanent activation
-    TArray<FName> TestBones = GetIdleTestBones();
-
-    int32 SuccessfulBones = 0;
-    for (const FName& BoneName : TestBones) {
-        FPhysicalAnimationData Profile = CalculateChainAwareProfile(BoneName, EOHProfileIntensity::Medium, true);
-
-        if (StartPermanentPhysicsBlend(BoneName, Profile, TestBlendInDuration, FName("PermanentPoseTest"))) {
-            SuccessfulBones++;
-        }
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("✅ Started permanent pose retention on %d/%d bones (%.2fs blend-in)"),
-           SuccessfulBones, TestBones.Num(), TestBlendInDuration);
-    UE_LOG(LogTemp, Warning, TEXT("   Physics will remain active until manually stopped"));
-}
-
-void UOHPACManager::StopPermanentPoseRetention(float BlendOutDuration) {
-    TArray<FName> TestBones = GetIdleTestBones();
-
-    int32 StoppedCount = 0;
-    for (const FName& BoneName : TestBones) {
-        if (ActiveBlends.Contains(BoneName)) {
-            ForceBlendOutPermanent(BoneName, BlendOutDuration);
-            StoppedCount++;
-        }
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("🛑 Forcing blend-out for %d permanent physics over %.2fs"), StoppedCount,
-           BlendOutDuration);
-}
-
-#pragma endregion
 
 #pragma region ReversePACCalculation
 FPhysicalAnimationData UOHPACManager::GetCurrentPhysicalAnimationProfile(FName BoneName) const {
@@ -5120,72 +4565,6 @@ FPhysicalAnimationData UOHPACManager::ReversePACProfileFromDrives(const FOHConst
 
     return ReversedProfile;
 }
-void UOHPACManager::TestCustomAlphaBlends(EOHBoneType BoneType) {
-    UE_LOG(LogTemp, Warning, TEXT("=== Testing Custom Alpha Blends ==="));
-
-    TArray<FName> TestBones = GetBonesByType(BoneType);
-    if (TestBones.Num() == 0) {
-        UE_LOG(LogTemp, Error, TEXT("No test bones available"));
-        return;
-    }
-
-    // Test different alpha modes
-    TArray<EOHTargetAlphaMode> TestModes = {EOHTargetAlphaMode::Subtle, EOHTargetAlphaMode::Secondary,
-                                            EOHTargetAlphaMode::IdlePose, EOHTargetAlphaMode::Full};
-
-    for (int32 i = 0; i < FMath::Min(TestBones.Num(), TestModes.Num()); ++i) {
-        const FName& BoneName = TestBones[i];
-        EOHTargetAlphaMode Mode = TestModes[i];
-
-        FPhysicalAnimationData Profile = CalculateChainAwareProfile(BoneName, EOHProfileIntensity::Medium, true);
-        float TargetAlpha = GetTargetAlphaForMode(Mode);
-        float ScaledAlpha = ApplyBoneAlphaScaling(BoneName, TargetAlpha);
-
-        bool bSuccess = StartPhysicsBlendWithMode(BoneName, Profile, Mode, 0.5f, 5.0f, 0.8f, FName("AlphaTest"));
-
-        UE_LOG(LogTemp, Warning, TEXT("Bone %s: Mode=%s, Target=%.2f, Scaled=%.2f, Success=%s"), *BoneName.ToString(),
-               *UEnum::GetValueAsString(Mode), TargetAlpha, ScaledAlpha, bSuccess ? TEXT("Yes") : TEXT("No"));
-    }
-
-    // Log the effective blend alphas
-    FTimerHandle LogTimer;
-    GetWorld()->GetTimerManager().SetTimer(
-        LogTimer,
-        [this, TestBones]() {
-            UE_LOG(LogTemp, Warning, TEXT("--- Alpha Test Results ---"));
-            for (const FName& BoneName : TestBones) {
-                float EffectiveAlpha = GetBlendAlpha(BoneName);
-                bool bSimulating = IsBoneSimulating(BoneName);
-
-                if (FBodyInstance* Body = GetBodyInstanceDirect(BoneName)) {
-                    float ActualWeight = Body->PhysicsBlendWeight;
-                    UE_LOG(LogTemp, Log, TEXT("%s: Effective=%.2f, Actual=%.2f, Sim=%s"), *BoneName.ToString(),
-                           EffectiveAlpha, ActualWeight, bSimulating ? TEXT("Yes") : TEXT("No"));
-                }
-            }
-        },
-        1.0f, false);
-}
-
-void UOHPACManager::TestSubtlePhysicsMode(EOHBoneType BoneType) {
-    UE_LOG(LogTemp, Warning, TEXT("=== Testing Subtle Physics Mode ==="));
-    TArray<FName> BonesToUse = GetBonesByType(BoneType);
-
-    for (const FName& BoneName : BonesToUse) {
-        if (!IsBoneValidForSimulation(BoneName)) {
-            continue;
-        }
-
-        FPhysicalAnimationData Profile = CalculateChainAwareProfile(BoneName, EOHProfileIntensity::Light, true);
-
-        // Use subtle physics mode for secondary motion effects
-        StartPermanentPhysicsBlendWithAlpha(BoneName, Profile, SubtlePhysicsAlpha, 1.0f, FName("SubtleTest"));
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("✅ Applied subtle physics to %d bones (Alpha=%.2f)"), UpperBodyBones.Num(),
-           SubtlePhysicsAlpha);
-}
-
 TArray<FName> UOHPACManager::GetBonesByType(EOHBoneType BoneType) const {
     switch (BoneType) {
     case EOHBoneType::UpperBodyBones:

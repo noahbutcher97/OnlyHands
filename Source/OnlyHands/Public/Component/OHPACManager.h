@@ -467,12 +467,6 @@ struct ONLYHANDS_API FOHBlendState {
     float BlendOutDuration = 0.2f;
 
     UPROPERTY()
-    float CustomTargetAlpha = 1.0f; // Custom target alpha (when not using 1.0)
-
-    UPROPERTY()
-    EOHTargetAlphaMode TargetAlphaMode = EOHTargetAlphaMode::Full;
-
-    UPROPERTY()
     FName ReactionTag = NAME_None;
 
     UPROPERTY()
@@ -901,24 +895,14 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
                                              bool bPutToSleep, bool bVerboseLog);
 
     UFUNCTION(BlueprintCallable, Category = "PAC Manager|Physics Blending")
-    bool StartPhysicsBlend(FName BoneName, const FPhysicalAnimationData& Profile, float BlendInDuration = 0.2f,
-                           float HoldDuration = -1.0f, // -1 = infinite hold
+    bool StartPhysicsBlend(FName BoneName, const FPhysicalAnimationData& Profile, float TargetAlpha = 1.0f,
+                           float BlendInDuration = 0.2f, float HoldDuration = -1.0f,
                            float BlendOutDuration = 0.3f, FName BlendTag = NAME_None);
 
     UFUNCTION(BlueprintCallable, Category = "PAC Manager|Physics Blending")
-    bool StartPhysicsBlendChain(FName RootBoneName, const FPhysicalAnimationData& Profile, float BlendInDuration = 0.2f,
-                                float HoldDuration = -1.0f, float BlendOutDuration = 0.3f, FName BlendTag = NAME_None);
-    bool StartPhysicsBlendWithAlpha(FName BoneName, const FPhysicalAnimationData& Profile, float TargetAlpha,
-                                    float BlendInDuration, float HoldDuration, float BlendOutDuration, FName BlendTag);
-    bool StartPhysicsBlendWithMode(FName BoneName, const FPhysicalAnimationData& Profile, EOHTargetAlphaMode AlphaMode,
-                                   float BlendInDuration, float HoldDuration, float BlendOutDuration, FName BlendTag);
-
-    bool StartPermanentPhysicsBlendWithAlpha(FName BoneName, const FPhysicalAnimationData& Profile, float TargetAlpha,
-                                             float BlendInDuration, FName BlendTag);
-    float GetTargetAlphaForMode(EOHTargetAlphaMode AlphaMode) const;
-    float ApplyBoneAlphaScaling(FName BoneName, float BaseAlpha) const;
-    FOHBlendState CreateSmartBlendStateWithAlpha(FName BoneName, float TargetAlpha, float BlendIn, float Hold,
-                                                 float BlendOut, FName ReactionTag);
+    bool StartPhysicsBlendChain(FName RootBoneName, const FPhysicalAnimationData& Profile, float TargetAlpha = 1.0f,
+                                float BlendInDuration = 0.2f, float HoldDuration = -1.0f,
+                                float BlendOutDuration = 0.3f, FName BlendTag = NAME_None);
     UFUNCTION(BlueprintCallable, Category = "PAC Manager|Physics Blending")
     void StopPhysicsBlend(FName BoneName, float BlendOutDuration = 0.3f);
 
@@ -927,11 +911,11 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
 
     // === PERMANENT PHYSICS BLENDS ===
     UFUNCTION(BlueprintCallable, Category = "PAC Manager|Permanent Physics")
-    bool StartPermanentPhysicsBlend(FName BoneName, const FPhysicalAnimationData& Profile, float BlendInDuration = 0.3f,
-                                    FName BlendTag = NAME_None);
+    bool StartPermanentPhysicsBlend(FName BoneName, const FPhysicalAnimationData& Profile, float TargetAlpha = 1.0f,
+                                    float BlendInDuration = 0.3f, FName BlendTag = NAME_None);
 
     UFUNCTION(BlueprintCallable, Category = "PAC Manager|Permanent Physics")
-    bool StartPermanentPhysicsBlendChain(FName RootBoneName, const FPhysicalAnimationData& Profile,
+    bool StartPermanentPhysicsBlendChain(FName RootBoneName, const FPhysicalAnimationData& Profile, float TargetAlpha = 1.0f,
                                          float BlendInDuration = 0.3f, FName BlendTag = NAME_None);
 
     UFUNCTION(BlueprintCallable, Category = "PAC Manager|Permanent Physics")
@@ -940,11 +924,6 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
     UFUNCTION(BlueprintCallable, Category = "PAC Manager|Permanent Physics")
     void ForceBlendOutPermanent(FName BoneName, float BlendOutDuration = 0.5f);
 
-    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Testing")
-    void TestPermanentPoseRetention();
-
-    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Testing")
-    void StopPermanentPoseRetention(float BlendOutDuration = 0.5f);
 
     UFUNCTION(BlueprintCallable, Category = "PAC Manager|Physics")
     void EnsureBoneSimulatingPhysics(FName BoneName, bool bEnableChain = true);
@@ -1109,8 +1088,11 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
     // === MOTION TRACKING ===
     void UpdateMotionTracking(float DeltaTime);
     void UpdateConstraintStates(float DeltaTime);
-    FOHBlendState CreateSmartBlendState(FName BoneName, float BlendIn, float Hold, float BlendOut, FName ReactionTag);
+    FOHBlendState CreateSmartBlendState(FName BoneName, float DesiredAlpha, float BlendIn, float Hold, float BlendOut,
+                                        FName ReactionTag);
     void AddBlendToBone(FName BoneName, const FOHBlendState& BlendState);
+    bool StartPhysicsBlendInternal(FName BoneName, const FPhysicalAnimationData& Profile, float TargetAlpha,
+                                   float BlendIn, float Hold, float BlendOut, FName BlendTag, bool bPermanent);
 
     // === BLEND PROCESSING ===
     void ProcessActiveBlends(float DeltaTime);
@@ -1173,30 +1155,6 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
     UFUNCTION(BlueprintPure, Category = "PAC Manager|Bone Analysis")
     FOHBoneProperties AnalyzeBoneProperties(FName BoneName, float MassOverride = -1.0f) const;
 
-    // === TESTING & VALIDATION ===
-    // Remove default arguments from UFUNCTION declarations
-    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Testing")
-    void StartIdlePoseRetention(const TArray<FName>& TestBones, EOHProfileIntensity Intensity,
-                                bool bValidateCalculations);
-
-    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Testing")
-    void StopIdlePoseRetention(const TArray<FName>& BonesToStop, float BlendOutDuration = 0.5f);
-
-    // Add convenience functions with no parameters for Blueprint/Editor use
-    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Testing")
-    void StartIdlePoseRetentionDefault();
-
-    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Testing")
-    void StopIdlePoseRetentionDefault();
-
-    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Analysis")
-    void AnalyzeAllBones();
-
-    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Testing")
-    void QuickIdleTest();
-
-    UFUNCTION(BlueprintPure, Category = "PAC Manager|Testing")
-    TArray<FName> GetIdleTestBones() const;
 
   private:
     // === BONE ANALYSIS HELPERS ===
@@ -1213,27 +1171,18 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
     static float CalculateBoneScalar(const FOHBoneProperties& Props);
     bool HasValidPhysicsBody(FName BoneName) const;
     static float GetIntensityMultiplier(EOHProfileIntensity Intensity);
+    float ApplyBoneAlphaScaling(FName BoneName, float BaseAlpha) const;
 
-    // === POSE RETENTION HELPERS ===
-    bool ApplyIdlePoseRetention(FName BoneName, EOHProfileIntensity Intensity);
-    void ValidateBoneCalculations(const TArray<FName>& BonesToValidate);
-    void LogPoseRetentionSummary(const TArray<FName>& TestedBones);
+
 
 #pragma endregion
 
 #pragma region ChainAnalysis
   public:
-    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Testing")
-    void TestFullChainSimulation();
-
     UFUNCTION(BlueprintCallable, Category = "PAC Manager|Chain Analysis")
     FPhysicalAnimationData CalculateChainAwareProfile(FName BoneName,
                                                       EOHProfileIntensity BaseIntensity = EOHProfileIntensity::Medium,
                                                       bool bAccountForChainPosition = true) const;
-
-    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Chain Analysis")
-    void ApplyChainStabilization(const TArray<FName>& ChainBones,
-                                 EOHProfileIntensity BaseIntensity = EOHProfileIntensity::Medium);
 
     UFUNCTION(BlueprintPure, Category = "PAC Manager|Chain Analysis")
     FOHChainAnalysis AnalyzeChain(FName RootBone) const;
@@ -1267,11 +1216,6 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
     static float CalculatePercentageDifference(float ValueA, float ValueB);
     FPhysicalAnimationData ReversePACProfileFromDrives(const FOHConstraintDriveData& DriveData, FName BoneName) const;
 
-    UFUNCTION(BlueprintCallable, CallInEditor, Category = "PAC Manager|Testing")
-    void TestCustomAlphaBlends(EOHBoneType BoneType);
-
-    UFUNCTION(BlueprintCallable, Category = "PAC Manager|Testing")
-    void TestSubtlePhysicsMode(EOHBoneType BoneType);
 
   private:
     static bool GetConstraintDriveParametersFromInstance(FConstraintInstance* Constraint, float& OutLinearStiffness,
