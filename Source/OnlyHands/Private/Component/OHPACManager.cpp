@@ -289,6 +289,11 @@ void UOHPACManager::PerformAutoSetup() {
     // Force physics state recreation if requested
     if (bForceRecreateBodies) {
         SkeletalMesh->RecreatePhysicsState();
+        BodyInstanceCache.Empty();
+        ConstraintInstanceCache.Empty();
+        BuildDirectCaches();
+        BuildConstraintData();
+        ValidatePhysicsSimulation();
         SafeLog(TEXT("Forced physics state recreation"));
     }
 
@@ -321,6 +326,11 @@ void UOHPACManager::RetryAutoSetup() {
     // Ensure constraint data is updated
     if (SkeletalMesh->GetPhysicsAsset()) {
         SkeletalMesh->RecreatePhysicsState();
+        BodyInstanceCache.Empty();
+        ConstraintInstanceCache.Empty();
+        BuildDirectCaches();
+        BuildConstraintData();
+        ValidatePhysicsSimulation();
     }
 
     // Update overlaps if requested
@@ -503,6 +513,15 @@ void UOHPACManager::OnSkeletalAssetChanged() {
     PreviousPhysicsAsset = SkeletalMesh ? SkeletalMesh->GetPhysicsAsset() : nullptr;
 
     SafeLog(TEXT("OnSkeletalAssetChanged: Performing full reinitialization."), false);
+
+    if (SkeletalMesh) {
+        SkeletalMesh->RecreatePhysicsState();
+        BodyInstanceCache.Empty();
+        ConstraintInstanceCache.Empty();
+        BuildDirectCaches();
+        BuildConstraintData();
+        ValidatePhysicsSimulation();
+    }
 
     // Full system re-init (this handles event bindings, cache rebuild, physics setup, etc.)
     InitializePACManager();
