@@ -3878,27 +3878,39 @@ float UOHPACManager::CalculateActualBoneMass(FName BoneName) const {
 
 float UOHPACManager::CalculateActualMomentOfInertia(FName BoneName) const {
     if (FBodyInstance* Body = GetBodyInstanceDirect(BoneName)) {
-        if (Body->IsValidBodyInstance() && Body->GetBodySetup()) {
-            const float Mass = Body->GetBodyMass();
-            if (Mass > KINDA_SMALL_NUMBER) {
-                // Get body dimensions for inertia calculation
-                FVector BoxExtent = FVector::ZeroVector;
+        if (Body->IsValidBodyInstance()) {
+#if (ENGINE_MAJOR_VERSION > 5) || (ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 3)
+            // Use the runtime inertia tensor when available (UE5.3+)
+            const FVector InertiaTensor = Body->GetBodyInertiaTensor();
+            if (!InertiaTensor.IsNearlyZero()) {
+                return InertiaTensor.Size();
+            }
+#endif
 
-                // Try to get actual collision bounds
-                const FKAggregateGeom& AggGeom = Body->GetBodySetup()->AggGeom;
-                if (AggGeom.GetElementCount() > 0) {
-                    FBox BoundingBox = AggGeom.CalcAABB(FTransform::Identity);
-                    BoxExtent = BoundingBox.GetExtent();
-                }
+            if (Body->GetBodySetup()) {
+                const float Mass = Body->GetBodyMass();
+                if (Mass > KINDA_SMALL_NUMBER) {
+                    FVector BoxExtent = FVector::ZeroVector;
 
-                if (!BoxExtent.IsNearlyZero()) {
-                    // Calculate moment of inertia for a box: I = (1/12) * m * (h² + w²)
-                    const float Ix = (1.0f / 12.0f) * Mass * (BoxExtent.Y * BoxExtent.Y + BoxExtent.Z * BoxExtent.Z);
-                    const float Iy = (1.0f / 12.0f) * Mass * (BoxExtent.X * BoxExtent.X + BoxExtent.Z * BoxExtent.Z);
-                    const float Iz = (1.0f / 12.0f) * Mass * (BoxExtent.X * BoxExtent.X + BoxExtent.Y * BoxExtent.Y);
+                    // Try to get collision bounds for box approximation
+                    const FKAggregateGeom& AggGeom = Body->GetBodySetup()->AggGeom;
+                    if (AggGeom.GetElementCount() > 0) {
+                        const FBox BoundingBox = AggGeom.CalcAABB(FTransform::Identity);
+                        BoxExtent = BoundingBox.GetExtent();
+                    }
 
-                    // Return average moment of inertia
-                    return (Ix + Iy + Iz) / 3.0f;
+                    if (!BoxExtent.IsNearlyZero()) {
+                        // I_box = (1/12) * m * (h^2 + w^2) for each axis
+                        const float Ix =
+                            (1.0f / 12.0f) * Mass * (BoxExtent.Y * BoxExtent.Y + BoxExtent.Z * BoxExtent.Z);
+                        const float Iy =
+                            (1.0f / 12.0f) * Mass * (BoxExtent.X * BoxExtent.X + BoxExtent.Z * BoxExtent.Z);
+                        const float Iz =
+                            (1.0f / 12.0f) * Mass * (BoxExtent.X * BoxExtent.X + BoxExtent.Y * BoxExtent.Y);
+
+                        // Return the average of principal moments
+                        return (Ix + Iy + Iz) / 3.0f;
+                    }
                 }
             }
         }
