@@ -1031,6 +1031,7 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
     // === DIRECT ACCESS CACHES ===
     mutable TMap<FName, FBodyInstance*> BodyInstanceCache;
     mutable TMap<FName, FConstraintInstance*> ConstraintInstanceCache;
+    mutable TMap<FName, FConstraintInstance*> PhysicalAnimationConstraintMap;
     mutable TMap<FName, int32> BoneIndexCache;
 
     // === CONSTRAINT DATA ===
@@ -1100,6 +1101,7 @@ class ONLYHANDS_API UOHPACManager : public UActorComponent {
     void BuildDirectCaches();
     void BuildHierarchyMaps();
     void BuildConstraintData();
+    void BuildPhysicalAnimationConstraintMap();
     void InitializeMotionTracking();
     void DetermineSimulatableBones();
     bool ArePhysicsBodiesReady() const;

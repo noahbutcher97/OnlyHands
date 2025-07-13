@@ -902,6 +902,42 @@ void UOHPACManager::BuildConstraintData() {
     }
 
     SafeLog(FString::Printf(TEXT("Built constraint data: %d constraints"), ConstraintDataMap.Num()));
+
+    // Build map of runtime physical animation constraints
+    BuildPhysicalAnimationConstraintMap();
+}
+
+void UOHPACManager::BuildPhysicalAnimationConstraintMap() {
+    PhysicalAnimationConstraintMap.Empty();
+
+    if (!SkeletalMesh) {
+        return;
+    }
+
+    TArray<FConstraintInstanceAccessor> ConstraintAccessors;
+    SkeletalMesh->GetConstraints(false, ConstraintAccessors);
+
+    const FString Prefix(TEXT("PhysicalAnimation_"));
+
+    for (const FConstraintInstanceAccessor& Accessor : ConstraintAccessors) {
+        FConstraintInstance* Constraint = Accessor.Get();
+        if (!Constraint) {
+            continue;
+        }
+
+        if (!HasPhysicalAnimationDrives(Constraint)) {
+            continue;
+        }
+
+        if (Constraint->JointName.ToString().StartsWith(Prefix)) {
+            PhysicalAnimationConstraintMap.Add(Constraint->ConstraintBone2, Constraint);
+        }
+    }
+
+    if (bVerboseLogging) {
+        SafeLog(
+            FString::Printf(TEXT("Mapped %d physical animation constraints"), PhysicalAnimationConstraintMap.Num()));
+    }
 }
 
 void UOHPACManager::InitializeMotionTracking() {
@@ -3204,6 +3240,7 @@ void UOHPACManager::ResetPACManager() {
 void UOHPACManager::InvalidateCaches() {
     BodyInstanceCache.Empty();
     ConstraintInstanceCache.Empty();
+    PhysicalAnimationConstraintMap.Empty();
     BoneIndexCache.Empty();
     BoneParentMap.Empty();
     BoneChildrenMap.Empty();
@@ -3442,6 +3479,13 @@ bool UOHPACManager::HasPhysicalAnimationDrives(const FConstraintInstance* Constr
 }
 
 FConstraintInstance* UOHPACManager::FindPhysicalAnimationConstraint(FName BoneName) const {
+    // Quick lookup using cached map
+    if (FConstraintInstance** Found = PhysicalAnimationConstraintMap.Find(BoneName)) {
+        if (Found && *Found && HasPhysicalAnimationDrives(*Found)) {
+            return *Found;
+        }
+    }
+
     if (!SkeletalMesh) {
         return nullptr;
     }
@@ -3450,31 +3494,29 @@ FConstraintInstance* UOHPACManager::FindPhysicalAnimationConstraint(FName BoneNa
     const FString PAConstraintName = FString::Printf(TEXT("PhysicalAnimation_%s"), *BoneName.ToString());
     const FName PAConstraintFName(*PAConstraintName);
 
-    // Search through all constraint instances
     TArray<FConstraintInstanceAccessor> ConstraintAccessors;
     SkeletalMesh->GetConstraints(false, ConstraintAccessors);
 
     for (const FConstraintInstanceAccessor& Accessor : ConstraintAccessors) {
-        const FConstraintInstance* Constraint = Accessor.Get();
+        FConstraintInstance* Constraint = Accessor.Get();
         if (!Constraint) {
             continue;
         }
 
-        // Check if this constraint matches our bone
-        if (Constraint->JointName == PAConstraintFName || Constraint->ConstraintBone2 == BoneName || // Child bone
+        if (Constraint->JointName == PAConstraintFName || Constraint->ConstraintBone2 == BoneName ||
             Constraint->JointName.ToString().Contains(BoneName.ToString())) {
-            // Verify this is actually a PAC constraint by checking drive values
             if (HasPhysicalAnimationDrives(Constraint)) {
-                return const_cast<FConstraintInstance*>(Constraint);
+                PhysicalAnimationConstraintMap.Add(BoneName, Constraint);
+                return Constraint;
             }
         }
     }
 
-    // Fallback: Check cached constraint data
     const FOHConstraintData* ConstraintData = ConstraintDataMap.Find(BoneName);
     if (ConstraintData && ConstraintData->GetConstraintInstance()) {
         FConstraintInstance* CI = ConstraintData->GetConstraintInstance();
         if (HasPhysicalAnimationDrives(CI)) {
+            PhysicalAnimationConstraintMap.Add(BoneName, CI);
             return CI;
         }
     }
