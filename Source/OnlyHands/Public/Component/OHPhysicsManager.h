@@ -28,7 +28,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OnlyHands|Physics|Simulation")
 	float StartTickDelay = 0.0f;
-	
+
+
+
 #pragma region Initialization
 	void InitializePhysicsManager();
 	
@@ -249,6 +251,138 @@ public:
 #pragma endregion
 
 #pragma region Debug
+
+#pragma region Debug_Special
+	public:
+    // === DEBUG CONFIGURATION ===
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OnlyHands|Debug")
+    bool bEnableDebugDisplay = false;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OnlyHands|Debug", meta = (EditCondition = "bEnableDebugDisplay"))
+    bool bShowSystemOverview = true;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OnlyHands|Debug", meta = (EditCondition = "bEnableDebugDisplay"))
+    bool bShowPhysicsGraphAnalysis = true;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OnlyHands|Debug", meta = (EditCondition = "bEnableDebugDisplay"))
+    bool bShowDirectPointerComparison = true;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OnlyHands|Debug", meta = (EditCondition = "bEnableDebugDisplay"))
+    bool bShowPerformanceMetrics = true;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OnlyHands|Debug", meta = (EditCondition = "bEnableDebugDisplay"))
+    bool bShowBoneDetails = false;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OnlyHands|Debug", meta = (EditCondition = "bEnableDebugDisplay"))
+    bool bShowConstraintDetails = false;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OnlyHands|Debug", meta = (EditCondition = "bEnableDebugDisplay && bShowBoneDetails"))
+    TArray<FName> DebugSpecificBones;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OnlyHands|Debug", meta = (EditCondition = "bEnableDebugDisplay"))
+    float DebugDisplayDuration = 0.0f; // 0 = permanent
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OnlyHands|Debug", meta = (EditCondition = "bEnableDebugDisplay"))
+    FVector2D DebugScreenPosition = FVector2D(50.0f, 100.0f);
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OnlyHands|Debug", meta = (EditCondition = "bEnableDebugDisplay"))
+    float DebugTextScale = 1.0f;
+
+protected:
+    // === DEBUG STATE TRACKING ===
+    struct FDebugFrameData
+    {
+        float PhysicsGraphAccessTime = 0.0f;
+        float DirectPointerAccessTime = 0.0f;
+        int32 GraphTraversalCount = 0;
+        int32 DirectLookupCount = 0;
+
+    	// Performance counters
+        double LastFrameTime = 0.0;
+        int32 ValidBoneCount = 0;
+        int32 InvalidBoneCount = 0;
+        int32 ActiveConstraintCount = 0;
+        int32 InactiveConstraintCount = 0;
+        int32 GraphMemoryFootprint = 0;
+        int32 DirectMapMemoryFootprint = 0;
+        
+        
+        void Reset()
+        {
+            PhysicsGraphAccessTime = 0.0f;
+            DirectPointerAccessTime = 0.0f;
+            GraphTraversalCount = 0;
+            DirectLookupCount = 0;
+            GraphMemoryFootprint = 0;
+            DirectMapMemoryFootprint = 0;
+            ValidBoneCount = 0;
+            InvalidBoneCount = 0;
+            ActiveConstraintCount = 0;
+            InactiveConstraintCount = 0;
+        }
+    };
+    
+    mutable FDebugFrameData CurrentFrameDebugData;
+    TArray<FDebugFrameData> DebugHistory;
+    
+    // Direct pointer comparison maps (for testing) - using weak pointers to avoid GC issues
+    mutable TMap<FName, TWeakObjectPtr<UBodySetup>> DirectBodySetupMap;
+    mutable TMap<FName, TWeakObjectPtr<UPhysicsConstraintTemplate>> DirectConstraintTemplateMap;
+    mutable TMap<FName, FConstraintInstance*> DirectConstraintInstanceMap; // Runtime instances
+    mutable TMap<FName, int32> DirectBoneIndexMap;
+    mutable TMap<FName, FBodyInstance*> DirectBodyInstanceMap; // Safe - these are components, not UObjects
+    
+    // Performance timing helpers
+    mutable double GraphOperationStartTime = 0.0;
+    mutable double DirectOperationStartTime = 0.0;
+
+public:
+    // === DEBUG FUNCTIONS ===
+    
+    /** Main debug tick function - call this from your main TickComponent */
+    UFUNCTION(BlueprintCallable, Category = "OnlyHands|Debug")
+    void DebugTick(float DeltaTime);
+    
+    /** Forces a rebuild of direct pointer maps for comparison */
+    UFUNCTION(BlueprintCallable, Category = "OnlyHands|Debug")
+    void RebuildDirectPointerMapsForTesting();
+    
+    /** Performs comprehensive analysis of both systems */
+    UFUNCTION(BlueprintCallable, Category = "OnlyHands|Debug")
+    void PerformSystemComparison();
+    
+    /** Console command to toggle debug modes */
+    UFUNCTION(CallInEditor, Category = "OnlyHands|Debug")
+    void ToggleDebugMode(bool bNewEnabled);
+
+protected:
+    // === INTERNAL DEBUG FUNCTIONS ===
+    
+    void DisplaySystemOverview() const;
+    void DisplayPhysicsGraphAnalysis() const;
+    void DisplayDirectPointerComparison() const;
+    void DisplayPerformanceMetrics() const;
+    void DisplayBoneDetails() const;
+    void DisplayConstraintDetails() const;
+
+	// Performance measurement helpers
+    void StartGraphOperationTiming() const;
+    void EndGraphOperationTiming() const;
+    void StartDirectOperationTiming() const;
+    void EndDirectOperationTiming() const;
+    
+    // Validation helpers
+    bool ValidateGraphVsDirectConsistency() const;
+	bool ValidateConstraintInstanceConsistency() const;
+    TArray<FString> GetGraphInconsistencies() const;
+    TArray<FString> GetDirectPointerIssues() const;
+    
+    // Memory calculation helper
+    int32 CalculateGraphMemoryFootprint() const;
+
+#pragma endregion
+	
+	// Normal Debug ---------------------------------------------------------// 
 	/** Visual scale multiplier for velocity vectors */
 	UPROPERTY(EditAnywhere, Category = "OnlyHands|Debug|Kinematics")
 	float DebugVelocityScale = 0.05f;
@@ -410,13 +544,13 @@ public:
 	bool IsBoneBlending(FName BoneName) const;
 
 	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics")
-	EOHBlendPhase GetCurrentBlendPhase(FName BoneName) const;
+	EOHBlendPhases GetCurrentBlendPhase(FName BoneName) const;
 	
 	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics")
 	float GetBlendAlpha(FName BoneName) const;
 	
 	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics")
-	float GetPhaseDuration(FName BoneName, EOHBlendPhase Phase) const;
+	float GetPhaseDuration(FName BoneName, EOHBlendPhases Phase) const;
 
 	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics")
 	FName GetActiveReactionTag(FName BoneName) const;
@@ -424,8 +558,8 @@ public:
 	static void UpdateBlendState(FActivePhysicsBlend& Blend, float DeltaTime);
 	
 	void ApplyBlendAlphaToBone(FName Bone, float BlendAlpha);
-	
-	bool IsBlendComplete(const FActivePhysicsBlend& Blend) const;
+
+	static bool IsBlendComplete(const FActivePhysicsBlend& Blend);
 	
 	void FinalizeBlend(FName Bone);
 

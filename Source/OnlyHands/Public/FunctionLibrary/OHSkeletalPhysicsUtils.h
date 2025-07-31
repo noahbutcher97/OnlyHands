@@ -13,6 +13,7 @@
 #include "Engine/EngineTypes.h"
 #include "OHSkeletalPhysicsUtils.generated.h"
 
+
 #pragma region Macros_
 // BoneEnum Reference Helper Macros
 // ----------------------------
@@ -90,13 +91,85 @@ class ONLYHANDS_API UOHSkeletalPhysicsUtils : public UBlueprintFunctionLibrary
 public:
 
 #pragma region BoneResolution
+
+	UFUNCTION(BlueprintPure, Category = "OH|Skeletal")
+	static bool ValidateAndSuggestMannequinSkeletonSetup(const USkeletalMeshComponent* Mesh, const TArray<FName>& TrackedBones, const TArray<FName>& ExcludedBones, bool bAutoLog);
+
+
+	// Replace: static FName ResolveBoneNameFromSkeletalBone(EOHSkeletalBone Bone, ...);
+	UFUNCTION(BlueprintPure, Category = "OH|Skeletal")
+	static FName ResolveBoneNameSmart(const FName& Input, const USkeletalMeshComponent* SkelComp, float ScoreThreshold = 0.65f);
+
+	// Blueprint-callable: Best single match, rich outputs
+	UFUNCTION(BlueprintPure, Category = "OH|Skeletal", meta = (DisplayName = "Get Best Matching Bone (Auto Strategy)"))
+	static FName GetBestMatchingBone(
+		const FString& Query,
+		const USkeletalMeshComponent* SkelComp,
+		float& OutScore,
+		FString& OutAlgorithm,
+		float ScoreThreshold /*= 0.6f*/);
+
+	// C++: Best single match, FName in/out
+	static FName GetBestMatchingBone(
+		const FName& Query,
+		const USkeletalMeshComponent* SkelComp,
+		float& OutScore,
+		float ScoreThreshold /*= 0.6f*/);
+
+	// Blueprint-callable: All matches above threshold, rich outputs
+	UFUNCTION(BlueprintPure, Category = "OH|Skeletal", meta = (DisplayName = "Find All Matching Bones (Auto Strategy)"))
+	static void FindAllBonesMatching(
+		const FString& Query,
+		const USkeletalMeshComponent* SkelComp,
+		TArray<FName>& OutBones,
+		TArray<float>& OutScores,
+		TArray<FString>& OutAlgorithms,
+		float ScoreThreshold /*= 0.6f*/);
+
+	// C++: All matches above threshold, minimal output
+	static TArray<FName> FindAllBonesMatching(
+		const FString& Query,
+		const USkeletalMeshComponent* SkelComp,
+		float ScoreThreshold /*= 0.6f*/);
+
+	static void ResolveImpactBoneRedirect(
+		const USkeletalMeshComponent* SkelComp,
+		const FName& HitBone,
+		FName& OutRedirectedBone,
+		float& OutRedirectFraction,
+		const TMap<FName, TPair<FName, float>>& RedirectMap = GetDefaultRedirectMap());
+	
+	static const TMap<FName, TPair<FName, float>>& GetDefaultRedirectMap();
+
+
+	
+	// These can now just return FName directly, no custom data
+	UFUNCTION(BlueprintPure, Category = "OH|Skeletal")
+	static FName GetPrimaryBoneNameForBodyPart(const FString& BodyPart, const USkeletalMeshComponent* SkelComp);
+
+	// Instead of enum lineage, just return name chain up to parent or root
+	UFUNCTION(BlueprintPure, Category = "OH|Skeletal")
+	static TArray<FName> GetBoneChainToRoot(const USkeletalMeshComponent* SkelComp, FName StartBone, FName StopAtBone = NAME_None);
+
+	UFUNCTION(BlueprintPure, Category = "OH|Skeletal")
+	static int32 CompareBoneDepth(const USkeletalMeshComponent* SkelComp, FName A, FName B);
+
+	UFUNCTION(BlueprintPure, Category = "OH|Skeletal")
+	static FName GetParentBone(const USkeletalMeshComponent* SkelComp, FName Bone);
+
+	UFUNCTION(BlueprintPure, Category = "OH|Skeletal")
+	static bool IsBallBone(const FName& Bone)
+	{
+		return Bone == TEXT("ball_l") || Bone == TEXT("ball_r");
+	}
+
 	
 	UFUNCTION(BlueprintPure, Category = "OH|Skeletal")
 	static FName ResolveBoneNameFromSkeletalBone(EOHSkeletalBone Bone, const USkeletalMeshComponent* SkelComp);
 
 	UFUNCTION(BlueprintPure, Category = "OH|Skeletal")
 	static FOHResolvedBoneData ResolveResolvedDataFromSkeletalBone(EOHSkeletalBone Bone,
-	                                                               const USkeletalMeshComponent* SkelComp);
+																   const USkeletalMeshComponent* SkelComp);
 
 	UFUNCTION(BlueprintPure, Category = "OH|Skeletal")
 	static FName ResolveBoneNameFromSkeletalBone_Static(EOHSkeletalBone Bone);
@@ -104,12 +177,7 @@ public:
 	UFUNCTION(BlueprintPure, Category = "OH|Skeletal")
 	static FOHResolvedBoneData ResolveResolvedDataFromSkeletalBone_Static(EOHSkeletalBone Bone);
 
-#pragma endregion
-
-	
-#pragma region Enums
-
-	
+		
 	UFUNCTION(BlueprintPure, Category = "OH|Skeletal")
 	static EOHBodyZone GetBodyZoneFromBone(EOHSkeletalBone Bone);
 
@@ -131,20 +199,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "OH|Skeletal")
 	static EOHSkeletalBone GetEndBoneInBodyPartFromMesh(const USkeletalMeshComponent* SkelComp, EOHBodyPart BodyPart);
 
-	
-	UFUNCTION(BlueprintPure, Category = "OnlyHands|BoneEnum Utility")
 	static bool IsBallBone(EOHSkeletalBone Bone)
 	{
 		return Bone == EOHSkeletalBone::Ball_L || Bone == EOHSkeletalBone::Ball_R;
 	}
-
-	
-#pragma endregion
-
-#pragma region Bone Queries
-	
-	UFUNCTION(BlueprintPure, Category = "OnlyHands|Skeletal Physics|Structure")
-	static TArray<FName> GetBoneChainBetweenByName(const USkeletalMeshComponent* Mesh, const FName& ParentBoneName, const FName& ChildBoneName);
 
 	/** 
 * Returns the full bone chain (as bone names) from the specified skeletal-enum up to the root of the bone hierarchy.
@@ -153,98 +211,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics|Skeletal|Structure")
 	static TArray<FName> GetBonesInChain(EOHSkeletalBone Bone);
 
-	/** 
- * Builds a bone-name chain from EffectorEnum up toward root, 
- * dropping any entries that don’t resolve in the given BoneContainer.
- */
-	// C++-only helper — not blueprint-exposed
-	static void BuildValidatedBoneChain(
-		EOHSkeletalBone EffectorEnum,
-		const FBoneContainer& Bones,
-		TArray<FName>& OutValidBoneNames
-	);
-
-	
-#pragma endregion 
-
-
-
-
-
-
-
-
-	UFUNCTION(BlueprintPure, Category = "OnlyHands|SkeletalUtils")
-	static TArray<FName> GetBoneChainReverseByName(const USkeletalMeshComponent* Mesh, const FName& StartingBone);
-
-	UFUNCTION(BlueprintCallable, Category = "OnlyHands|Debug")
-	static void DrawDebugBoneChainByName(const USkeletalMeshComponent* Mesh, const FName& ParentBoneName, const FName& ChildBoneName, FColor Color = FColor::Cyan, float Duration = 2.0f);
-	
-	
-	/** Returns all bones that are hierarchically below the given root bone (inclusive). */
-	UFUNCTION(BlueprintPure, Category = "Skeletal Physics|Structure")
-	static TArray<EOHSkeletalBone> GetBoneChainBelow(EOHSkeletalBone RootBone);
-	
-	/**
- * Gets the influence chain for force propagation through connected bones
- * @param Bone - The origin bone where force is applied
- * @return Ordered an array of bones that should be affected, starting with the origin bone
- */
-	UFUNCTION(BlueprintCallable, Category = "OnlyHands|Skeletal Physics|Forces")
-	static TArray<EOHSkeletalBone> GetBoneInfluenceChain(EOHSkeletalBone Bone);
-
-
-	
-	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics|Skeletal|Structure")
-	static EOHSkeletalBone GetParentBone(EOHSkeletalBone TargetBone);
-
-
-	
-	UFUNCTION(BlueprintPure, Category = "OnlyHands|BoneEnum Utility")
-	static TArray<EOHSkeletalBone> GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup Group);
-	/**
- * Returns all direct children of the given skeletal bone enum.
- * This is based on the hardcoded OnlyHands anatomical hierarchy.
- */
-	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics|Skeletal|Structure")
-	static TArray<EOHSkeletalBone> GetChildBones(EOHSkeletalBone ParentBone);
-
 
 	/**
- * Returns all descendant bones below the specified root bone, recursively.
- * This includes all direct and indirect children.
- */
-	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics|Skeletal|Structure")
-	static TArray<EOHSkeletalBone> GetDescendantBones(EOHSkeletalBone RootBone);
-
-
-	/**
- * Returns the first direct child of the specified bone.
- * Returns EOHSkeletalBone::None if there are no children.
- */
-	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics|Skeletal|Structure")
-	static EOHSkeletalBone GetDirectChildBone(EOHSkeletalBone ParentBone);
-
-	/**
- * Returns all child bones of the specified root bone up to a given depth.
- * Depth of 1 returns only direct children, depth of 2 includes grandchildren, etc.
- */
-	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics|Skeletal|Structure",
-		meta = (DisplayName = "Get Child Bones By Depth", ToolTip =
-			"Returns all children up to a specified depth below a given bone."))
-	static TArray<EOHSkeletalBone> GetChildBonesByDepth(EOHSkeletalBone RootBone, int32 MaxDepth);
-
-	/**
- * Returns the depth between a parent and target bone in the skeletal hierarchy.
- * If the parent is not an ancestor of the target, returns -1.
- */
-	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics|Skeletal|Structure")
-	static int32 GetBoneDepthRelativeTo(EOHSkeletalBone ParentBone, EOHSkeletalBone TargetBone);
-
-	/**
- * Returns the full bone lineage from the target bone up to the specified ancestor or root.
- * Includes the target bone itself. Stops at ParentBone or when reaching the root.
- */
+* Returns the full bone lineage from the target bone up to the specified ancestor or root.
+* Includes the target bone itself. Stops at ParentBone or when reaching the root.
+*/
 	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics|Skeletal|Structure")
 	static TArray<EOHSkeletalBone> GetBoneLineage(EOHSkeletalBone TargetBone, EOHSkeletalBone StopAtBone);
 
@@ -258,11 +229,30 @@ public:
  *    0 if same depth
  *    1 if B is deeper than A
  */
-	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics|Skeletal|Structure")
 	static int32 CompareBoneDepth(EOHSkeletalBone A, EOHSkeletalBone B);
-	
-	
-	//------------------------------- Physics Solvers --------------------------------- //
+
+	static EOHSkeletalBone GetParentBone(EOHSkeletalBone TargetBone);
+
+	UFUNCTION(BlueprintPure, Category = "OnlyHands|Skeletal Physics|Structure")
+	static TArray<FName> GetBoneChainBetweenByName(const USkeletalMeshComponent* Mesh, const FName& ParentBoneName, const FName& ChildBoneName);
+
+
+	/** 
+* Builds a bone-name chain from EffectorEnum up toward root, 
+* dropping any entries that don’t resolve in the given BoneContainer.
+*/
+	// C++-only helper — not blueprint-exposed
+	static void BuildValidatedBoneChain(
+		EOHSkeletalBone EffectorEnum,
+		const FBoneContainer& Bones,
+		TArray<FName>& OutValidBoneNames
+	);
+
+
+#pragma endregion
+
+
+		//------------------------------- Physics Solvers --------------------------------- //
 
 	/**
   * Solves a two-bone IK chain to position the end effector at the target location.
@@ -294,8 +284,9 @@ public:
 		UWorld* WorldDebugContext = nullptr,
 		bool bDrawDebug = false
 	);
+	// ------------------------------- Solver Utility Functions -------------------------------- //
 
-
+#pragma region Solver Utility Functions
 	/**
 		* Solves an arm IK chain with optional clavicle retraction.
 		* 
@@ -334,18 +325,15 @@ public:
 		bool bDrawDebug = false
 	);
 
-
-	// ------------------------------- Solver Utility Functions -------------------------------- //
 	/** 
-	   * Utility function to compute fallback elbow bend axis when hint direction is unreliable.
-	   * 
-	   * @param Root  Root bone transform (shoulder/hip)
-	   * @param Mid   Middle joint transform (elbow/knee)
-	   * @return      A safe bend axis perpendicular to the bone direction
-	   */
+   * Utility function to compute fallback elbow bend axis when hint direction is unreliable.
+   * 
+   * @param Root  Root bone transform (shoulder/hip)
+   * @param Mid   Middle joint transform (elbow/knee)
+   * @return      A safe bend axis perpendicular to the bone direction
+   */
 	UFUNCTION(BlueprintPure, Category = "OnlyHands|IK|Utility")
 	static FVector ComputeFallbackBendAxis(const FTransform& Root, const FTransform& Mid);
-
 
 	/**
 	* Validates bone transforms for a standard IK chain to ensure they meet engine requirements.
@@ -564,7 +552,7 @@ public:
 		FName BoneName,
 		float DeltaTime
 	);
-
+ 
 	/**
 	 * Compute angular velocity (axis‐angle) between two rotations.
 	 * @param PrevRotation  Rotation at time T
@@ -572,12 +560,16 @@ public:
 	 * @param DeltaTime     Time difference Δ
 	 * @return              Angular velocity vector in radians/sec
 	 */
+
 	UFUNCTION(BlueprintPure, Category="OnlyHands|SkeletalPhysics")
+	static FVector ComputeAngularVelocity(const FRotator& CurrRotation, const FRotator& PrevRotation, float DeltaTime);
+	
 	static FVector ComputeAngularVelocity(
 		FQuat PrevRotation,
 		FQuat CurrRotation,
 		float DeltaTime
 	);
+
 
 
 	/**
@@ -613,6 +605,76 @@ public:
 		const FHitResult& Hit,
 		float ImpactStrength
 	);
+
+    /** 
+     * Apply an impulse to a specific bone if it’s simulating physics. 
+     */
+    UFUNCTION(BlueprintCallable, Category = "OnlyHands|SkeletalPhysics")
+    static void ApplyImpulseToBone(USkeletalMeshComponent* SkeletalMesh, FName BoneName, const FVector& Impulse, bool bVelChange);
+
+    /** 
+     * Apply an impulse to a chain of bones starting from a root bone, with falloff applied along the chain.
+     */
+    UFUNCTION(BlueprintCallable, Category = "OnlyHands|SkeletalPhysics")
+    static void ApplyImpulseToBoneChain(USkeletalMeshComponent* SkeletalMesh, FName RootBone, const FVector& Impulse, float Falloff, bool bVelChange, int32 MaxDepth = -1);
+
+	/** C++-only overload with component-specific filtering */
+	static void ApplyImpulseToBoneChain(
+		USkeletalMeshComponent* SkeletalMesh,
+		FName RootBone,
+		const FVector& Impulse,
+		float Falloff,
+		bool bVelChange,
+		const TArray<FName>& SimulatableBones,
+		const TArray<FName>& TrackedBones,
+		bool bVerboseLogging = false,
+		int32 MaxDepth = -1
+	);
+
+
+	/** Blueprint-safe generic version (no filter) */
+	UFUNCTION(BlueprintCallable, Category = "Skeletal Physics")
+	static TArray<FName> GetBoneChain(
+		USkeletalMeshComponent* SkeletalMesh, 
+		FName RootBone, 
+		int32 MaxDepth = -1,
+		bool bUseDFS = false
+	);
+
+
+
+
+	/** Convenience version for components with Simulatable and Tracked bone arrays */
+	static TArray<FName> GetBoneChain(
+		USkeletalMeshComponent* SkeletalMesh, 
+		FName RootBone, 
+		int32 MaxDepth,
+		const TArray<FName>& SimulatableBones,
+		const TArray<FName>& TrackedBones,
+		bool bVerboseLogging = false
+	);
+
+	/** Flexible C++-only version with custom filter delegate */
+	static TArray<FName> GetBoneChain(
+		USkeletalMeshComponent* SkeletalMesh, 
+		FName RootBone, 
+		int32 MaxDepth,
+		const TFunctionRef<bool(FName)>& Filter,
+		bool bUseDFS = false
+	);
+
+private:
+
+	/** Internal shared implementation */
+	static TArray<FName> GetBoneChain_Internal(
+		USkeletalMeshComponent* SkeletalMesh, 
+		FName RootBone, 
+		int32 MaxDepth,
+		const TFunctionRef<bool(FName)>& Filter,
+		bool bUseDFS,
+		bool bVerboseLogging
+	);
+public:
 
 	/**
 	 * Samples a bone chain’s swept volume by casting spheres at each step
@@ -861,9 +923,457 @@ public:
 	);
 
 
+	
+	/**
+	 * Computes the tube of motion for a bone chain over DeltaTime,
+	 * returning an array of capsule primitives (Start, End, Radius) for collision tests.
+	 */
+	static void GenerateBoneChainMotionCapsules(
+		TArray<FVector> CurrentPositions,
+		TArray<FVector> PredictedPositions,
+		float Radius,
+		TArray<FTransform>& OutCapsuleTransforms
+	);
+
+	
+	/** 
+	 * Compute an approximate mass for each bone in BoneNames by querying
+	 * the runtime BodyInstance on the SkeletalMeshComponent.
+	 */
+	static void ComputeBoneMassMap(
+		USkeletalMeshComponent* SkelComp,
+		TArray<FName> BoneNames,
+		TMap<FName, float>& OutBoneMass
+	);
+
+
+	/**
+	 * Blends a reactive pose sample into the current pose delta‐array according to BlendWeight.
+	 */
+	static void BlendReactivePose(
+		const TArray<FBoneTransform>& ReactiveTransforms,
+		TArray<FBoneTransform>& OutBoneTransforms,
+		float BlendWeight
+	);
 
 
 	
+	UFUNCTION(BlueprintPure, Category = "OnlyHands|SkeletalUtils")
+	static TArray<FName> GetBoneChainReverseByName(const USkeletalMeshComponent* Mesh, const FName& StartingBone);
+
+	UFUNCTION(BlueprintCallable, Category = "OnlyHands|Debug")
+	static void DrawDebugBoneChainByName(const USkeletalMeshComponent* Mesh, const FName& ParentBoneName, const FName& ChildBoneName, FColor Color = FColor::Cyan, float Duration = 2.0f);
+	
+	
+#pragma endregion
+
+#pragma region Utility Helpers
+	UFUNCTION(BlueprintPure, Category="OnlyHands|Skeletal")
+	static int32 GetBoneIndexByName(const USkeletalMeshComponent* SkelComp, FName BoneName);
+
+	UFUNCTION(BlueprintPure, Category="OnlyHands|Skeletal")
+	static int32 GetBoneIndexByName_Static(const USkeletalMesh* SkeletalMesh, FName BoneName);
+
+	UFUNCTION(BlueprintPure, Category="OnlyHands|Skeletal")
+	static FName GetBoneNameByIndex(const USkeletalMeshComponent* SkelComp, int32 BoneIndex);
+
+	UFUNCTION(BlueprintPure, Category="OnlyHands|Skeletal")
+	static FName GetBoneNameByIndex_Static(const USkeletalMesh* SkeletalMesh, int32 BoneIndex);
+
+	UFUNCTION(BlueprintPure, Category="OnlyHands|Skeletal")
+	static int32 GetParentBoneIndex(const USkeletalMeshComponent* SkelComp, int32 BoneIndex);
+
+	UFUNCTION(BlueprintPure, Category="OnlyHands|Skeletal")
+	static FName GetParentBoneName(const USkeletalMeshComponent* SkelComp, FName BoneName);
+
+	UFUNCTION(BlueprintPure, Category="OnlyHands|Skeletal")
+	static TArray<FName> GetAllBoneNamesInSkeleton(const USkeletalMeshComponent* SkelComp);
+	
+	
+
+#pragma endregion 
+
+
+#pragma region Motion Helpers
+	
+	// ----------------------------
+	// VELOCITY FUNCTIONS
+	// ----------------------------
+	
+	/** 
+		 * Velocity of BoneName in SkelComp, optionally relative to a reference bone.
+		 * - Works for simulated (physics) and animation-driven bones.
+		 * - GC-safe (no memory leaks on destroyed components).
+		 * - Velocity is averaged over HistorySeconds for stability.
+		 * - Use RefFrame to specify World/Component/ReferenceBone output frame.
+		 */
+	
+	UFUNCTION(BlueprintPure, Category = "OnlyHands|SkeletalPhysics")
+	static FVector GetBoneVelocityInReferenceFrame(
+		const USkeletalMeshComponent* SkelComp,
+		FName BoneName,
+		FName ReferenceBone = NAME_None,
+		EOHReferenceSpace RefFrame = EOHReferenceSpace::WorldSpace,
+		float HistorySeconds = 0.033f // ~1 frame at 30fps
+	);
+
+
+	/** 
+ * Velocity of BoneName in SkelComp based on last frame, GC-safe, single frame only.
+ * Use RefFrame for output space.
+ */
+	UFUNCTION(BlueprintPure, Category = "OnlyHands|SkeletalPhysics")
+	static FVector GetBoneVelocitySingleFrame(
+		const USkeletalMeshComponent* SkelComp,
+		FName BoneName,
+		FName ReferenceBone = NAME_None,
+		EOHReferenceSpace RefFrame = EOHReferenceSpace::WorldSpace
+	);
+
+
+	// Calculate bone velocity from world positions over time
+	UFUNCTION(BlueprintPure, Category = "OH|Combat|Motion", meta = (DisplayName = "Calculate Bone World Velocity"))
+	static FVector CalculateBoneWorldVelocity(
+		const FVector& CurrentBoneWorldPosition,
+		const FVector& PreviousBoneWorldPosition,
+		float DeltaTime
+	);
+	
+
+
+	// Calculate bone velocity in specified space
+	UFUNCTION(BlueprintPure, Category = "OH|Combat|Motion", meta = (DisplayName = "Calculate Bone Velocity In Space"))
+	static FVector CalculateBoneVelocityInSpace(
+		USkeletalMeshComponent* Mesh,
+		FName BoneName,
+		const FVector& CurrentWorldPosition,
+		const FVector& PreviousWorldPosition,
+		float DeltaTime,
+		EOHReferenceSpace TargetSpace = EOHReferenceSpace::WorldSpace
+	);
+	
+
+	// Calculate bone acceleration from world positions
+	UFUNCTION(BlueprintPure, Category = "OH|Combat|Motion", meta = (DisplayName = "Calculate Bone World Acceleration"))
+	static FVector CalculateBoneWorldAcceleration(
+		const FVector& CurrentWorldPosition,
+		const FVector& PreviousWorldPosition,
+		const FVector& TwoFramesAgoWorldPosition,
+		float DeltaTime
+	);
+
+	// Calculate impact force between two bones in world space
+	UFUNCTION(BlueprintPure, Category = "OH|Combat|Force", meta = (DisplayName = "Calculate Bone Impact Force"))
+	static float CalculateBoneImpactForce(
+    const FVector& StrikingBoneWorldVelocity,
+    const FVector& TargetBoneWorldVelocity,
+    const FVector& ContactNormal,
+    float StrikingBoneMass = 5.0f,  // kg
+    float TargetBoneMass = 5.0f,    // kg  
+    float Restitution = 0.3f  );      // 0=inelastic, 1=elastic
+
+	
+
+// Calculate force vector for bone impact
+	UFUNCTION(BlueprintPure, Category = "OH|Combat|Force", meta = (DisplayName = "Calculate Bone Force Vector"))
+	static FVector CalculateBoneForceVector(
+    const FVector& StrikingBoneWorldVelocity,
+    const FVector& ContactNormal,
+    float StrikingBoneMass = 5.0f,
+    float TargetMass = 70.0f); // Total target mass
+
+
+// Calculate impulse from bone motion
+	UFUNCTION(BlueprintPure, Category = "OH|Combat|Force", meta = (DisplayName = "Calculate Bone Impulse"))
+	static FVector CalculateBoneImpulse(
+    const FVector& BoneWorldVelocity,
+    const FVector& ContactNormal,
+    float BoneMass = 5.0f,
+    float ImpulseScale = 1.0f);
+
+		
+// Calculate average velocity of bone chain in world space
+UFUNCTION(BlueprintPure, Category = "OH|Combat|Motion", meta = (DisplayName = "Calculate Chain Average World Velocity"))
+static FVector CalculateChainAverageWorldVelocity(
+    const TArray<FVector>& CurrentBoneWorldPositions,
+    const TArray<FVector>& PreviousBoneWorldPositions,
+    float DeltaTime
+);
+
+
+// Calculate chain center of mass in world space
+UFUNCTION(BlueprintPure, Category = "OH|Combat|Motion", meta = (DisplayName = "Calculate Chain World Center"))
+static FVector CalculateChainWorldCenter(
+    const TArray<FVector>& BoneWorldPositions
+);
+
+
+// Calculate effective strike range from bone positions
+UFUNCTION(BlueprintPure, Category = "OH|Combat|Motion", meta = (DisplayName = "Calculate Chain Strike Range"))
+static float CalculateChainStrikeRange(
+    const TArray<FVector>& BoneWorldPositions,
+    const FVector& ChainRootWorldPosition
+);
+
+	
+	static FConstraintInstance* GetActiveConstraintBetweenBones(
+	const USkeletalMeshComponent* SkelMeshComp,
+	const FName& BoneName1,
+	const FName& BoneName2);
+	
+
+	UFUNCTION(BlueprintPure, Category = "OnlyHands|SkeletalPhysics")
+	static FName GetConstraintNameBetweenBones(
+	USkeletalMeshComponent* SkelMeshComp,
+	const FName& BoneName1,
+	const FName& BoneName2);
+
+	
+	// Returns true if found, and fills OutBoneA and OutBoneB with the bone names
+	static bool GetBonesFromConstraintName(
+		USkeletalMeshComponent* SkelMeshComp,
+		const FName& ConstraintInstanceName,
+		FName& OutBoneA,
+		FName& OutBoneB
+	);
+
+	// Utility function: Returns the two bone names attached to a constraint instance
+	static void GetBoneNamesFromConstraintInstance(const FConstraintInstance& Constraint, FName& OutBoneA, FName& OutBoneB);
+
+	UFUNCTION(BlueprintPure, Category = "OH|Combat|Physics", meta = (DisplayName = "Estimate Velocity From Hit"))
+	static FVector EstimateVelocityFromHit(
+		const FHitResult& Hit,
+		UPrimitiveComponent* Component = nullptr,
+		bool bIsStriker = true,
+		float DeltaTime = 0.016f);
+
+	
+
+	// ----------------------------
+	// ACCELERATION FUNCTIONS
+	// ----------------------------
+	
+	/** 
+ * Returns acceleration of BoneName, optionally relative to ReferenceBone, in the selected reference frame.
+ * GC-safe. Averages over HistorySeconds.
+ */
+	UFUNCTION(BlueprintPure, Category = "OnlyHands|SkeletalPhysics")
+	static FVector GetBoneAccelerationInReferenceFrame(
+		const USkeletalMeshComponent* SkelComp,
+		FName BoneName,
+		FName ReferenceBone = NAME_None,
+		EOHReferenceSpace RefFrame = EOHReferenceSpace::WorldSpace,
+		float HistorySeconds = 0.066f // 2 frames @30fps for better averaging
+	);
+
+	/** 
+	 * Returns single-frame acceleration of BoneName, optionally relative to ReferenceBone, in the selected reference frame.
+	 * GC-safe. Uses only previous velocity.
+	 */
+	UFUNCTION(BlueprintPure, Category = "OnlyHands|SkeletalPhysics")
+	static FVector GetBoneAccelerationSingleFrame(
+		const USkeletalMeshComponent* SkelComp,
+		FName BoneName,
+		FName ReferenceBone = NAME_None,
+		EOHReferenceSpace RefFrame = EOHReferenceSpace::WorldSpace
+	);
+
+
+
+	// ----------------------------
+	// JERK FUNCTIONS
+	// ----------------------------
+
+	UFUNCTION(BlueprintPure, Category = "OnlyHands|SkeletalPhysics")
+	static FVector GetBoneJerkSmoothed(
+		const USkeletalMeshComponent* SkelComp,
+		FName BoneName,
+		float HistorySeconds = 0.1f);
+
+
+
+	
+#pragma endregion
+
+
+#pragma region PhysicalAnimationHelpers
+
+	/** 
+	 * Computes physical tweak multipliers for a given bone in a SkeletalMeshComponent.
+	 * @param SkeletalMeshComponent The target skeletal mesh component.
+	 * @param Bone                  The bone name.
+	 * @param OutPACMultiplier      (Output) The calculated PAC multiplier.
+	 * @param OutLinearDamping      (Output) The calculated linear damping.
+	 * @param OutAngularDamping     (Output) The calculated angular damping.
+	 */
+	UFUNCTION(BlueprintCallable, Category="OH|Physics")
+	static void ComputePhysicsTweaksForBone(
+		USkeletalMeshComponent* SkeletalMeshComponent,
+		FName Bone,
+		float& OutPACMultiplier,
+		float& OutLinearDamping,
+		float& OutAngularDamping
+	);
+
+
+	// Blueprint-callable version
+	UFUNCTION(BlueprintCallable, Category="OH|Physics")
+	static FSimpleConstraintProfile ComputeOptimalConstraintSettings(
+		USkeletalMeshComponent* SkeletalMeshComponent,
+		FName BoneName
+	);
+	
+	/**
+	* Computes optimal constraint settings for a given bone and constraint instance.
+	* @param SkeletalMeshComponent   The skeletal mesh component containing the bone.
+	* @param ConstraintInstance      The constraint instance for the bone.
+	* @param BoneName                The bone name.
+	* @param OutProfile              (Output) The computed constraint profile properties.
+	*/
+	// C++-only version
+	static void ComputeOptimalConstraintSettings(
+		USkeletalMeshComponent* SkeletalMeshComponent,
+		const FConstraintInstance* ConstraintInstance,
+		FConstraintProfileProperties& OutProfile,
+		FName BoneName
+	);
+
+	/** Maps a FConstraintProfileProperties struct to a FSimpleConstraintProfile */
+	static FSimpleConstraintProfile ConstraintProfileToSimple(
+		const FConstraintProfileProperties& Profile
+	);
+
+	static FConstraintProfileProperties SimpleToConstraintProfile(const FSimpleConstraintProfile& Simple);
+
+
+	UFUNCTION(BlueprintCallable, Category="OH|Physics")
+	static FSimpleConstraintProfile GetConstraintProfileForBoneRelationship(
+		USkeletalMeshComponent* SkeletalMeshComponent,
+		FName ChildBone,
+		FName ParentBone
+	);
+
+	static FPhysicalAnimationData LerpProfiles(const FPhysicalAnimationData& A,
+	                                           const FPhysicalAnimationData& B, float Alpha)
+	{
+		FPhysicalAnimationData Result;
+
+		Result.bIsLocalSimulation = B.bIsLocalSimulation;  // Use target's local simulation setting
+		Result.OrientationStrength = FMath::Lerp(A.OrientationStrength, B.OrientationStrength, Alpha);
+		Result.AngularVelocityStrength = FMath::Lerp(A.AngularVelocityStrength, B.AngularVelocityStrength, Alpha);
+		Result.PositionStrength = FMath::Lerp(A.PositionStrength, B.PositionStrength, Alpha);
+		Result.VelocityStrength = FMath::Lerp(A.VelocityStrength, B.VelocityStrength, Alpha);
+    
+		return Result;
+	}
+
+	static FPhysicalAnimationData GetStrongerProfile(
+   const FPhysicalAnimationData& A,
+   const FPhysicalAnimationData& B)
+	{
+		FPhysicalAnimationData Result;
+   
+		Result.PositionStrength = FMath::Max(A.PositionStrength, B.PositionStrength);
+		Result.VelocityStrength = FMath::Max(A.VelocityStrength, B.VelocityStrength);
+		Result.OrientationStrength = FMath::Max(A.OrientationStrength, B.OrientationStrength);
+		Result.AngularVelocityStrength = FMath::Max(A.AngularVelocityStrength, B.AngularVelocityStrength);
+		Result.bIsLocalSimulation = B.bIsLocalSimulation;
+   
+		return Result;
+	}
+
+	
+
+#pragma endregion
+
+
+#pragma region Physics Extraction
+
+	// Helper to get hierarchy distance between bones
+	static int32 GetBoneHierarchyDistance(
+		USkeletalMeshComponent* SkelMesh,
+		FName BoneA,
+		FName BoneB);
+
+	/** Returns the number of parent bones above a given bone in the hierarchy */
+	UFUNCTION(BlueprintPure, Category = "OnlyHands|Algo")
+	static int32 GetBoneHierarchyDepth(const USkeletalMeshComponent* Mesh, FName Bone);
+	
+#pragma endregion
+};
+
+
+#if 0
+#pragma region Enums
+
+
+	
+#pragma endregion
+
+#pragma region Bone Queries
+	
+
+
+
+	
+#pragma endregion 
+	
+	/** Returns all bones that are hierarchically below the given root bone (inclusive). */
+	UFUNCTION(BlueprintPure, Category = "Skeletal Physics|Structure")
+	static TArray<EOHSkeletalBone> GetBoneChainBelow(EOHSkeletalBone RootBone);
+	
+	/**
+ * Gets the influence chain for force propagation through connected bones
+ * @param Bone - The origin bone where force is applied
+ * @return Ordered an array of bones that should be affected, starting with the origin bone
+ */
+	UFUNCTION(BlueprintCallable, Category = "OnlyHands|Skeletal Physics|Forces")
+	static TArray<EOHSkeletalBone> GetBoneInfluenceChain(EOHSkeletalBone Bone);
+
+	UFUNCTION(BlueprintPure, Category = "OnlyHands|BoneEnum Utility")
+	static TArray<EOHSkeletalBone> GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup Group);
+	/**
+ * Returns all direct children of the given skeletal bone enum.
+ * This is based on the hardcoded OnlyHands anatomical hierarchy.
+ */
+	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics|Skeletal|Structure")
+	static TArray<EOHSkeletalBone> GetChildBones(EOHSkeletalBone ParentBone);
+
+
+	/**
+ * Returns all descendant bones below the specified root bone, recursively.
+ * This includes all direct and indirect children.
+ */
+	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics|Skeletal|Structure")
+	static TArray<EOHSkeletalBone> GetDescendantBones(EOHSkeletalBone RootBone);
+
+
+	/**
+ * Returns the first direct child of the specified bone.
+ * Returns EOHSkeletalBone::None if there are no children.
+ */
+	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics|Skeletal|Structure")
+	static EOHSkeletalBone GetDirectChildBone(EOHSkeletalBone ParentBone);
+
+	/**
+ * Returns all child bones of the specified root bone up to a given depth.
+ * Depth of 1 returns only direct children, depth of 2 includes grandchildren, etc.
+ */
+	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics|Skeletal|Structure",
+		meta = (DisplayName = "Get Child Bones By Depth", ToolTip =
+			"Returns all children up to a specified depth below a given bone."))
+	static TArray<EOHSkeletalBone> GetChildBonesByDepth(EOHSkeletalBone RootBone, int32 MaxDepth);
+
+	/**
+ * Returns the depth between a parent and target bone in the skeletal hierarchy.
+ * If the parent is not an ancestor of the target, returns -1.
+ */
+	UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics|Skeletal|Structure")
+	static int32 GetBoneDepthRelativeTo(EOHSkeletalBone ParentBone, EOHSkeletalBone TargetBone);
+
+
+	
+
 #pragma region PhysicsSimulation
 
   // Robustly sets physics blend weight for a single bone (0=animation, 1=physics)
@@ -981,6 +1491,24 @@ public:
 		float BlendDuration = 0.2f,
 		UCurveFloat* BlendCurve = nullptr,
 		UObject* WorldContextObject = nullptr);
+
+	static void ApplyPhysicalAnimationToBone(
+	UPhysicalAnimationComponent* PhysicalAnimationComponent,
+	FName BoneName, const FPhysicalAnimationData& Profile);
+
+	static void ApplyPhysicalAnimationToBoneChain(
+	UPhysicalAnimationComponent* PhysicalAnimationComponent,
+	FName RootBoneName,
+	const FPhysicalAnimationData& Profile);
+
+	static void ApplyPhysicalAnimationProfileToBoneChain(
+	UPhysicalAnimationComponent* PhysicalAnimationComponent,
+	FName RootBoneName,
+	FName ProfileName);
+
+
+
+
 #pragma endregion
 
 
@@ -1012,36 +1540,8 @@ public:
 
 #pragma region Internals_DerivedCalculations_
 
-	/**
-	 * Computes the tube of motion for a bone chain over DeltaTime,
-	 * returning an array of capsule primitives (Start, End, Radius) for collision tests.
-	 */
-	static void GenerateBoneChainMotionCapsules(
-		TArray<FVector> CurrentPositions,
-		TArray<FVector> PredictedPositions,
-		float Radius,
-		TArray<FTransform>& OutCapsuleTransforms
-	);
 
 
-	/** 
-	 * Compute an approximate mass for each bone in BoneNames by querying
-	 * the runtime BodyInstance on the SkeletalMeshComponent.
-	 */
-	static void ComputeBoneMassMap(
-		USkeletalMeshComponent* SkelComp,
-		TArray<FName> BoneNames,
-		TMap<FName, float>& OutBoneMass
-	);
-
-	/**
-	 * Blends a reactive pose sample into the current pose delta‐array according to BlendWeight.
-	 */
-	static void BlendReactivePose(
-		const TArray<FBoneTransform>& ReactiveTransforms,
-		TArray<FBoneTransform>& OutBoneTransforms,
-		float BlendWeight
-	);
 
 	/**
 * Samples the PhysicsAsset to find the world‐space capsule or sphere representing the bone’s body,
@@ -1546,3 +2046,4 @@ private:
 #endif
 
 
+#endif

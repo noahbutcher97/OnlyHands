@@ -7,6 +7,315 @@
 #include "FunctionLibrary/OHAlgoUtils.h"
 #include "Utilities/OHSafeMapUtils.h"
 
+
+#pragma region Motion Data
+void FOHBoneMotionData::Initialize(FName InBoneName)
+{
+	BoneName = InBoneName;
+	PeakAcceleration = 0.0f;
+	AccelerationBuildupTime = 0.0f;
+	bLikelyStrike = false;
+	// TRollingBuffer is self-managing, no need to clear
+}
+
+
+void FOHBoneMotionData::AddMotionSample(
+    const FVector& WorldPos,
+    const FQuat& WorldRot,
+    const FVector& ComponentVelocity,
+    const FVector& ReferenceVelocity,
+    const FTransform& ComponentTransform,
+    float DeltaTime,
+    float TimeStamp)
+{
+    // === COMPREHENSIVE COMPONENT VELOCITY CALCULATION ===
+    
+    // Calculate component velocity in component space - RESOLVES UNUSED VARIABLE WARNING
+    FVector ComponentVelocity_Calc = ComponentTransform.InverseTransformVector(ComponentVelocity);
+    
+    // Get previous sample for velocity calculations
+    const FOHMotionFrameSample* PrevSample = GetLatestSample();
+    
+    // Create new sample using enhanced factory method with complete multi-space initialization
+    FOHMotionFrameSample NewSample = FOHMotionFrameSample::CreateFromState(
+        WorldPos,
+        WorldRot,
+        FVector::ZeroVector, // Will be calculated below
+        FVector::ZeroVector, // Angular velocity calculated below
+        FVector::ZeroVector, // Acceleration calculated below
+        FVector::ZeroVector, // Angular acceleration calculated below
+        TimeStamp,
+        ComponentTransform,
+        ReferenceVelocity
+    );
+    
+    // Set delta time
+    NewSample.DeltaTime = DeltaTime;
+    
+    // === ENHANCED VELOCITY AND ACCELERATION CALCULATIONS ===
+    if (PrevSample && DeltaTime > KINDA_SMALL_NUMBER)
+    {
+        // === WORLD SPACE CALCULATIONS ===
+        NewSample.WorldLinearVelocity = (WorldPos - PrevSample->WorldPosition) / DeltaTime;
+        
+        // === COMPONENT SPACE VELOCITY UTILIZATION ===
+        // Use both provided ComponentVelocity and calculated ComponentVelocity_Calc
+        if (!ComponentVelocity.ContainsNaN() && !ComponentVelocity.IsNearlyZero())
+        {
+            // Use provided component velocity (world space)
+            NewSample.ComponentLinearVelocity = ComponentVelocity_Calc; // RESOLVED: Now used
+        }
+        else
+        {
+            // Calculate component velocity from world velocity
+            NewSample.ComponentLinearVelocity = ComponentTransform.InverseTransformVector(NewSample.WorldLinearVelocity);
+        }
+        
+        // === LOCAL SPACE VELOCITY (RELATIVE TO REFERENCE FRAME) ===
+        NewSample.LocalLinearVelocity = NewSample.WorldLinearVelocity - ReferenceVelocity;
+        
+        // Transform local velocity to reference frame if available
+        if (!WorldRot.IsIdentity())
+        {
+            NewSample.LocalLinearVelocity = WorldRot.Inverse().RotateVector(NewSample.LocalLinearVelocity);
+        }
+        
+        // === ANGULAR VELOCITY CALCULATION ===
+        if (!PrevSample->WorldRotation.ContainsNaN())
+        {
+            FQuat DeltaRot = WorldRot * PrevSample->WorldRotation.Inverse();
+            FVector Axis;
+            float Angle;
+            DeltaRot.ToAxisAndAngle(Axis, Angle);
+            
+            // Normalize angle to [-π, π] range
+            while (Angle > PI) Angle -= 2.0f * PI;
+            while (Angle < -PI) Angle += 2.0f * PI;
+            
+            if (!Axis.ContainsNaN() && !FMath::IsNaN(Angle))
+            {
+                NewSample.AngularVelocity = Axis * (Angle / DeltaTime);
+            }
+        }
+        
+        // === ACCELERATION CALCULATIONS ===
+        if (!PrevSample->WorldLinearVelocity.ContainsNaN())
+        {
+            NewSample.WorldLinearAcceleration = (NewSample.WorldLinearVelocity - PrevSample->WorldLinearVelocity) / DeltaTime;
+        }
+        
+        if (!PrevSample->LocalLinearVelocity.ContainsNaN())
+        {
+            NewSample.LocalLinearAcceleration = (NewSample.LocalLinearVelocity - PrevSample->LocalLinearVelocity) / DeltaTime;
+        }
+        
+        // Component space acceleration
+        if (!ComponentTransform.ContainsNaN())
+        {
+            NewSample.ComponentLinearAcceleration = ComponentTransform.InverseTransformVector(NewSample.WorldLinearAcceleration);
+        }
+        
+        // Angular acceleration
+        if (!PrevSample->AngularVelocity.ContainsNaN())
+        {
+            NewSample.AngularAcceleration = (NewSample.AngularVelocity - PrevSample->AngularVelocity) / DeltaTime;
+        }
+        
+        // === UPDATE STRIKE DETECTION METRICS ===
+        float CurrentAccelMagnitude = NewSample.WorldLinearAcceleration.Size();
+        if (CurrentAccelMagnitude > PeakAcceleration)
+        {
+            PeakAcceleration = CurrentAccelMagnitude;
+            AccelerationBuildupTime = 0.0f; // Reset buildup timer
+        }
+        else
+        {
+            AccelerationBuildupTime += DeltaTime;
+        }
+        
+        // Strike detection logic
+        bLikelyStrike = (PeakAcceleration > 800.0f && AccelerationBuildupTime < 0.2f) ||
+                       (CurrentAccelMagnitude > 1200.0f); // Immediate high acceleration
+    }
+    else
+    {
+        // === FIRST SAMPLE INITIALIZATION ===
+        NewSample.WorldLinearVelocity = ComponentVelocity;
+        NewSample.ComponentLinearVelocity = ComponentVelocity_Calc; // RESOLVED: Now used in first sample
+        NewSample.LocalLinearVelocity = ComponentVelocity - ReferenceVelocity;
+        NewSample.AngularVelocity = FVector::ZeroVector;
+        NewSample.WorldLinearAcceleration = FVector::ZeroVector;
+        NewSample.LocalLinearAcceleration = FVector::ZeroVector;
+        NewSample.ComponentLinearAcceleration = FVector::ZeroVector;
+        NewSample.AngularAcceleration = FVector::ZeroVector;
+    }
+    
+    // === FINALIZE SAMPLE PROPERTIES ===
+    NewSample.UpdateSpeedProperties();
+    
+    // Add to motion history
+    MotionHistory.Add(NewSample);
+}
+
+
+TArray<FVector> FOHBoneMotionData::GetBezierPredictionPath(float PredictTime, bool bCubic) const
+{
+    return UOHAlgoUtils::GetBezierControlPointsFromBoneData(*this, PredictTime, bCubic);
+}
+
+float FOHBoneMotionData::EstimateTimeToTarget(const FVector& TargetPosition) const
+{
+    return UOHAlgoUtils::EstimateTimeToReachTarget(*this, TargetPosition);
+}
+
+FVector FOHBoneMotionData::CalculateJerk(bool bUseLocalSpace) const
+{
+    // Use OHAlgoUtils for advanced multi-sample jerk estimation
+    return UOHAlgoUtils::EstimateJerkFromMotionData(*this, 3);
+}
+
+bool FOHBoneMotionData::DetectSuddenDirectionChange(float AngleThreshold, int32 SampleWindow) const
+{
+    if (MotionHistory.NumFrames() < SampleWindow)
+        return false;
+    
+    const FOHMotionFrameSample* Latest = GetLatestSample();
+    const FOHMotionFrameSample* Previous = GetHistoricalSample(SampleWindow - 1);
+    
+    if (!Latest || !Previous)
+        return false;
+    
+    // Use local velocity for character-relative direction change detection
+    FVector CurrentDir = Latest->LocalLinearVelocity.GetSafeNormal();
+    FVector PreviousDir = Previous->LocalLinearVelocity.GetSafeNormal();
+    
+    if (CurrentDir.IsNearlyZero() || PreviousDir.IsNearlyZero())
+        return false;
+    
+    float DotProduct = FVector::DotProduct(CurrentDir, PreviousDir);
+    float Angle = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(DotProduct, -1.0f, 1.0f)));
+    return Angle > AngleThreshold;
+}
+
+FVector FOHBoneMotionData::GetSmoothedVelocity(float Alpha) const
+{
+    return UOHAlgoUtils::SmoothVelocityEMA(*this, Alpha);
+}
+
+bool FOHBoneMotionData::IsInVelocityTransition() const
+{
+    return UOHAlgoUtils::IsVelocityZeroCrossing(*this);
+}
+
+void FOHBoneMotionData::DrawDebugVisualization(UWorld* World, const FVector& CurrentPosition, float Scale) const
+{
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+    if (!World || MotionHistory.NumFrames() < 2)
+        return;
+    
+    // === VELOCITY HISTORY TRAIL ===
+    FVector PrevPos = CurrentPosition;
+    for (int32 i = 0; i < FMath::Min(10, MotionHistory.NumFrames()); i++)
+    {
+        if (const FOHMotionFrameSample* Sample = GetHistoricalSample(i))
+        {
+            float Alpha = 1.0f - (i / 10.0f);
+            DrawDebugLine(World, PrevPos, Sample->WorldPosition,
+                FColor::Green.WithAlpha(Alpha * 255), false, -1.0f, 0, 1.0f);
+            PrevPos = Sample->WorldPosition;
+        }
+    }
+    
+    // === MULTI-SPACE VELOCITY VISUALIZATION ===
+    if (const FOHMotionFrameSample* Latest = GetLatestSample())
+    {
+        // World velocity (blue)
+        if (!Latest->WorldLinearVelocity.ContainsNaN())
+        {
+            DrawDebugLine(World, CurrentPosition,
+                CurrentPosition + Latest->WorldLinearVelocity * Scale,
+                FColor::Blue, false, -1.0f, 0, 3.0f);
+        }
+        
+        // Local velocity (green) 
+        if (!Latest->LocalLinearVelocity.ContainsNaN())
+        {
+            DrawDebugLine(World, CurrentPosition,
+                CurrentPosition + Latest->LocalLinearVelocity * Scale,
+                FColor::Green, false, -1.0f, 0, 2.0f);
+        }
+        
+        // Component velocity (cyan)
+        if (!Latest->ComponentLinearVelocity.ContainsNaN())
+        {
+            DrawDebugLine(World, CurrentPosition,
+                CurrentPosition + Latest->ComponentLinearVelocity * Scale,
+                FColor::Cyan, false, -1.0f, 0, 2.0f);
+        }
+        
+        // Acceleration (red)
+        if (!Latest->WorldLinearAcceleration.ContainsNaN() && Latest->WorldLinearAcceleration.Size() > 100.0f)
+        {
+            DrawDebugLine(World, CurrentPosition,
+                CurrentPosition + Latest->WorldLinearAcceleration * Scale * 0.01f,
+                FColor::Red, false, -1.0f, 0, 1.0f);
+        }
+        
+        // === ENHANCED PREDICTION PATH VISUALIZATION ===
+        float MotionQuality = GetMotionQuality(EOHReferenceSpace::LocalSpace);
+        if (MotionQuality > 0.5f)
+        {
+            TArray<FVector> BezierPoints = GetBezierPredictionPath(0.5f, true);
+            if (BezierPoints.Num() >= 4)
+            {
+                // Draw bezier curve using OHAlgoUtils
+                const int32 Segments = 20;
+                FVector LastPoint = CurrentPosition;
+                for (int32 t = 1; t <= Segments; t++)
+                {
+                    float Alpha = static_cast<float>(t) / Segments;
+                    FVector Point = UOHAlgoUtils::SampleBezierCubic(
+                        BezierPoints[0], BezierPoints[1], 
+                        BezierPoints[2], BezierPoints[3], Alpha
+                    );
+                    
+                    if (!Point.ContainsNaN())
+                    {
+                        DrawDebugLine(World, LastPoint, Point,
+                            FColor::Yellow, false, -1.0f, 0, 0.5f);
+                        LastPoint = Point;
+                    }
+                }
+            }
+        }
+        
+        // === ENHANCED QUALITY AND STRIKE INDICATORS ===
+        FColor QualityColor = FColor::MakeRedToGreenColorFromScalar(MotionQuality);
+        FString DebugText = FString::Printf(TEXT("Q:%.2f S:%s P:%.0f"), 
+            MotionQuality,
+            IsLikelyStrike() ? TEXT("Y") : TEXT("N"),
+            PeakAcceleration);
+            
+        DrawDebugString(World, CurrentPosition + FVector(0, 0, 50),
+            DebugText, nullptr, QualityColor, 0.0f, true);
+            
+        // Strike indicator
+        if (IsLikelyStrike())
+        {
+            DrawDebugSphere(World, CurrentPosition, 15.0f, 8, 
+                FColor::Orange, false, -1.0f, 0, 2.0f);
+        }
+    }
+#endif
+}
+
+FVector FOHBoneMotionData::TransformVelocityToLocal(const FVector& WorldVelocity, const FTransform& Transform)
+{
+    if (WorldVelocity.ContainsNaN() || Transform.ContainsNaN())
+        return FVector::ZeroVector;
+    return Transform.InverseTransformVectorNoScale(WorldVelocity);
+}
+#pragma endregion
 // ===================== BoneName Resolver ===================== //
 
 #pragma region BoneNameResolver
@@ -453,7 +762,7 @@ TSet<FName> FOHPhysicsGraphNode::CaptureConstraintSnapshot() const
 	return Out;
 }
 
-void FOHPhysicsGraphNode::DiffBoneSnapshots(const TSet<FName>& OldSnap, const TSet<FName>& NewSnap, TSet<FName>& OutRemoved, TSet<FName>& OutAdded) const
+void FOHPhysicsGraphNode::DiffBoneSnapshots(const TSet<FName>& OldSnap, const TSet<FName>& NewSnap, TSet<FName>& OutRemoved, TSet<FName>& OutAdded)
 {
 	OHSafeMapUtils::DiffGraphStates(OldSnap, NewSnap, OutRemoved, OutAdded);
 }
@@ -1840,6 +2149,7 @@ void FOHBoneData::InitializeFromBodySetup(const UBodySetup* Setup, const FRefere
 #pragma endregion
 
 #pragma region ConstraintInstanceData
+
 
 bool FOHConstraintInstanceData::InitializeFromTemplate(const UPhysicsConstraintTemplate* Template)
 {

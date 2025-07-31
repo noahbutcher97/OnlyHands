@@ -3,11 +3,2417 @@
 
 #include "CoreMinimal.h"
 #include "Data/Enum/EOHPhysicsEnums.h"
+#include  "Utilities/OHSafeMapUtils.h"
 #include "BonePose.h"
+#include "Chaos/CollisionResolutionUtil.h"
+#include "Chaos/CollisionResolutionUtil.h"
 #include "Components/SkeletalMeshComponent.h"
+//#include "FunctionLibrary/OHAlgoUtils.h"
+#include "OnlyHands/Game/Enums/E_FightData.h"
+#include "OnlyHands/Game/Structures/S_FightStructure.h"
 #include "PhysicsEngine/PhysicalAnimationComponent.h"
 #include "PhysicsEngine/PhysicsConstraintTemplate.h"
 #include "OHPhysicsStructs.generated.h"
+
+
+// ==================== Physics Coefficients from Real Data ====================
+
+// Material properties database
+USTRUCT(BlueprintType)
+struct FMaterialPhysicsProperties
+{
+	GENERATED_BODY()
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float Density = 1000.0f; // kg/m³
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float YoungsModulus = 1e6f; // Pa (N/m²)
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float PoissonsRatio = 0.3f;
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float StaticFriction = 0.6f;
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float KineticFriction = 0.4f;
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float Restitution = 0.3f;
+    
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float DragCoefficient = 0.47f; // Sphere default
+};
+
+USTRUCT(BlueprintType)
+struct FRK4State
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite)
+	FVector Position = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadWrite)
+	FVector Velocity = FVector::ZeroVector;
+    
+	// Add rotation support for full 6DOF physics
+	UPROPERTY(BlueprintReadWrite)
+	FQuat Rotation = FQuat::Identity;
+    
+	UPROPERTY(BlueprintReadWrite)
+	FVector AngularVelocity = FVector::ZeroVector;
+
+	// ============== ACCESSOR METHODS FOR TEMPLATE COMPATIBILITY ==============
+    
+	FVector GetLocation() const { return Position; }
+	FVector GetVelocity() const { return Velocity; }
+    
+	// Add missing accessors that the template expects
+	FVector GetLinearVelocity() const { return Velocity; }
+	FQuat GetRotation() const { return Rotation; }
+	FVector GetAngularVelocity() const { return AngularVelocity; }
+    
+	// For acceleration (RK4 doesn't store it, so return zero)
+	FVector GetLinearAcceleration() const { return FVector::ZeroVector; }
+	FVector GetAngularAcceleration() const { return FVector::ZeroVector; }
+    
+	// Time stamp (RK4 typically doesn't track time internally)
+	float GetTimeStamp() const { return 0.0f; }
+    
+	// Factory method for creating from components
+	static FRK4State CreateFromState(
+		const FVector& Pos,
+		const FQuat& Rot,
+		const FVector& LinVel,
+		const FVector& AngVel)
+	{
+		FRK4State State;
+		State.Position = Pos;
+		State.Rotation = Rot;
+		State.Velocity = LinVel;
+		State.AngularVelocity = AngVel;
+		return State;
+	}
+};
+
+USTRUCT(BlueprintType)
+struct ONLYHANDS_API FOHMotionFrameSample
+{
+    GENERATED_BODY()
+
+    // === CORE SPATIAL STATE (MAINTAINED FOR COMPATIBILITY) ===
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Spatial")
+    FVector WorldPosition = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Spatial")
+    FQuat WorldRotation = FQuat::Identity;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Temporal")
+    float TimeStamp = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Temporal")
+    float DeltaTime = 0.016f;
+
+    // === COMPREHENSIVE MULTI-SPACE VELOCITY TRACKING ===
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Velocity")
+    FVector WorldLinearVelocity = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Velocity")
+    FVector LocalLinearVelocity = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Velocity")
+    FVector ComponentLinearVelocity = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Velocity")
+    FVector AngularVelocity = FVector::ZeroVector;
+
+    // === COMPREHENSIVE MULTI-SPACE ACCELERATION TRACKING ===
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Acceleration")
+    FVector WorldLinearAcceleration = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Acceleration")
+    FVector LocalLinearAcceleration = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Acceleration")
+    FVector ComponentLinearAcceleration = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Acceleration")
+    FVector AngularAcceleration = FVector::ZeroVector;
+
+    // === COMPONENT SPACE TRANSFORMATION CONTEXT ===
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Transform")
+    FTransform ComponentTransform = FTransform::Identity;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Transform")
+    FVector ComponentPosition = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Transform")
+    FQuat ComponentRotation = FQuat::Identity;
+
+    // === MISSING FIELDS IDENTIFIED FROM PROJECT USAGE ===
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Reference")
+    FTransform ReferenceTransform = FTransform::Identity;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Reference")
+    FVector ReferenceVelocity = FVector::ZeroVector;
+
+    // === SPEED PROPERTIES FOR API COMPATIBILITY ===
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Speed")
+    float WorldSpeed = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Speed")
+    float LocalSpeed = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Speed")
+    float ComponentSpeed = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Sample|Speed")
+    float AngularSpeed = 0.0f;
+
+    // === UNIFIED REFERENCE SPACE ACCESS API ===
+    
+    /**
+     * Get velocity in specified reference space with comprehensive validation
+     * @param Space - Reference space for velocity calculation
+     * @return Velocity vector in specified space, zero if invalid
+     */
+    FORCEINLINE FVector GetVelocity(EOHReferenceSpace Space) const
+    {
+        switch (Space)
+        {
+            case EOHReferenceSpace::WorldSpace: 
+                return WorldLinearVelocity.ContainsNaN() ? FVector::ZeroVector : WorldLinearVelocity;
+            case EOHReferenceSpace::LocalSpace: 
+                return LocalLinearVelocity.ContainsNaN() ? FVector::ZeroVector : LocalLinearVelocity;
+            case EOHReferenceSpace::ComponentSpace: 
+                return ComponentLinearVelocity.ContainsNaN() ? FVector::ZeroVector : ComponentLinearVelocity;
+            default: 
+                return WorldLinearVelocity.ContainsNaN() ? FVector::ZeroVector : WorldLinearVelocity;
+        }
+    }
+    
+    /**
+     * Get acceleration in specified reference space with comprehensive validation
+     * @param Space - Reference space for acceleration calculation
+     * @return Acceleration vector in specified space, zero if invalid
+     */
+    FORCEINLINE FVector GetAcceleration(EOHReferenceSpace Space) const
+    {
+        switch (Space)
+        {
+            case EOHReferenceSpace::WorldSpace: 
+                return WorldLinearAcceleration.ContainsNaN() ? FVector::ZeroVector : WorldLinearAcceleration;
+            case EOHReferenceSpace::LocalSpace: 
+                return LocalLinearAcceleration.ContainsNaN() ? FVector::ZeroVector : LocalLinearAcceleration;
+            case EOHReferenceSpace::ComponentSpace: 
+                return ComponentLinearAcceleration.ContainsNaN() ? FVector::ZeroVector : ComponentLinearAcceleration;
+            default: 
+                return WorldLinearAcceleration.ContainsNaN() ? FVector::ZeroVector : WorldLinearAcceleration;
+        }
+    }
+    
+    /**
+     * Get position in specified reference space
+     * @param Space - Reference space for position calculation
+     * @return Position vector in specified space, zero if invalid
+     */
+    FORCEINLINE FVector GetPosition(EOHReferenceSpace Space) const
+    {
+        switch (Space)
+        {
+            case EOHReferenceSpace::WorldSpace: 
+                return WorldPosition.ContainsNaN() ? FVector::ZeroVector : WorldPosition;
+            case EOHReferenceSpace::ComponentSpace: 
+                return ComponentPosition.ContainsNaN() ? FVector::ZeroVector : ComponentPosition;
+            case EOHReferenceSpace::LocalSpace:
+                // Local space position requires reference bone context - fallback to component
+                return ComponentPosition.ContainsNaN() ? FVector::ZeroVector : ComponentPosition;
+            default: 
+                return WorldPosition.ContainsNaN() ? FVector::ZeroVector : WorldPosition;
+        }
+    }
+    
+    /**
+     * Get motion speed in specified reference space
+     * @param Space - Reference space for speed calculation
+     * @return Speed magnitude in specified space
+     */
+    FORCEINLINE float GetSpeed(EOHReferenceSpace Space) const
+    {
+        FVector Velocity = GetVelocity(Space);
+        return Velocity.Size();
+    }
+    
+    /**
+     * Check if motion exceeds threshold in specified space
+     * @param Space - Reference space for threshold comparison
+     * @param Threshold - Minimum speed threshold
+     * @return True if motion exceeds threshold
+     */
+    FORCEINLINE bool ExceedsThreshold(EOHReferenceSpace Space, float Threshold) const
+    {
+        return GetSpeed(Space) > Threshold;
+    }
+    
+    /**
+     * Transform vector from world space to component space
+     * @param WorldVector - Vector in world coordinates
+     * @return Vector in component coordinates, zero if invalid
+     */
+    FORCEINLINE FVector TransformWorldToComponent(const FVector& WorldVector) const
+    {
+        if (WorldVector.ContainsNaN() || ComponentTransform.ContainsNaN()) 
+            return FVector::ZeroVector;
+        return ComponentTransform.InverseTransformVector(WorldVector);
+    }
+    
+    /**
+     * Transform vector from component space to world space
+     * @param ComponentVector - Vector in component coordinates
+     * @return Vector in world coordinates, zero if invalid
+     */
+    FORCEINLINE FVector TransformComponentToWorld(const FVector& ComponentVector) const
+    {
+        if (ComponentVector.ContainsNaN() || ComponentTransform.ContainsNaN()) 
+            return FVector::ZeroVector;
+        return ComponentTransform.TransformVector(ComponentVector);
+    }
+    
+    /**
+     * Calculate jerk (rate of change of acceleration) using previous sample
+     * @param PreviousSample - Previous motion frame for differential calculation
+     * @param Space - Reference space for jerk calculation
+     * @return Jerk vector in specified space
+     */
+    FVector CalculateJerk(const FOHMotionFrameSample& PreviousSample, EOHReferenceSpace Space) const
+    {
+        if (DeltaTime <= KINDA_SMALL_NUMBER) return FVector::ZeroVector;
+        
+        FVector CurrentAccel = GetAcceleration(Space);
+        FVector PreviousAccel = PreviousSample.GetAcceleration(Space);
+        
+        if (CurrentAccel.ContainsNaN() || PreviousAccel.ContainsNaN()) 
+            return FVector::ZeroVector;
+        
+        FVector Jerk = (CurrentAccel - PreviousAccel) / DeltaTime;
+        return Jerk.ContainsNaN() ? FVector::ZeroVector : Jerk;
+    }
+    
+    /**
+     * Comprehensive sample validation for motion tracking
+     * @return True if sample contains valid motion data
+     */
+    FORCEINLINE bool IsValidSample() const
+    {
+        return !WorldPosition.ContainsNaN() && 
+               !WorldRotation.ContainsNaN() && 
+               !WorldLinearVelocity.ContainsNaN() &&
+               !FMath::IsNaN(TimeStamp) && 
+               !FMath::IsNaN(DeltaTime) &&
+               DeltaTime > 0.0f;
+    }
+    
+    /**
+     * Populate component space data from world space transforms
+     * @param WorldTransform - World space transform for component calculation
+     */
+    void UpdateComponentSpaceData(const FTransform& WorldTransform)
+    {
+        if (WorldTransform.ContainsNaN()) return;
+        
+        ComponentTransform = WorldTransform;
+        ComponentPosition = WorldTransform.InverseTransformPosition(WorldPosition);
+        ComponentRotation = WorldTransform.InverseTransformRotation(WorldRotation);
+        
+        // Update component space velocities and accelerations
+        if (!WorldLinearVelocity.ContainsNaN())
+        {
+            ComponentLinearVelocity = WorldTransform.InverseTransformVector(WorldLinearVelocity);
+        }
+        
+        if (!WorldLinearAcceleration.ContainsNaN())
+        {
+            ComponentLinearAcceleration = WorldTransform.InverseTransformVector(WorldLinearAcceleration);
+        }
+    }
+    
+    /**
+     * Update speed properties after manual modification of velocity fields
+     * Call this after modifying velocity fields to maintain consistency
+     */
+    FORCEINLINE void UpdateSpeedProperties()
+    {
+        WorldSpeed = WorldLinearVelocity.Size();
+        LocalSpeed = LocalLinearVelocity.Size();
+        ComponentSpeed = ComponentLinearVelocity.Size();
+        AngularSpeed = AngularVelocity.Size();
+    }
+    
+    /**
+     * Recalculate all reference space data from world space values
+     * @param InComponentTransform - Component transform for calculations
+     * @param InReferenceVelocity - Reference frame velocity for local space
+     */
+    void RecalculateReferenceSpaces(
+        const FTransform& InComponentTransform,
+        const FVector& InReferenceVelocity = FVector::ZeroVector)
+    {
+        // Update component space data
+        UpdateComponentSpaceData(InComponentTransform);
+        
+        // Update reference fields
+        ReferenceTransform = InComponentTransform;
+        ReferenceVelocity = InReferenceVelocity;
+        
+        // Recalculate local space velocity
+        LocalLinearVelocity = WorldLinearVelocity - InReferenceVelocity;
+        if (!WorldRotation.IsIdentity())
+        {
+            LocalLinearVelocity = WorldRotation.Inverse().RotateVector(LocalLinearVelocity);
+        }
+        
+        // Update all speed properties
+        UpdateSpeedProperties();
+    }
+
+    // === ENHANCED FACTORY METHODS ===
+    
+    /**
+     * Create motion sample from kinematic state with comprehensive multi-space calculation
+     * @param Position - World space position
+     * @param Rotation - World space rotation
+     * @param LinearVel - World space linear velocity
+     * @param AngularVel - Angular velocity in radians/second
+     * @param LinearAccel - World space linear acceleration (optional)
+     * @param AngularAccel - Angular acceleration (optional)
+     * @param Time - Sample timestamp
+     * @param ComponentTransform - Component transform for space calculations (optional)
+     * @param ReferenceVelocity - Reference frame velocity for local space calculation (optional)
+     * @return Fully populated motion sample with all reference space data
+     */
+    static FOHMotionFrameSample CreateFromState(
+        const FVector& Position,
+        const FQuat& Rotation,
+        const FVector& LinearVel,
+        const FVector& AngularVel,
+        const FVector& LinearAccel = FVector::ZeroVector,
+        const FVector& AngularAccel = FVector::ZeroVector,
+        float Time = 0.0f,
+        const FTransform& ComponentTransform = FTransform::Identity,
+        const FVector& ReferenceVelocity = FVector::ZeroVector)
+    {
+        FOHMotionFrameSample Sample;
+        
+        // === CORE SPATIAL STATE INITIALIZATION ===
+        Sample.WorldPosition = Position;
+        Sample.WorldRotation = Rotation;
+        Sample.TimeStamp = Time;
+        Sample.DeltaTime = 0.016f; // Default frame time
+        
+        // === WORLD SPACE KINEMATICS ===
+        Sample.WorldLinearVelocity = LinearVel;
+        Sample.AngularVelocity = AngularVel;
+        Sample.WorldLinearAcceleration = LinearAccel;
+        Sample.AngularAcceleration = AngularAccel;
+        
+        // === REFERENCE FIELDS POPULATION ===
+        Sample.ReferenceTransform = ComponentTransform;
+        Sample.ReferenceVelocity = ReferenceVelocity;
+        
+        // === LOCAL SPACE CALCULATIONS (RELATIVE TO REFERENCE FRAME) ===
+        Sample.LocalLinearVelocity = LinearVel - ReferenceVelocity;
+        
+        // Transform local velocity to reference frame orientation if rotation provided
+        if (!ReferenceVelocity.IsZero() && !Rotation.IsIdentity())
+        {
+            Sample.LocalLinearVelocity = Rotation.Inverse().RotateVector(Sample.LocalLinearVelocity);
+        }
+        
+        // Local acceleration (simplified - would require previous reference acceleration for full accuracy)
+        Sample.LocalLinearAcceleration = LinearAccel;
+        
+        // === COMPONENT SPACE CALCULATIONS ===
+        Sample.ComponentTransform = ComponentTransform;
+        
+        if (!ComponentTransform.ContainsNaN())
+        {
+            Sample.ComponentPosition = ComponentTransform.InverseTransformPosition(Position);
+            Sample.ComponentRotation = ComponentTransform.InverseTransformRotation(Rotation);
+            Sample.ComponentLinearVelocity = ComponentTransform.InverseTransformVector(LinearVel);
+            Sample.ComponentLinearAcceleration = ComponentTransform.InverseTransformVector(LinearAccel);
+        }
+        else
+        {
+            // Fallback to world space values if component transform invalid
+            Sample.ComponentPosition = Position;
+            Sample.ComponentRotation = Rotation;
+            Sample.ComponentLinearVelocity = LinearVel;
+            Sample.ComponentLinearAcceleration = LinearAccel;
+        }
+        
+        // === COMPREHENSIVE SPEED CALCULATIONS ===
+        Sample.UpdateSpeedProperties();
+        
+        // === VALIDATION AND ERROR HANDLING ===
+        if (Sample.WorldPosition.ContainsNaN() || 
+            Sample.WorldRotation.ContainsNaN() || 
+            Sample.WorldLinearVelocity.ContainsNaN())
+        {
+            // Return zero-initialized sample for invalid input
+            return FOHMotionFrameSample();
+        }
+        
+        return Sample;
+    }
+    
+    /**
+     * Simplified factory method for basic world space motion
+     * @param Position - World space position
+     * @param Velocity - World space velocity
+     * @param Time - Sample timestamp
+     * @return Basic motion sample with world space data only
+     */
+    static FOHMotionFrameSample CreateBasic(
+        const FVector& Position,
+        const FVector& Velocity,
+        float Time = 0.0f)
+    {
+        return CreateFromState(
+            Position,
+            FQuat::Identity,
+            Velocity,
+            FVector::ZeroVector,
+            FVector::ZeroVector,
+            FVector::ZeroVector,
+            Time
+        );
+    }
+    
+    /**
+     * Factory method for physics body state extraction
+     * @param BodyInstance - Physics body to extract state from
+     * @param ComponentTransform - Component transform for space calculations
+     * @param ReferenceVelocity - Reference frame velocity for local space
+     * @param Time - Sample timestamp
+     * @return Motion sample populated from physics body state
+     */
+    static FOHMotionFrameSample CreateFromPhysicsBody(
+        const FBodyInstance* BodyInstance,
+        const FTransform& ComponentTransform,
+        const FVector& ReferenceVelocity = FVector::ZeroVector,
+        float Time = 0.0f)
+    {
+        if (!BodyInstance || !BodyInstance->IsValidBodyInstance())
+        {
+            return FOHMotionFrameSample();
+        }
+        
+        FTransform WorldTransform = BodyInstance->GetUnrealWorldTransform();
+        FVector WorldVelocity = BodyInstance->GetUnrealWorldVelocity();
+        FVector AngularVel = BodyInstance->GetUnrealWorldAngularVelocityInRadians();
+        
+        return CreateFromState(
+            WorldTransform.GetLocation(),
+            WorldTransform.GetRotation(),
+            WorldVelocity,
+            AngularVel,
+            FVector::ZeroVector, // Acceleration requires frame differencing
+            FVector::ZeroVector,
+            Time,
+            ComponentTransform,
+            ReferenceVelocity
+        );
+    }
+
+    // === LEGACY COMPATIBILITY ACCESSORS ===
+    FORCEINLINE FVector GetLocation() const { return WorldPosition; }
+    FORCEINLINE FVector GetLinearVelocity() const { return WorldLinearVelocity; }
+    FORCEINLINE FVector GetAngularVelocity() const { return AngularVelocity; }
+    FORCEINLINE FVector GetLinearAcceleration() const { return WorldLinearAcceleration; }
+    FORCEINLINE FVector GetAngularAcceleration() const { return AngularAcceleration; }
+    FORCEINLINE float GetTimeStamp() const { return TimeStamp; }
+    FORCEINLINE FQuat GetRotation() const { return WorldRotation; }
+};
+
+
+USTRUCT(BlueprintType)
+struct FAttackResult : public FTableRowBase
+{
+	GENERATED_BODY()
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TEnumAsByte<Enm_MomentumPoints::Enm_MomentumPoints> AddPointsMovementum;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TEnumAsByte<Enm_MomentumPoints::Enm_MomentumPoints> ReducePointsMovementum;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<TEnumAsByte<Enm_AttackSideBody::Enm_AttackSideBody>> Side_Need_Defense;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TEnumAsByte<Enm_HitBodyParts::Enm_HitBodyParts> Hit_Body_Part;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float Damage;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float BlockDamage;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float ShakeCameraHit;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float OnHit;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float OnBlock;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	F_AnimationRef Hit_AnmRef;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	F_AnimationRef Death_AnmRef;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	F_HitStun HitStun;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	F_HitSFX HitEffects;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	F_Parry Parry_System;
+};
+    
+	
+
+/**
+ * Enhanced motion data for single bone with comprehensive multi-space tracking
+ * Supports World, Local, and Component reference frames with advanced motion analysis
+ */
+USTRUCT(BlueprintType)
+struct ONLYHANDS_API FOHBoneMotionData
+{
+    GENERATED_BODY()
+
+    // ============== Core Properties ==============
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Data|Core")
+    FName BoneName = NAME_None;
+	
+    // Enhanced rolling buffer with comprehensive sample tracking
+    static constexpr int32 HistoryCapacity = 30;
+    OHSafeMapUtils::TRollingBuffer<FOHMotionFrameSample, HistoryCapacity> MotionHistory;
+
+    // Strike detection metrics
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Data|Strike Analysis")
+    float PeakAcceleration = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Data|Strike Analysis")
+    float AccelerationBuildupTime = 0.0f;
+
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Data|Strike Analysis")
+    bool bLikelyStrike = false;
+    
+    // ============== Constructor ==============
+    FOHBoneMotionData()
+    {
+        BoneName = NAME_None;
+        PeakAcceleration = 0.0f;
+        AccelerationBuildupTime = 0.0f;
+        bLikelyStrike = false;
+    }
+    
+    // ============== Core Motion Tracking ==============
+    
+    /**
+     * Initialize motion data for specific bone
+     * @param InBoneName - Name of bone to track
+     */
+    void Initialize(FName InBoneName);
+    
+    /**
+     * Enhanced motion sample addition with comprehensive multi-space calculation
+     * @param WorldPos - World space position
+     * @param WorldRot - World space rotation
+     * @param ComponentVelocity - Character movement component velocity
+     * @param ReferenceVelocity - Reference frame velocity for local space calculation
+     * @param ComponentTransform - Component transform for space calculations
+     * @param DeltaTime - Time delta for velocity/acceleration calculation
+     * @param TimeStamp - Sample timestamp
+     */
+    void AddMotionSample(
+        const FVector& WorldPos,
+        const FQuat& WorldRot,
+        const FVector& ComponentVelocity,
+        const FVector& ReferenceVelocity,
+        const FTransform& ComponentTransform,
+        float DeltaTime,
+        float TimeStamp
+    );
+
+    // ============== Sample Access with Comprehensive Validation ==============
+    
+    /**
+     * Get latest motion sample with validation
+     * @return Latest sample or nullptr if no samples available
+     */
+    FORCEINLINE const FOHMotionFrameSample* GetLatestSample() const
+    {
+        return MotionHistory.NumFrames() > 0 ? MotionHistory.GetLatest(0) : nullptr;
+    }
+    
+    /**
+     * Get historical sample with bounds checking
+     * @param FramesBack - Number of frames to look back
+     * @return Historical sample or nullptr if out of bounds
+     */
+    FORCEINLINE const FOHMotionFrameSample* GetHistoricalSample(int32 FramesBack) const
+    {
+        return (FramesBack >= 0 && FramesBack < MotionHistory.NumFrames()) ? 
+            MotionHistory.GetLatest(FramesBack) : nullptr;
+    }
+    
+    /**
+     * Get motion history depth
+     * @return Number of samples in history
+     */
+    FORCEINLINE int32 GetHistoryDepth() const
+    {
+        return MotionHistory.NumFrames();
+    }
+
+    // ============== Enhanced Multi-Space Motion Access ==============
+    
+    /**
+     * Get current world position with validation
+     * @return World position or zero if no samples
+     */
+    FORCEINLINE FVector GetCurrentPosition() const
+    {
+        const FOHMotionFrameSample* Latest = GetLatestSample();
+        return Latest ? Latest->WorldPosition : FVector::ZeroVector;
+    }
+    
+    /**
+     * Unified velocity access with explicit reference space specification
+     * @param Space - Reference space for velocity calculation
+     * @return Velocity vector in specified space
+     */
+    FORCEINLINE FVector GetVelocity(EOHReferenceSpace Space = EOHReferenceSpace::WorldSpace) const
+    {
+        const FOHMotionFrameSample* Latest = GetLatestSample();
+        return Latest ? Latest->GetVelocity(Space) : FVector::ZeroVector;
+    }
+    
+    /**
+     * Unified acceleration access with explicit reference space specification
+     * @param Space - Reference space for acceleration calculation
+     * @return Acceleration vector in specified space
+     */
+    FORCEINLINE FVector GetAcceleration(EOHReferenceSpace Space = EOHReferenceSpace::WorldSpace) const
+    {
+        const FOHMotionFrameSample* Latest = GetLatestSample();
+        return Latest ? Latest->GetAcceleration(Space) : FVector::ZeroVector;
+    }
+    
+    /**
+     * Enhanced speed calculation with reference space awareness
+     * @param Space - Reference space for speed calculation
+     * @return Speed magnitude in specified space
+     */
+    FORCEINLINE float GetSpeed(EOHReferenceSpace Space = EOHReferenceSpace::WorldSpace) const
+    {
+        return GetVelocity(Space).Size();
+    }
+    
+    /**
+     * Get angular velocity with validation
+     * @return Angular velocity vector or zero if no samples
+     */
+    FORCEINLINE FVector GetAngularVelocity() const 
+    { 
+        const FOHMotionFrameSample* Latest = GetLatestSample();
+        return Latest ? Latest->AngularVelocity : FVector::ZeroVector;
+    }
+
+    // ============== Enhanced Motion Analysis ==============
+    
+    /**
+     * Reference space-aware motion significance testing
+     * @param Space - Reference space for motion analysis
+     * @param Threshold - Minimum speed threshold
+     * @return True if motion exceeds threshold in specified space
+     */
+    FORCEINLINE bool HasSignificantMotion(EOHReferenceSpace Space, float Threshold) const
+    {
+        return GetSpeed(Space) > Threshold;
+    }
+    
+    /**
+     * Enhanced motion quality assessment for specified reference space
+     * @param Space - Reference space for quality analysis
+     * @return Motion quality score (0.0 to 1.0)
+     */
+    float GetMotionQuality(EOHReferenceSpace Space = EOHReferenceSpace::WorldSpace) const
+    {
+        if (GetHistoryDepth() < 3) return 0.0f;
+        
+        float ConsistencyScore = 0.0f;
+        int32 ValidSamples = 0;
+        
+        // Analyze motion consistency using proper sample access
+        for (int32 i = 1; i < FMath::Min(5, GetHistoryDepth()); i++)
+        {
+            const FOHMotionFrameSample* Current = GetHistoricalSample(i-1);
+            const FOHMotionFrameSample* Previous = GetHistoricalSample(i);
+            
+            if (Current && Previous)
+            {
+                FVector CurrentVel = Current->GetVelocity(Space);
+                FVector PreviousVel = Previous->GetVelocity(Space);
+                
+                if (!CurrentVel.IsNearlyZero() && !PreviousVel.IsNearlyZero())
+                {
+                    float DirectionConsistency = FVector::DotProduct(
+                        CurrentVel.GetSafeNormal(), 
+                        PreviousVel.GetSafeNormal()
+                    );
+                    ConsistencyScore += FMath::Clamp(DirectionConsistency, 0.0f, 1.0f);
+                    ValidSamples++;
+                }
+            }
+        }
+        
+        return ValidSamples > 0 ? (ConsistencyScore / ValidSamples) : 0.0f;
+    }
+    
+    /**
+     * Enhanced strike likelihood detection
+     * @return True if motion patterns indicate likely strike
+     */
+    FORCEINLINE bool IsLikelyStrike() const 
+    {
+        return bLikelyStrike || 
+               (PeakAcceleration > 500.0f && AccelerationBuildupTime < 0.15f);
+    }
+
+    // ============== Enhanced Prediction with Multi-Space Support ==============
+    
+    /**
+     * Enhanced prediction with reference space awareness
+     * @param PredictTime - Time to predict ahead
+     * @param Space - Reference space for prediction calculation
+     * @param bUseAdvancedMethod - Use quadratic vs linear prediction
+     * @return Predicted future position
+     */
+    FVector PredictFuturePosition(float PredictTime, EOHReferenceSpace Space, bool bUseAdvancedMethod = true) const
+    {
+        const FOHMotionFrameSample* Latest = GetLatestSample();
+        if (!Latest) return FVector::ZeroVector;
+        
+        FVector CurrentPos = Latest->WorldPosition; // Always start from world position
+        FVector Velocity = Latest->GetVelocity(Space);
+        FVector Acceleration = Latest->GetAcceleration(Space);
+        
+        if (Velocity.ContainsNaN() || Acceleration.ContainsNaN()) return CurrentPos;
+        
+        if (bUseAdvancedMethod && MotionHistory.NumFrames() >= 3)
+        {
+            // Quadratic prediction using reference space motion
+            FVector PredictedPos = CurrentPos + Velocity * PredictTime + 0.5f * Acceleration * PredictTime * PredictTime;
+            return PredictedPos.ContainsNaN() ? CurrentPos : PredictedPos;
+        }
+        else
+        {
+            // Linear prediction
+            FVector PredictedPos = CurrentPos + Velocity * PredictTime;
+            return PredictedPos.ContainsNaN() ? CurrentPos : PredictedPos;
+        }
+    }
+    
+    /**
+     * Get Bezier control points for smooth trajectory prediction
+     * @param PredictTime - Time horizon for prediction
+     * @param bCubic - Use cubic vs quadratic Bezier
+     * @return Array of control points for Bezier curve
+     */
+    TArray<FVector> GetBezierPredictionPath(float PredictTime, bool bCubic = true) const;
+    
+    /**
+     * Estimate time to reach target position
+     * @param TargetPosition - Target position in world space
+     * @return Estimated time to reach target
+     */
+    float EstimateTimeToTarget(const FVector& TargetPosition) const;
+
+    // ============== Enhanced Component Space Analysis ==============
+    
+    /**
+     * Calculate component space jerk with comprehensive validation
+     * @return Jerk vector in component space
+     */
+    FVector CalculateComponentSpaceJerk() const
+    {
+        if (GetHistoryDepth() < 2) return FVector::ZeroVector;
+        
+        const FOHMotionFrameSample* Latest = GetLatestSample();
+        const FOHMotionFrameSample* Previous = GetHistoricalSample(1);
+        
+        if (!Latest || !Previous) return FVector::ZeroVector;
+        
+        return Latest->CalculateJerk(*Previous, EOHReferenceSpace::ComponentSpace);
+    }
+    
+    /**
+     * Component space velocity trend analysis
+     * @param SampleCount - Number of samples to analyze
+     * @return Average component space velocity over sample window
+     */
+    FVector GetComponentSpaceVelocityTrend(int32 SampleCount = 5) const
+    {
+        if (GetHistoryDepth() < SampleCount) return FVector::ZeroVector;
+        
+        FVector AccumulatedVelocity = FVector::ZeroVector;
+        int32 ValidSamples = 0;
+        
+        for (int32 i = 0; i < FMath::Min(SampleCount, GetHistoryDepth()); i++)
+        {
+            if (const FOHMotionFrameSample* Sample = GetHistoricalSample(i))
+            {
+                FVector ComponentVel = Sample->GetVelocity(EOHReferenceSpace::ComponentSpace);
+                if (!ComponentVel.ContainsNaN())
+                {
+                    AccumulatedVelocity += ComponentVel;
+                    ValidSamples++;
+                }
+            }
+        }
+        
+        return ValidSamples > 0 ? (AccumulatedVelocity / ValidSamples) : FVector::ZeroVector;
+    }
+    
+    /**
+     * Component space motion prediction with enhanced accuracy
+     * @param PredictTime - Time to predict ahead
+     * @return Predicted position in component space
+     */
+    FVector PredictComponentSpacePosition(float PredictTime) const
+    {
+        const FOHMotionFrameSample* Latest = GetLatestSample();
+        if (!Latest) return FVector::ZeroVector;
+        
+        FVector CurrentPos = Latest->GetPosition(EOHReferenceSpace::ComponentSpace);
+        FVector Velocity = Latest->GetVelocity(EOHReferenceSpace::ComponentSpace);
+        FVector Acceleration = Latest->GetAcceleration(EOHReferenceSpace::ComponentSpace);
+        
+        if (CurrentPos.ContainsNaN() || Velocity.ContainsNaN() || Acceleration.ContainsNaN())
+            return FVector::ZeroVector;
+        
+        // Quadratic prediction with validation
+        FVector PredictedPos = CurrentPos + Velocity * PredictTime + 0.5f * Acceleration * PredictTime * PredictTime;
+        
+        return PredictedPos.ContainsNaN() ? CurrentPos : PredictedPos;
+    }
+
+    // ============== Advanced Motion Analysis ==============
+    
+    /**
+     * Calculate jerk using advanced multi-sample estimation
+     * @param bUseLocalSpace - Use local space vs world space calculation
+     * @return Jerk vector
+     */
+    FVector CalculateJerk(bool bUseLocalSpace = false) const;
+    
+    /**
+     * Detect sudden direction changes with configurable sensitivity
+     * @param AngleThreshold - Minimum angle change to detect
+     * @param SampleWindow - Number of samples to analyze
+     * @return True if sudden direction change detected
+     */
+    bool DetectSuddenDirectionChange(float AngleThreshold = 45.0f, int32 SampleWindow = 3) const;
+    
+    /**
+     * Get exponential moving average smoothed velocity
+     * @param Alpha - Smoothing factor (0.0 to 1.0)
+     * @return Smoothed velocity vector
+     */
+    FVector GetSmoothedVelocity(float Alpha = 0.3f) const;
+    
+    /**
+     * Check if velocity is transitioning through zero
+     * @return True if in velocity transition state
+     */
+    bool IsInVelocityTransition() const;
+    
+    /**
+     * Draw comprehensive debug visualization
+     * @param World - World context for debug drawing
+     * @param CurrentPosition - Current position for visualization
+     * @param Scale - Scale factor for debug vectors
+     */
+    void DrawDebugVisualization(UWorld* World, const FVector& CurrentPosition, float Scale = 1.0f) const;
+
+    // ============== Backward Compatibility API ==============
+    
+    // Legacy boolean-based velocity access
+    FORCEINLINE FVector GetVelocity(bool bUseLocalSpace) const
+    {
+        return GetVelocity(bUseLocalSpace ? EOHReferenceSpace::LocalSpace : EOHReferenceSpace::WorldSpace);
+    }
+    
+    // Legacy boolean-based acceleration access
+    FORCEINLINE FVector GetAcceleration(bool bUseLocalSpace) const
+    {
+        return GetAcceleration(bUseLocalSpace ? EOHReferenceSpace::LocalSpace : EOHReferenceSpace::WorldSpace);
+    }
+    
+    // Legacy speed access
+    FORCEINLINE float GetSpeed() const
+    {
+        return GetVelocity(EOHReferenceSpace::WorldSpace).Size();
+    }
+    
+    // Legacy prediction method
+    FVector PredictFuturePosition(float PredictTime, bool bUseLocalSpace = false, bool bUseAdvancedMethod = true) const
+    {
+        EOHReferenceSpace Space = bUseLocalSpace ? EOHReferenceSpace::LocalSpace : EOHReferenceSpace::WorldSpace;
+        return PredictFuturePosition(PredictTime, Space, bUseAdvancedMethod);
+    }
+
+    // ============== Historical Data Access ==============
+    
+    /**
+     * Get velocity from specific historical frame
+     * @param FramesBack - Number of frames to look back
+     * @param bUseLocalSpace - Use local space vs world space
+     * @return Historical velocity or zero if out of bounds
+     */
+    FORCEINLINE FVector GetHistoricalVelocity(int32 FramesBack, bool bUseLocalSpace = false) const
+    {
+        if (FramesBack >= MotionHistory.NumFrames()) return FVector::ZeroVector;
+        const FOHMotionFrameSample* Sample = MotionHistory.GetLatest(FramesBack);
+        if (!Sample) return FVector::ZeroVector;
+        return bUseLocalSpace ? Sample->LocalLinearVelocity : Sample->WorldLinearVelocity;
+    }
+    
+    /**
+     * Get position from specific historical frame
+     * @param FramesBack - Number of frames to look back
+     * @return Historical position or zero if out of bounds
+     */
+    FORCEINLINE FVector GetHistoricalPosition(int32 FramesBack) const
+    {
+        if (FramesBack >= MotionHistory.NumFrames()) return FVector::ZeroVector;
+        const FOHMotionFrameSample* Sample = MotionHistory.GetLatest(FramesBack);
+        return Sample ? Sample->WorldPosition : FVector::ZeroVector;
+    }
+    
+    /**
+     * Get delta time from specific historical frame
+     * @param FramesBack - Number of frames to look back
+     * @return Historical delta time or default if out of bounds
+     */
+    FORCEINLINE float GetHistoricalDeltaTime(int32 FramesBack) const
+    {
+        if (FramesBack >= MotionHistory.NumFrames()) return 0.016f;
+        const FOHMotionFrameSample* Sample = MotionHistory.GetLatest(FramesBack);
+        return Sample ? Sample->DeltaTime : 0.016f;
+    }
+    
+    /**
+     * Get average delta time from recent samples
+     * @return Average delta time over recent sample window
+     */
+    FORCEINLINE float GetAverageDeltaTime() const
+    {
+        if (MotionHistory.NumFrames() < 2) return 0.016f;
+        
+        float Total = 0.0f;
+        int32 Count = FMath::Min(5, MotionHistory.NumFrames());
+        
+        for (int32 i = 0; i < Count; i++)
+        {
+            if (const FOHMotionFrameSample* Sample = MotionHistory.GetLatest(i)) 
+                Total += Sample->DeltaTime;
+        }
+        
+        return Count > 0 ? Total / Count : 0.016f;
+    }
+
+    // ============== Extended Compatibility Aliases ==============
+    
+    FORCEINLINE FVector GetCurrentWorldVelocity() const { return GetVelocity(EOHReferenceSpace::WorldSpace); }
+    FORCEINLINE FVector GetCurrentLocalVelocity() const { return GetVelocity(EOHReferenceSpace::LocalSpace); }
+    FORCEINLINE FVector GetWorldLinearAcceleration() const { return GetAcceleration(EOHReferenceSpace::WorldSpace); }
+    FORCEINLINE FVector GetLocalLinearAcceleration() const { return GetAcceleration(EOHReferenceSpace::LocalSpace); }
+    FORCEINLINE FVector GetWorldLinearJerk() const { return CalculateJerk(false); }
+    FORCEINLINE FVector GetLocalLinearJerk() const { return CalculateJerk(true); }
+    FORCEINLINE FVector GetWorldLinearVelocity() const { return GetVelocity(false); }
+    FORCEINLINE FVector GetLocalLinearVelocity() const { return GetVelocity(true); }
+    FORCEINLINE FVector GetWorldLinearPosition() const { return GetCurrentPosition(); }
+    
+    /**
+     * Get world transform from current sample
+     * @return World transform or identity if no samples
+     */
+    FTransform GetWorldTransform() const
+    {
+        if (GetLatestSample() == nullptr) return FTransform::Identity;
+        FTransform Transform;
+        Transform.SetLocation(GetLatestSample()->WorldPosition);
+        Transform.SetRotation(GetLatestSample()->WorldRotation);
+        Transform.SetScale3D(FVector(1.0f, 1.0f, 1.0f));
+        return Transform;
+    }
+    
+    // Position/Transform accessors
+    FORCEINLINE FVector GetLocation() const { return GetCurrentPosition(); }
+    FORCEINLINE FQuat GetRotation() const 
+    { 
+        const FOHMotionFrameSample* Latest = GetLatestSample();
+        return Latest ? Latest->WorldRotation : FQuat::Identity;
+    }
+    FORCEINLINE FTransform GetTransform() const 
+    { 
+        return FTransform(GetRotation(), GetLocation()); 
+    }
+    
+    // Velocity accessors
+    FORCEINLINE FVector GetLinearVelocity() const 
+    { 
+        const FOHMotionFrameSample* Latest = GetLatestSample();
+        return Latest ? Latest->WorldLinearVelocity : FVector::ZeroVector;
+    }
+    
+    // Acceleration accessors
+    FORCEINLINE FVector GetLinearAcceleration() const 
+    { 
+        const FOHMotionFrameSample* Latest = GetLatestSample();
+        return Latest ? Latest->WorldLinearAcceleration : FVector::ZeroVector;
+    }
+    FORCEINLINE FVector GetAngularAcceleration() const 
+    { 
+        const FOHMotionFrameSample* Latest = GetLatestSample();
+        return Latest ? Latest->AngularAcceleration : FVector::ZeroVector;
+    }
+    
+    // Time accessor
+    FORCEINLINE float GetTimeStamp() const 
+    { 
+        const FOHMotionFrameSample* Latest = GetLatestSample();
+        return Latest ? Latest->TimeStamp : 0.0f;
+    }
+
+    // ============== Utility Functions ==============
+    
+    /**
+     * Transform velocity from world space to local space
+     * @param WorldVelocity - Velocity in world coordinates
+     * @param Transform - Transform for coordinate conversion
+     * @return Velocity in local coordinates
+     */
+    static FVector TransformVelocityToLocal(const FVector& WorldVelocity, const FTransform& Transform);
+};
+	
+USTRUCT(BlueprintType)
+struct ONLYHANDS_API FOHCombatChainData
+{
+    GENERATED_BODY()
+
+    // === CHAIN DEFINITION (MAINTAINED FROM YOUR STRUCTURE) ===
+    UPROPERTY(BlueprintReadWrite, Category = "Chain Definition")
+    FName RootBone = NAME_None;  // e.g., "hand_r" or "foot_l"
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Chain Definition")
+    TArray<FName> ChainBones;  // Ordered from distal to proximal
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Chain Definition")
+    TArray<float> BoneMasses;  // Mass estimates for each bone
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Chain Definition")
+    TArray<float> BoneRadii;  // Collision radii for each bone
+
+    // === ENHANCED MOTION DATA INTEGRATION (MAINTAINED) ===
+    UPROPERTY(BlueprintReadWrite, Category = "Motion Data")
+    TMap<FName, FOHBoneMotionData> ChainMotionData;  // Full motion data per bone
+    
+    UPROPERTY(BlueprintReadWrite, Category = "Motion Data")
+    TArray<FOHMotionFrameSample> CurrentFrameSamples;  // Latest frame samples
+    
+    // === ENHANCED: REFERENCE SPACE MOTION CONFIGURATION ===
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Detection")
+    EOHReferenceSpace MotionAnalysisSpace = EOHReferenceSpace::LocalSpace;
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Detection")
+    FName MotionReferenceFrameBone = "pelvis";
+    
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Motion Detection")
+    float MotionDetectionThreshold = 200.0f;
+
+    // === CHAIN-WIDE METRICS (MAINTAINED FROM YOUR STRUCTURE) ===
+    UPROPERTY(BlueprintReadOnly, Category = "Chain Metrics")
+    float ChainLength = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Chain Metrics")
+    FVector ChainCenterOfMass = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Chain Metrics")
+    float ChainTotalMass = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Chain Metrics")
+    FVector ChainMomentum = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Chain Metrics")
+    FVector ChainAngularMomentum = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Chain Metrics")
+    float ChainKineticEnergy = 0.0f;
+
+    // === ENHANCED: COMPLETE MULTI-SPACE MOMENTUM TRACKING ===
+    UPROPERTY(BlueprintReadOnly, Category = "Multi-Space Analysis")
+    FVector ChainMomentumWorld = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Multi-Space Analysis")
+    FVector ChainMomentumLocal = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Multi-Space Analysis")
+    FVector ChainMomentumComponent = FVector::ZeroVector;
+    
+    // === NEW: ENHANCED MULTI-SPACE VELOCITY TRACKING ===
+    UPROPERTY(BlueprintReadOnly, Category = "Multi-Space Analysis")
+    FVector ChainVelocityWorld = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Multi-Space Analysis")
+    FVector ChainVelocityLocal = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Multi-Space Analysis")
+    FVector ChainVelocityComponent = FVector::ZeroVector;
+
+    // === COMBAT ANALYSIS (MAINTAINED FROM YOUR STRUCTURE) ===
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Analysis")
+    bool bIsAttacking = false;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Analysis")
+    float AttackConfidence = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Analysis")
+    float TimeInAttack = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Analysis")
+    FVector AttackDirection = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Analysis")
+    float EffectiveStrikeRadius = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Analysis")
+    float ChainMotionQuality = 0.0f;  // Average quality across chain
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Analysis")
+    float MotionCoherence = 0.0f;
+
+    // === ENHANCED: REFERENCE SPACE-SPECIFIC ATTACK METRICS ===
+    UPROPERTY(BlueprintReadOnly, Category = "Attack Analysis")
+    FVector AttackPrincipalDirection = FVector::ZeroVector;  // Primary attack vector in analysis space
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Attack Analysis")
+    float AttackJerkMagnitude = 0.0f;  // Peak jerk in attack
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Attack Analysis")
+    float AttackCurvature = 0.0f;  // Path curvature during attack
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Attack Analysis")
+    float AttackIntensity = 0.0f;  // Combined intensity metric
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Attack Analysis")
+    float AttackDirectionalStability = 0.0f;  // Directional consistency
+
+    // === TRAJECTORY (MAINTAINED FROM YOUR STRUCTURE) ===
+    UPROPERTY(BlueprintReadOnly, Category = "Trajectory")
+    TArray<FVector> PredictedTrajectory;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Trajectory")
+    TArray<FVector> BezierControlPoints;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Trajectory")
+    float TrajectoryConfidence = 0.0f;
+
+    // === ENHANCED API: REFERENCE SPACE-AWARE ACCESS ===
+    
+    /**
+     * Get bone motion data using existing TMap structure
+     * @param BoneName - Name of bone to retrieve
+     * @return Const pointer to motion data or nullptr if not found
+     */
+    FORCEINLINE const FOHBoneMotionData* GetBoneMotionData(FName BoneName) const
+    {
+        return ChainMotionData.Find(BoneName);
+    }
+    
+    /**
+     * Get mutable bone motion data
+     * @param BoneName - Name of bone to retrieve
+     * @return Mutable pointer to motion data or nullptr if not found
+     */
+    FORCEINLINE FOHBoneMotionData* GetBoneMotionDataMutable(FName BoneName)
+    {
+        return ChainMotionData.Find(BoneName);
+    }
+    
+    /**
+     * Get primary striking bone (end effector)
+     * @return Name of primary striking bone
+     */
+    FORCEINLINE FName GetPrimaryStrikingBone() const
+    {
+        return (ChainBones.Num() > 0) ? ChainBones.Last() : RootBone;
+    }
+    
+    /**
+     * Get primary striking bone motion data
+     * @return Const pointer to primary striking bone motion data
+     */
+    FORCEINLINE const FOHBoneMotionData* GetPrimaryStrikingBoneMotionData() const
+    {
+        FName PrimaryBone = GetPrimaryStrikingBone();
+        return GetBoneMotionData(PrimaryBone);
+    }
+    
+    /**
+     * Enhanced chain velocity calculation using existing motion data map
+     * @param Space - Reference space for velocity calculation
+     * @return Average chain velocity in specified space
+     */
+    FVector CalculateChainVelocity(EOHReferenceSpace Space) const
+    {
+        if (ChainBones.Num() == 0) return FVector::ZeroVector;
+        
+        FVector AccumulatedVelocity = FVector::ZeroVector;
+        int32 ValidBones = 0;
+        
+        for (const FName& BoneName : ChainBones)
+        {
+            if (const FOHBoneMotionData* BoneData = GetBoneMotionData(BoneName))
+            {
+                FVector BoneVelocity = BoneData->GetVelocity(Space);
+                if (!BoneVelocity.IsNearlyZero() && !BoneVelocity.ContainsNaN())
+                {
+                    AccumulatedVelocity += BoneVelocity;
+                    ValidBones++;
+                }
+            }
+        }
+        
+        return ValidBones > 0 ? (AccumulatedVelocity / ValidBones) : FVector::ZeroVector;
+    }
+    
+    /**
+     * Enhanced chain momentum calculation using existing motion data map
+     * @param Space - Reference space for momentum calculation
+     * @return Total chain momentum in specified space
+     */
+    FVector CalculateChainMomentum(EOHReferenceSpace Space) const
+    {
+        if (ChainBones.Num() == 0 || BoneMasses.Num() != ChainBones.Num()) 
+            return FVector::ZeroVector;
+        
+        FVector AccumulatedMomentum = FVector::ZeroVector;
+        
+        for (int32 i = 0; i < ChainBones.Num(); i++)
+        {
+            const FName& BoneName = ChainBones[i];
+            if (const FOHBoneMotionData* BoneData = GetBoneMotionData(BoneName))
+            {
+                FVector BoneVelocity = BoneData->GetVelocity(Space);
+                if (!BoneVelocity.ContainsNaN())
+                {
+                    float BoneMass = BoneMasses[i];
+                    AccumulatedMomentum += BoneVelocity * BoneMass;
+                }
+            }
+        }
+        
+        return AccumulatedMomentum;
+    }
+    
+    /**
+     * Get chain momentum in specified reference space
+     * @param Space - Reference space for momentum retrieval
+     * @return Chain momentum in specified space
+     */
+    FORCEINLINE FVector GetChainMomentum(EOHReferenceSpace Space) const
+    {
+        switch (Space)
+        {
+            case EOHReferenceSpace::WorldSpace: return ChainMomentumWorld;
+            case EOHReferenceSpace::LocalSpace: return ChainMomentumLocal;
+            case EOHReferenceSpace::ComponentSpace: return ChainMomentumComponent;
+            default: return ChainMomentum; // Default to existing field
+        }
+    }
+    
+    /**
+     * Get chain velocity in specified reference space
+     * @param Space - Reference space for velocity retrieval
+     * @return Chain velocity in specified space
+     */
+    FORCEINLINE FVector GetChainVelocity(EOHReferenceSpace Space) const
+    {
+        switch (Space)
+        {
+            case EOHReferenceSpace::WorldSpace: return ChainVelocityWorld;
+            case EOHReferenceSpace::LocalSpace: return ChainVelocityLocal;
+            case EOHReferenceSpace::ComponentSpace: return ChainVelocityComponent;
+            default: return ChainVelocityWorld; // Default to world space
+        }
+    }
+    
+    /**
+     * Enhanced motion quality calculation using existing API
+     * @param Space - Reference space for quality assessment
+     * @return Average motion quality across chain in specified space
+     */
+    float CalculateChainMotionQuality(EOHReferenceSpace Space) const
+    {
+        if (ChainBones.Num() == 0) return 0.0f;
+        
+        float QualitySum = 0.0f;
+        int32 ValidBones = 0;
+        
+        for (const FName& BoneName : ChainBones)
+        {
+            if (const FOHBoneMotionData* BoneData = GetBoneMotionData(BoneName))
+            {
+                float BoneQuality = BoneData->GetMotionQuality(Space);
+                if (BoneQuality > KINDA_SMALL_NUMBER && !FMath::IsNaN(BoneQuality))
+                {
+                    QualitySum += BoneQuality;
+                    ValidBones++;
+                }
+            }
+        }
+        
+        return ValidBones > 0 ? (QualitySum / ValidBones) : 0.0f;
+    }
+    
+    /**
+     * Get effective motion speed using configured analysis space
+     * @return Motion speed in configured analysis space
+     */
+    FORCEINLINE float GetEffectiveMotionSpeed() const
+    {
+        return GetChainVelocity(MotionAnalysisSpace).Size();
+    }
+    
+    /**
+     * Check if motion exceeds detection threshold in configured space
+     * @return True if motion exceeds configured threshold
+     */
+    FORCEINLINE bool HasSignificantMotion() const
+    {
+        return GetEffectiveMotionSpeed() > MotionDetectionThreshold;
+    }
+    
+    /**
+     * Enhanced jerk calculation using existing motion data
+     * @param Space - Reference space for jerk calculation
+     * @return Maximum jerk magnitude across chain
+     */
+    float CalculateChainJerkMagnitude(EOHReferenceSpace Space) const
+    {
+        float MaxJerk = 0.0f;
+        
+        for (const FName& BoneName : ChainBones)
+        {
+            if (const FOHBoneMotionData* BoneData = GetBoneMotionData(BoneName))
+            {
+                FVector BoneJerk = BoneData->CalculateJerk(Space == EOHReferenceSpace::LocalSpace);
+                float JerkMagnitude = BoneJerk.Size();
+                if (!FMath::IsNaN(JerkMagnitude))
+                {
+                    MaxJerk = FMath::Max(MaxJerk, JerkMagnitude);
+                }
+            }
+        }
+        
+        return MaxJerk;
+    }
+    
+    /**
+     * Enhanced trajectory confidence calculation
+     * @return Confidence score combining multiple quality metrics
+     */
+    float CalculateTrajectoryConfidence() const
+    {
+        if (PredictedTrajectory.Num() < 2) return 0.0f;
+        
+        // Combine motion quality, coherence, and trajectory smoothness
+        float QualityFactor = ChainMotionQuality;
+        float CoherenceFactor = MotionCoherence;
+        float SmoothnessFactor = 1.0f / FMath::Max(AttackCurvature, 0.1f);
+        float DirectionalFactor = AttackDirectionalStability;
+        
+        return FMath::Clamp(
+            (QualityFactor * 0.3f + CoherenceFactor * 0.3f + SmoothnessFactor * 0.2f + DirectionalFactor * 0.2f), 
+            0.0f, 1.0f
+        );
+    }
+
+    // === ENHANCED METHODS WITH COMPLETE MULTI-SPACE INTEGRATION ===
+    
+    /**
+     * Enhanced UpdateChainMetrics with comprehensive multi-space motion analysis
+     * @param CurrentTime - Current timestamp for time-based calculations
+     */
+    void UpdateChainMetrics(float CurrentTime)
+    {
+        if (ChainBones.Num() == 0) return;
+        
+        // === RESET ALL METRICS (YOUR ORIGINAL PATTERN MAINTAINED) ===
+        ChainTotalMass = 0.0f;
+        ChainCenterOfMass = FVector::ZeroVector;
+        ChainMomentum = FVector::ZeroVector;
+        ChainAngularMomentum = FVector::ZeroVector;
+        ChainKineticEnergy = 0.0f;
+        ChainMotionQuality = 0.0f;
+        
+        // === ENHANCED: RESET ALL MULTI-SPACE FIELDS ===
+        ChainMomentumWorld = FVector::ZeroVector;
+        ChainMomentumLocal = FVector::ZeroVector;
+        ChainMomentumComponent = FVector::ZeroVector;
+        ChainVelocityWorld = FVector::ZeroVector;
+        ChainVelocityLocal = FVector::ZeroVector;
+        ChainVelocityComponent = FVector::ZeroVector;
+        
+        // === MAINTAIN YOUR FRAME SAMPLE PATTERN ===
+        CurrentFrameSamples.SetNum(ChainBones.Num());
+        
+        // === ENHANCED BONE PROCESSING WITH COMPLETE MULTI-SPACE TRACKING ===
+        int32 ValidBones = 0;
+        for (int32 i = 0; i < ChainBones.Num(); i++)
+        {
+            const FName& BoneName = ChainBones[i];
+            const FOHBoneMotionData* MotionData = GetBoneMotionData(BoneName);
+            
+            if (!MotionData || !BoneMasses.IsValidIndex(i)) continue;
+            
+            // === MAINTAIN YOUR SAMPLE EXTRACTION PATTERN ===
+            const FOHMotionFrameSample* LatestSample = MotionData->GetLatestSample();
+            if (LatestSample)
+            {
+                CurrentFrameSamples[i] = *LatestSample;
+            }
+            else
+            {
+                continue; // Skip if no valid sample
+            }
+            
+            // === ENHANCED: COMPREHENSIVE MULTI-SPACE VELOCITY EXTRACTION ===
+            FVector VelocityWorld = MotionData->GetVelocity(EOHReferenceSpace::WorldSpace);
+            FVector VelocityLocal = MotionData->GetVelocity(EOHReferenceSpace::LocalSpace);
+            FVector VelocityComponent = MotionData->GetVelocity(EOHReferenceSpace::ComponentSpace);
+            FVector Position = LatestSample->WorldPosition;
+            FVector AngularVel = MotionData->GetAngularVelocity();
+            
+            // Validate all velocity data
+            if (VelocityWorld.ContainsNaN()) VelocityWorld = FVector::ZeroVector;
+            if (VelocityLocal.ContainsNaN()) VelocityLocal = FVector::ZeroVector;
+            if (VelocityComponent.ContainsNaN()) VelocityComponent = FVector::ZeroVector;
+            if (Position.ContainsNaN()) continue;
+            
+            // === MAINTAIN YOUR ORIGINAL CALCULATIONS ===
+            float Mass = BoneMasses[i];
+            ChainTotalMass += Mass;
+            ChainCenterOfMass += Position * Mass;
+            ChainKineticEnergy += 0.5f * Mass * VelocityWorld.SizeSquared(); // Use world velocity for energy
+            
+            // === ENHANCED: COMPLETE MULTI-SPACE ACCUMULATION ===
+            ChainMomentumWorld += VelocityWorld * Mass;
+            ChainMomentumLocal += VelocityLocal * Mass;
+            ChainMomentumComponent += VelocityComponent * Mass;
+            ChainVelocityWorld += VelocityWorld;
+            ChainVelocityLocal += VelocityLocal;
+            ChainVelocityComponent += VelocityComponent;
+            
+            // Motion quality accumulation
+            float BoneQuality = MotionData->GetMotionQuality(MotionAnalysisSpace);
+            if (!FMath::IsNaN(BoneQuality))
+            {
+                ChainMotionQuality += BoneQuality;
+            }
+            
+            ValidBones++;
+        }
+        
+        // === ENHANCED: COMPLETE NORMALIZATION WITH VALIDATION ===
+        if (ChainTotalMass > 0.0f && ValidBones > 0)
+        {
+            ChainCenterOfMass /= ChainTotalMass;
+            ChainMotionQuality /= ValidBones;
+            
+            // Normalize velocity averages
+            ChainVelocityWorld /= ValidBones;
+            ChainVelocityLocal /= ValidBones;
+            ChainVelocityComponent /= ValidBones;
+        }
+        
+        // === ENHANCED: CONFIGURE PRIMARY MOMENTUM BASED ON ANALYSIS SPACE ===
+        switch (MotionAnalysisSpace)
+        {
+            case EOHReferenceSpace::WorldSpace:
+                ChainMomentum = ChainMomentumWorld;
+                break;
+            case EOHReferenceSpace::LocalSpace:
+                ChainMomentum = ChainMomentumLocal;
+                break;
+            case EOHReferenceSpace::ComponentSpace:
+                ChainMomentum = ChainMomentumComponent;
+                break;
+        }
+        
+        // === YOUR ORIGINAL ANGULAR MOMENTUM CALCULATION MAINTAINED ===
+        if (ChainTotalMass > 0.0f)
+        {
+            for (int32 i = 0; i < ChainBones.Num(); i++)
+            {
+                const FOHBoneMotionData* MotionData = GetBoneMotionData(ChainBones[i]);
+                if (!MotionData || !BoneMasses.IsValidIndex(i)) continue;
+                
+                FVector Position = MotionData->GetCurrentPosition();
+                FVector Velocity = MotionData->GetVelocity(EOHReferenceSpace::WorldSpace);
+                
+                if (!Position.ContainsNaN() && !Velocity.ContainsNaN())
+                {
+                    FVector R = Position - ChainCenterOfMass;
+                    ChainAngularMomentum += FVector::CrossProduct(R, Velocity * BoneMasses[i]);
+                }
+            }
+        }
+        
+        // === ENHANCED: UPDATE MOTION COHERENCE AND ADDITIONAL METRICS ===
+        UpdateMotionCoherence();
+        UpdateChainLength();
+        UpdateAttackMetrics(CurrentTime);
+    }
+    
+    /**
+     * Enhanced UpdateAttackMetrics with complete reference space awareness
+     * @param CurrentTime - Current timestamp for attack timing
+     */
+    void UpdateAttackMetrics(float CurrentTime)
+    {
+        // === RESET ATTACK METRICS ===
+        AttackDirection = FVector::ZeroVector;
+        AttackPrincipalDirection = FVector::ZeroVector;
+        EffectiveStrikeRadius = 0.0f;
+        AttackJerkMagnitude = 0.0f;
+        AttackDirectionalStability = 0.0f;
+        
+        float MaxJerk = 0.0f;
+        float MaxAccel = 0.0f;
+        float TotalDirectionalVariance = 0.0f;
+        int32 ValidDirections = 0;
+        
+        // === ENHANCED: MULTI-SPACE ATTACK ANALYSIS ===
+        FVector AccumulatedAttackDirection = FVector::ZeroVector;
+        FVector AccumulatedPrincipalDirection = FVector::ZeroVector;
+        float TotalAttackWeight = 0.0f;
+        float TotalPrincipalWeight = 0.0f;
+        
+        for (int32 i = 0; i < ChainBones.Num(); i++)
+        {
+            const FOHBoneMotionData* MotionData = GetBoneMotionData(ChainBones[i]);
+            if (!MotionData || !BoneMasses.IsValidIndex(i)) continue;
+            
+            // === COMPREHENSIVE VELOCITY ANALYSIS ===
+            FVector VelocityWorld = MotionData->GetVelocity(EOHReferenceSpace::WorldSpace);
+            FVector VelocityAnalysis = MotionData->GetVelocity(MotionAnalysisSpace);
+            FVector Acceleration = MotionData->GetAcceleration(MotionAnalysisSpace);
+            FVector Jerk = MotionData->CalculateJerk(MotionAnalysisSpace == EOHReferenceSpace::LocalSpace);
+            
+            // Validate motion data
+            if (VelocityWorld.ContainsNaN() || VelocityAnalysis.ContainsNaN()) continue;
+            
+            float SpeedWorld = VelocityWorld.Size();
+            float SpeedAnalysis = VelocityAnalysis.Size();
+            float BoneMass = BoneMasses[i];
+            
+            // === TRADITIONAL ATTACK DIRECTION (WORLD SPACE FOR COMPATIBILITY) ===
+            if (SpeedWorld > 100.0f)
+            {
+                float AttackWeight = SpeedWorld * BoneMass;
+                AccumulatedAttackDirection += VelocityWorld.GetSafeNormal() * AttackWeight;
+                TotalAttackWeight += AttackWeight;
+            }
+            
+            // === ENHANCED: PRINCIPAL DIRECTION IN ANALYSIS SPACE ===
+            if (SpeedAnalysis > MotionDetectionThreshold * 0.5f)
+            {
+                float PrincipalWeight = SpeedAnalysis * BoneMass;
+                AccumulatedPrincipalDirection += VelocityAnalysis.GetSafeNormal() * PrincipalWeight;
+                TotalPrincipalWeight += PrincipalWeight;
+            }
+            
+            // === ENHANCED: DIRECTIONAL STABILITY ANALYSIS ===
+            if (MotionData->GetHistoryDepth() >= 3 && SpeedAnalysis > 50.0f)
+            {
+                FVector CurrentDir = VelocityAnalysis.GetSafeNormal();
+                const FOHMotionFrameSample* PrevSample = MotionData->GetHistoricalSample(2);
+                
+                if (PrevSample)
+                {
+                    FVector PrevVelocity = PrevSample->GetVelocity(MotionAnalysisSpace);
+                    if (!PrevVelocity.IsNearlyZero())
+                    {
+                        FVector PrevDir = PrevVelocity.GetSafeNormal();
+                        float DirectionalConsistency = FVector::DotProduct(CurrentDir, PrevDir);
+                        TotalDirectionalVariance += (1.0f - FMath::Clamp(DirectionalConsistency, 0.0f, 1.0f));
+                        ValidDirections++;
+                    }
+                }
+            }
+            
+            // === TRACK MAXIMUM VALUES ===
+            if (!Jerk.ContainsNaN())
+            {
+                MaxJerk = FMath::Max(MaxJerk, Jerk.Size());
+            }
+            if (!Acceleration.ContainsNaN())
+            {
+                MaxAccel = FMath::Max(MaxAccel, Acceleration.Size());
+            }
+            
+            // === EFFECTIVE RADIUS CALCULATION ===
+            if (BoneRadii.IsValidIndex(i) && SpeedWorld > 0.0f)
+            {
+                float RadiusContribution = BoneRadii[i] * (SpeedWorld / FMath::Max(GetChainVelocity(EOHReferenceSpace::WorldSpace).Size(), 1.0f));
+                EffectiveStrikeRadius += RadiusContribution;
+            }
+        }
+        
+        // === FINALIZE ATTACK DIRECTIONS ===
+        if (TotalAttackWeight > 0.0f)
+        {
+            AttackDirection = (AccumulatedAttackDirection / TotalAttackWeight).GetSafeNormal();
+        }
+        
+        if (TotalPrincipalWeight > 0.0f)
+        {
+            AttackPrincipalDirection = (AccumulatedPrincipalDirection / TotalPrincipalWeight).GetSafeNormal();
+        }
+        
+        // === FINALIZE ENHANCED METRICS ===
+        AttackJerkMagnitude = MaxJerk;
+        AttackDirectionalStability = ValidDirections > 0 ? (1.0f - (TotalDirectionalVariance / ValidDirections)) : 0.0f;
+        
+        // === ENHANCED: CALCULATE ATTACK CURVATURE ===
+        AttackCurvature = CalculateAttackPathCurvature();
+        
+        // === ENHANCED: CALCULATE ATTACK INTENSITY ===
+        float SpeedFactor = FMath::Clamp(GetEffectiveMotionSpeed() / (MotionDetectionThreshold * 2.0f), 0.0f, 1.0f);
+        float EnergyFactor = FMath::Clamp(ChainKineticEnergy / 3000.0f, 0.0f, 1.0f);
+        float JerkFactor = FMath::Clamp(MaxJerk / 10000.0f, 0.0f, 1.0f);
+        AttackIntensity = (SpeedFactor * 0.4f + EnergyFactor * 0.3f + JerkFactor * 0.3f) * 100.0f;
+        
+        // === ENHANCED: CALCULATE ATTACK CONFIDENCE ===
+        CalculateAttackConfidence(MaxJerk, MaxAccel, GetEffectiveMotionSpeed());
+        
+        // === TIME TRACKING ===
+        if (bIsAttacking)
+        {
+            TimeInAttack += (CurrentTime - PreviousUpdateTime);
+        }
+        else
+        {
+            TimeInAttack = 0.0f;
+        }
+        PreviousUpdateTime = CurrentTime;
+    }
+    
+    /**
+     * Enhanced CalculateAttackConfidence with reference space analysis
+     * @param MaxJerk - Maximum jerk magnitude across chain
+     * @param MaxAccel - Maximum acceleration magnitude across chain
+     * @param EffectiveSpeed - Speed in configured analysis space
+     */
+    void CalculateAttackConfidence(float MaxJerk, float MaxAccel, float EffectiveSpeed)
+    {
+        float Score = 0.0f;
+        
+        // === ENHANCED: MULTI-FACTOR CONFIDENCE CALCULATION ===
+        
+        // Jerk component (25%) - sudden changes indicate strikes
+        float JerkScore = FMath::Clamp(MaxJerk / 12000.0f, 0.0f, 1.0f);
+        Score += JerkScore * 0.25f;
+        
+        // Acceleration component (20%)
+        float AccelScore = FMath::Clamp(MaxAccel / 6000.0f, 0.0f, 1.0f);
+        Score += AccelScore * 0.20f;
+        
+        // Kinetic energy component (20%)
+        float EnergyScore = FMath::Clamp(ChainKineticEnergy / 4000.0f, 0.0f, 1.0f);
+        Score += EnergyScore * 0.20f;
+        
+        // Motion quality component (15%)
+        Score += ChainMotionQuality * 0.15f;
+        
+        // === ENHANCED: REFERENCE SPACE-SPECIFIC FACTORS ===
+        
+        // Effective speed in analysis space (10%)
+        float SpeedScore = FMath::Clamp(EffectiveSpeed / (MotionDetectionThreshold * 2.0f), 0.0f, 1.0f);
+        Score += SpeedScore * 0.10f;
+        
+        // Motion coherence (5%)
+        Score += MotionCoherence * 0.05f;
+        
+        // Directional stability (5%) - higher stability = more confident attack
+        Score += AttackDirectionalStability * 0.05f;
+        
+        // === CLAMP AND ASSIGN ===
+        AttackConfidence = FMath::Clamp(Score, 0.0f, 1.0f);
+        bIsAttacking = AttackConfidence > 0.5f && HasSignificantMotion();
+    }
+    
+    /**
+     * Enhanced motion coherence calculation with reference space awareness
+     */
+    void UpdateMotionCoherence()
+    {
+        if (ChainBones.Num() < 2)
+        {
+            MotionCoherence = 0.0f;
+            return;
+        }
+        
+        float CoherenceSum = 0.0f;
+        int32 ValidPairs = 0;
+        
+        for (int32 i = 0; i < ChainBones.Num() - 1; i++)
+        {
+            const FOHBoneMotionData* Current = GetBoneMotionData(ChainBones[i]);
+            const FOHBoneMotionData* Next = GetBoneMotionData(ChainBones[i + 1]);
+            
+            if (Current && Next)
+            {
+                FVector V1 = Current->GetVelocity(MotionAnalysisSpace);
+                FVector V2 = Next->GetVelocity(MotionAnalysisSpace);
+                
+                if (!V1.IsNearlyZero() && !V2.IsNearlyZero() && !V1.ContainsNaN() && !V2.ContainsNaN())
+                {
+                    float Coherence = FVector::DotProduct(V1.GetSafeNormal(), V2.GetSafeNormal());
+                    CoherenceSum += FMath::Clamp(Coherence, 0.0f, 1.0f);
+                    ValidPairs++;
+                }
+            }
+        }
+        
+        MotionCoherence = ValidPairs > 0 ? (CoherenceSum / ValidPairs) : 0.0f;
+    }
+    
+    /**
+     * Enhanced attack path curvature calculation
+     * @return Average curvature across chain motion
+     */
+    float CalculateAttackPathCurvature() const
+    {
+        if (ChainBones.Num() < 3) return 0.0f;
+        
+        float TotalCurvature = 0.0f;
+        int32 ValidSegments = 0;
+        
+        for (int32 i = 1; i < ChainBones.Num() - 1; i++)
+        {
+            const FOHBoneMotionData* PrevData = GetBoneMotionData(ChainBones[i-1]);
+            const FOHBoneMotionData* CurrData = GetBoneMotionData(ChainBones[i]);
+            const FOHBoneMotionData* NextData = GetBoneMotionData(ChainBones[i+1]);
+            
+            if (PrevData && CurrData && NextData)
+            {
+                FVector V1 = CurrData->GetVelocity(MotionAnalysisSpace);
+                FVector V2 = NextData->GetVelocity(MotionAnalysisSpace);
+                
+                if (!V1.IsNearlyZero() && !V2.IsNearlyZero() && !V1.ContainsNaN() && !V2.ContainsNaN())
+                {
+                    float DotProduct = FVector::DotProduct(V1.GetSafeNormal(), V2.GetSafeNormal());
+                    float Angle = FMath::Acos(FMath::Clamp(DotProduct, -1.0f, 1.0f));
+                    TotalCurvature += Angle;
+                    ValidSegments++;
+                }
+            }
+        }
+        
+        return ValidSegments > 0 ? (TotalCurvature / ValidSegments) : 0.0f;
+    }
+    
+    /**
+     * Update chain length calculation
+     */
+    void UpdateChainLength()
+    {
+        ChainLength = 0.0f;
+        for (int32 i = 0; i < ChainBones.Num() - 1; i++)
+        {
+            const FOHBoneMotionData* Current = GetBoneMotionData(ChainBones[i]);
+            const FOHBoneMotionData* Next = GetBoneMotionData(ChainBones[i + 1]);
+            
+            if (Current && Next)
+            {
+                FVector Pos1 = Current->GetCurrentPosition();
+                FVector Pos2 = Next->GetCurrentPosition();
+                
+                if (!Pos1.ContainsNaN() && !Pos2.ContainsNaN())
+                {
+                    ChainLength += FVector::Dist(Pos1, Pos2);
+                }
+            }
+        }
+    }
+
+    // === CONSTRUCTOR WITH ENHANCED DEFAULTS ===
+    FOHCombatChainData()
+    {
+        // Original defaults maintained
+        RootBone = NAME_None;
+        ChainLength = 0.0f;
+        ChainTotalMass = 0.0f;
+        bIsAttacking = false;
+        AttackConfidence = 0.0f;
+        TimeInAttack = 0.0f;
+        EffectiveStrikeRadius = 0.0f;
+        ChainMotionQuality = 0.0f;
+        MotionCoherence = 0.0f;
+        TrajectoryConfidence = 0.0f;
+        ChainKineticEnergy = 0.0f;
+        
+        // Enhanced defaults
+        MotionAnalysisSpace = EOHReferenceSpace::LocalSpace;
+        MotionReferenceFrameBone = "pelvis";
+        MotionDetectionThreshold = 200.0f;
+        AttackJerkMagnitude = 0.0f;
+        AttackCurvature = 0.0f;
+        AttackIntensity = 0.0f;
+        AttackDirectionalStability = 0.0f;
+        PreviousUpdateTime = 0.0f;
+    }
+
+private:
+    float PreviousUpdateTime = 0.0f; // Track time for TimeInAttack calculation
+};
+USTRUCT(BlueprintType)
+struct ONLYHANDS_API FOHCombatAnalysis
+{
+    GENERATED_BODY()
+
+    // === YOUR EXISTING CORE METRICS (MAINTAINED) ===
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Analysis")
+    bool bIsAttacking = false;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Analysis")
+    float AttackConfidence = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Analysis")
+    float MaxChainSpeed = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Analysis")
+    float TotalKineticEnergy = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Analysis")
+    FName PrimaryStrikingBone = NAME_None;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Analysis")
+    FVector AttackDirection = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Analysis")
+    TArray<FName> ActiveChains;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Analysis")
+    float ChainMotionQuality = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Combat Analysis")
+    float AttackIntensity = 0.0f;
+
+    // === ENHANCED: REFERENCE SPACE-AWARE MOTION METRICS ===
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Analysis|Multi-Space")
+    float MaxChainSpeedWorld = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Analysis|Multi-Space")
+    float MaxChainSpeedLocal = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Analysis|Multi-Space")
+    float MaxChainSpeedComponent = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Analysis|Multi-Space")
+    EOHReferenceSpace PrimaryMotionSpace = EOHReferenceSpace::LocalSpace;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Motion Analysis|Multi-Space")
+    float EffectiveMotionSpeed = 0.0f; // Speed in primary motion space
+
+    // === ENHANCED: KINEMATIC ANALYSIS METRICS ===
+    UPROPERTY(BlueprintReadOnly, Category = "Kinematic Analysis")
+    float PeakAcceleration = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Kinematic Analysis")
+    float PeakJerkMagnitude = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Kinematic Analysis")
+    float AverageChainMass = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Kinematic Analysis")
+    float MomentumMagnitude = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Kinematic Analysis")
+    float AngularMomentumMagnitude = 0.0f;
+
+    // === ENHANCED: MOTION QUALITY AND CONSISTENCY METRICS ===
+    UPROPERTY(BlueprintReadOnly, Category = "Quality Analysis")
+    float MotionConsistencyScore = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Quality Analysis")
+    float CoordinationFactor = 0.0f; // Multi-bone coordination assessment
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Quality Analysis")
+    int32 ActiveBoneCount = 0;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Quality Analysis")
+    float TrajectoryConfidence = 0.0f;
+
+    // === ENHANCED: ATTACK CLASSIFICATION AND CHARACTERIZATION ===
+    UPROPERTY(BlueprintReadOnly, Category = "Attack Classification")
+    bool bIsCommittedAttack = false;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Attack Classification")
+    bool bIsFeintOrGlancing = false;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Attack Classification")
+    float AttackCurvature = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Attack Classification")
+    float TimeInAttack = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Attack Classification")
+    float ImpactPotential = 0.0f; // Predicted impact force potential
+
+    // === ENHANCED: SPATIAL AND DIRECTIONAL ANALYSIS ===
+    UPROPERTY(BlueprintReadOnly, Category = "Spatial Analysis")
+    FVector AttackPrincipalDirection = FVector::ZeroVector; // Primary attack vector in analysis space
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Spatial Analysis")
+    FVector ChainCenterOfMass = FVector::ZeroVector;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Spatial Analysis")
+    float EffectiveStrikeRadius = 0.0f;
+    
+    UPROPERTY(BlueprintReadOnly, Category = "Spatial Analysis")
+    float ChainLength = 0.0f;
+
+    // === ENHANCED API: SYSTEMATIC MOTION ANALYSIS ACCESS ===
+    
+    // Get maximum speed across all reference spaces
+    FORCEINLINE float GetMaxSpeedAnySpace() const
+    {
+        return FMath::Max3(MaxChainSpeedWorld, MaxChainSpeedLocal, MaxChainSpeedComponent);
+    }
+    
+    // Get speed in specified reference space
+    float GetMaxSpeedInSpace(EOHReferenceSpace Space) const
+    {
+        switch (Space)
+        {
+            case EOHReferenceSpace::WorldSpace: return MaxChainSpeedWorld;
+            case EOHReferenceSpace::LocalSpace: return MaxChainSpeedLocal;
+            case EOHReferenceSpace::ComponentSpace: return MaxChainSpeedComponent;
+            default: return MaxChainSpeed; // Fallback to existing field
+        }
+    }
+    
+    // Enhanced normalized intensity calculation
+    FORCEINLINE float GetNormalizedIntensity() const
+    {
+        return FMath::Clamp(AttackIntensity / 100.0f, 0.0f, 1.0f);
+    }
+    
+    // Get normalized impact potential for physics calculations
+    FORCEINLINE float GetNormalizedImpactPotential() const
+    {
+        return FMath::Clamp(ImpactPotential / 100.0f, 0.0f, 1.0f);
+    }
+    
+    // Enhanced validity check with comprehensive state validation
+    bool IsValid() const
+    {
+        return !PrimaryStrikingBone.IsNone() && 
+               AttackConfidence > KINDA_SMALL_NUMBER &&
+               ActiveChains.Num() > 0 &&
+               TotalKineticEnergy > KINDA_SMALL_NUMBER;
+    }
+    
+    // Get motion effectiveness rating combining speed, quality, and consistency
+    float GetMotionEffectiveness() const
+    {
+        if (!bIsAttacking) return 0.0f;
+        
+        float SpeedRating = FMath::Clamp(EffectiveMotionSpeed / 500.0f, 0.0f, 1.0f);
+        float QualityRating = FMath::Clamp(ChainMotionQuality, 0.0f, 1.0f);
+        float ConsistencyRating = FMath::Clamp(MotionConsistencyScore, 0.0f, 1.0f);
+        float CoordinationRating = FMath::Clamp(CoordinationFactor, 0.0f, 1.0f);
+        
+        return (SpeedRating * 0.3f + QualityRating * 0.3f + ConsistencyRating * 0.2f + CoordinationRating * 0.2f);
+    }
+    
+    // Determine attack classification based on motion analysis
+    FString GetAttackClassification() const
+    {
+        if (!bIsAttacking) return TEXT("No Attack");
+        
+        if (bIsCommittedAttack)
+        {
+            return FString::Printf(TEXT("Committed Strike (%.1fs)"), TimeInAttack);
+        }
+        else if (bIsFeintOrGlancing)
+        {
+            return TEXT("Feint/Glancing");
+        }
+        else if (AttackConfidence > 0.7f && PeakJerkMagnitude > 10000.0f)
+        {
+            return TEXT("Power Strike");
+        }
+        else if (AttackConfidence > 0.6f)
+        {
+            return TEXT("Standard Attack");
+        }
+        else if (AttackConfidence > 0.3f)
+        {
+            return TEXT("Tentative Motion");
+        }
+        else
+        {
+            return TEXT("Preparation");
+        }
+    }
+    
+    // Get attack intensity category for UI/feedback systems
+    FString GetAttackIntensityCategory() const
+    {
+        float NormalizedIntensity = GetNormalizedIntensity();
+        
+        if (NormalizedIntensity > 0.8f) return TEXT("Devastating");
+        if (NormalizedIntensity > 0.6f) return TEXT("Heavy");
+        if (NormalizedIntensity > 0.4f) return TEXT("Moderate");
+        if (NormalizedIntensity > 0.2f) return TEXT("Light");
+        return TEXT("Minimal");
+    }
+    
+    // Calculate predicted impact force based on kinematic analysis
+    float CalculatePredictedImpactForce() const
+    {
+        if (!bIsAttacking || TotalKineticEnergy < KINDA_SMALL_NUMBER) return 0.0f;
+        
+        // Base force from kinetic energy
+        float BaseForce = FMath::Sqrt(TotalKineticEnergy * 2.0f * AverageChainMass);
+        
+        // Modulate by attack confidence and quality
+        float ConfidenceMultiplier = FMath::Lerp(0.5f, 1.5f, AttackConfidence);
+        float QualityMultiplier = FMath::Lerp(0.7f, 1.3f, ChainMotionQuality);
+        
+        // Apply jerk factor for striking intensity
+        float JerkMultiplier = FMath::Clamp(PeakJerkMagnitude / 15000.0f, 0.5f, 2.0f);
+        
+        return BaseForce * ConfidenceMultiplier * QualityMultiplier * JerkMultiplier;
+    }
+    
+    // Enhanced reset with all new fields
+    void Reset()
+    {
+        // === YOUR ORIGINAL RESET PATTERN MAINTAINED ===
+        bIsAttacking = false;
+        AttackConfidence = 0.0f;
+        MaxChainSpeed = 0.0f;
+        TotalKineticEnergy = 0.0f;
+        PrimaryStrikingBone = NAME_None;
+        AttackDirection = FVector::ZeroVector;
+        ActiveChains.Empty();
+        ChainMotionQuality = 0.0f;
+        AttackIntensity = 0.0f;
+        
+        // === ENHANCED: RESET NEW FIELDS ===
+        MaxChainSpeedWorld = 0.0f;
+        MaxChainSpeedLocal = 0.0f;
+        MaxChainSpeedComponent = 0.0f;
+        EffectiveMotionSpeed = 0.0f;
+        PeakAcceleration = 0.0f;
+        PeakJerkMagnitude = 0.0f;
+        AverageChainMass = 0.0f;
+        MomentumMagnitude = 0.0f;
+        AngularMomentumMagnitude = 0.0f;
+        MotionConsistencyScore = 0.0f;
+        CoordinationFactor = 0.0f;
+        ActiveBoneCount = 0;
+        TrajectoryConfidence = 0.0f;
+        bIsCommittedAttack = false;
+        bIsFeintOrGlancing = false;
+        AttackCurvature = 0.0f;
+        TimeInAttack = 0.0f;
+        ImpactPotential = 0.0f;
+        AttackPrincipalDirection = FVector::ZeroVector;
+        ChainCenterOfMass = FVector::ZeroVector;
+        EffectiveStrikeRadius = 0.0f;
+        ChainLength = 0.0f;
+        PrimaryMotionSpace = EOHReferenceSpace::LocalSpace;
+    }
+    
+    // === CONSTRUCTOR MAINTAINING YOUR PATTERN ===
+    FOHCombatAnalysis()
+    {
+        Reset();
+    }
+};
+
+USTRUCT(BlueprintType)
+struct FOHKalmanState
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FVector Position = FVector::ZeroVector;
+    
+	UPROPERTY()
+	FVector Velocity = FVector::ZeroVector;
+    
+	UPROPERTY()
+	FMatrix CovarianceP = FMatrix::Identity;  // 6x6 for position and velocity
+    
+	// Process noise covariance
+	UPROPERTY()
+	float ProcessNoise = 0.1f;
+    
+	// Measurement noise covariance
+	UPROPERTY()
+	float MeasurementNoise = 0.5f;
+    
+	// Initialize from motion data
+	void InitializeFromMotionData(const FOHBoneMotionData& MotionData)
+	{
+		Position = MotionData.GetCurrentPosition();
+		Velocity = MotionData.GetVelocity(false);
+		CovarianceP = FMatrix::Identity * 10.0f;  // Initial uncertainty
+	}
+    
+	// Predict step
+	void Predict(float DeltaTime)
+	{
+		// State transition: x = x + v*dt, v = v
+		Position += Velocity * DeltaTime;
+        
+		// Update covariance (simplified for 3D position/velocity)
+		float dt2 = DeltaTime * DeltaTime;
+		CovarianceP.M[0][0] += ProcessNoise * dt2;
+		CovarianceP.M[1][1] += ProcessNoise * dt2;
+		CovarianceP.M[2][2] += ProcessNoise * dt2;
+		CovarianceP.M[3][3] += ProcessNoise;
+		CovarianceP.M[4][4] += ProcessNoise;
+		CovarianceP.M[5][5] += ProcessNoise;
+	}
+    
+	// Update step with measurement
+	void Update(const FVector& MeasuredPosition, float DeltaTime)
+	{
+		// Innovation
+		FVector Innovation = MeasuredPosition - Position;
+        
+		// Innovation covariance (simplified)
+		float S = CovarianceP.M[0][0] + CovarianceP.M[1][1] + CovarianceP.M[2][2] + MeasurementNoise;
+        
+		// Kalman gain
+		float K = CovarianceP.M[0][0] / S;
+        
+		// Update state
+		Position += Innovation * K;
+		Velocity += Innovation * (K / DeltaTime);
+        
+		// Update covariance
+		CovarianceP *= (1.0f - K);
+	}
+};
+
+struct FOHBlendFloatState
+{
+	float StartValue = 1.0f;
+	float TargetValue = 1.0f;
+	float Duration = 0.f;
+	float StartTime = 0.f;
+	bool bBlending = false;
+
+	void StartBlend(float InCurrent, float InTarget, float InDuration, float WorldTime)
+	{
+		StartValue = InCurrent;
+		TargetValue = InTarget;
+		Duration = InDuration;
+		StartTime = WorldTime;
+		bBlending = true;
+	}
+
+	// Returns true if blending is still active, sets OutValue to current blend value
+	bool Tick(float WorldTime, float& OutValue)
+	{
+		if (!bBlending) { OutValue = TargetValue; return false; }
+		float Alpha = Duration > 0.f ? FMath::Clamp((WorldTime - StartTime) / Duration, 0.f, 1.f) : 1.f;
+		OutValue = FMath::Lerp(StartValue, TargetValue, Alpha);
+		if (Alpha >= 1.f)
+		{
+			bBlending = false;
+			OutValue = TargetValue;
+			return false;
+		}
+		return true;
+	}
+};
+
+USTRUCT(BlueprintType)
+struct FPhysicsImpactData
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FVector ImpactLocation;
+    
+	UPROPERTY()
+	FVector ImpactNormal;
+    
+	UPROPERTY()
+	FVector RelativeVelocity;
+    
+	UPROPERTY()
+	float ImpactMagnitude = 0.0f;
+    
+	UPROPERTY()
+	FName BoneName;
+    
+	UPROPERTY()
+	float Timestamp = 0.0f;
+    
+	UPROPERTY()
+	AActor* OtherActor = nullptr;
+};
+
+USTRUCT(BlueprintType)
+struct FSimpleConstraintProfile
+{
+	GENERATED_BODY()
+
+// --------- Angular (Cone) Limit -----------
+    UPROPERTY(BlueprintReadOnly) EOHAngularConstraintMotion Swing1Motion = EOHAngularConstraintMotion::ACM_Limited;
+    UPROPERTY(BlueprintReadOnly) EOHAngularConstraintMotion Swing2Motion = EOHAngularConstraintMotion::ACM_Limited;
+    UPROPERTY(BlueprintReadOnly) float Swing1LimitDegrees = 0.f;
+    UPROPERTY(BlueprintReadOnly) float Swing2LimitDegrees = 0.f;
+    UPROPERTY(BlueprintReadOnly) float SwingStiffness = 0.f;
+    UPROPERTY(BlueprintReadOnly) float SwingDamping = 0.f;
+    UPROPERTY(BlueprintReadOnly) bool bSwingSoftConstraint = false;
+    UPROPERTY(BlueprintReadOnly) float SwingRestitution = 0.f;
+    UPROPERTY(BlueprintReadOnly) float SwingContactDistance = 0.f;
+
+    // --------- Angular (Twist) Limit ----------
+    UPROPERTY(BlueprintReadOnly) EOHAngularConstraintMotion TwistMotion = EOHAngularConstraintMotion::ACM_Limited;
+    UPROPERTY(BlueprintReadOnly) float TwistLimitDegrees = 0.f;
+    UPROPERTY(BlueprintReadOnly) float TwistStiffness = 0.f;
+    UPROPERTY(BlueprintReadOnly) float TwistDamping = 0.f;
+    UPROPERTY(BlueprintReadOnly) bool bTwistSoftConstraint = false;
+    UPROPERTY(BlueprintReadOnly) float TwistRestitution = 0.f;
+    UPROPERTY(BlueprintReadOnly) float TwistContactDistance = 0.f;
+
+    // --------- Linear Limit ------------------
+    UPROPERTY(BlueprintReadOnly) EOHLinearConstraintMotion LinearXMotion = EOHLinearConstraintMotion::LCM_Locked;
+    UPROPERTY(BlueprintReadOnly) EOHLinearConstraintMotion LinearYMotion = EOHLinearConstraintMotion::LCM_Locked;
+    UPROPERTY(BlueprintReadOnly) EOHLinearConstraintMotion LinearZMotion = EOHLinearConstraintMotion::LCM_Locked;
+    UPROPERTY(BlueprintReadOnly) float LinearLimit = 0.f;
+    UPROPERTY(BlueprintReadOnly) float LinearStiffness = 0.f;
+    UPROPERTY(BlueprintReadOnly) float LinearDamping = 0.f;
+    UPROPERTY(BlueprintReadOnly) bool bLinearSoftConstraint = false;
+    UPROPERTY(BlueprintReadOnly) float LinearRestitution = 0.f;
+    UPROPERTY(BlueprintReadOnly) float LinearContactDistance = 0.f;
+
+    // --------- Projection --------------------
+    UPROPERTY(BlueprintReadOnly) bool bEnableProjection = false;
+    UPROPERTY(BlueprintReadOnly) float ProjectionLinearTolerance = 1.f;
+    UPROPERTY(BlueprintReadOnly) float ProjectionAngularTolerance = 10.f;
+
+    // --------- Collision ---------------------
+    UPROPERTY(BlueprintReadOnly) bool bDisableCollision = false;
+
+    // --------- Breakable Constraints ---------
+    UPROPERTY(BlueprintReadOnly) bool bLinearBreakable = false;
+    UPROPERTY(BlueprintReadOnly) float LinearBreakThreshold = 300.f;
+
+    UPROPERTY(BlueprintReadOnly) bool bAngularBreakable = false;
+    UPROPERTY(BlueprintReadOnly) float AngularBreakThreshold = 300.f;
+
+    // --------- Drive Settings (for completeness, but rarely set at profile level) ----
+    // Not included in FConstraintProfileProperties by default, but you could add if needed.
+};
+
+USTRUCT(BlueprintType)
+struct FSimpleConstraintDriveParams
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly) bool bAngularOrientationDrive = false;
+	UPROPERTY(BlueprintReadOnly) bool bEnableSwingDrive = false;
+	UPROPERTY(BlueprintReadOnly) bool bEnableTwistDrive = false;
+
+	UPROPERTY(BlueprintReadOnly) bool bLinearPositionDrive = false;
+	UPROPERTY(BlueprintReadOnly) bool bLinearVelocityDrive = false;
+	UPROPERTY(BlueprintReadOnly) bool bAngularVelocityDrive = false;
+
+	UPROPERTY(BlueprintReadOnly) FVector LinearPositionTarget = FVector::ZeroVector;
+	UPROPERTY(BlueprintReadOnly) FVector LinearVelocityTarget = FVector::ZeroVector;
+	UPROPERTY(BlueprintReadOnly) FQuat   AngularOrientationTarget = FQuat::Identity;
+	UPROPERTY(BlueprintReadOnly) FVector AngularVelocityTarget = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadOnly) float LinearDriveForceLimit = 0.f;
+	UPROPERTY(BlueprintReadOnly) float LinearDriveStiffness  = 0.f;
+	UPROPERTY(BlueprintReadOnly) float LinearDriveDamping    = 0.f;
+
+	UPROPERTY(BlueprintReadOnly) float AngularDriveStiffness = 0.f;
+	UPROPERTY(BlueprintReadOnly) float AngularDriveDamping   = 0.f;
+	UPROPERTY(BlueprintReadOnly) float AngularDriveForceLimit = 0.f;
+
+	UPROPERTY(BlueprintReadOnly) EOHAngularDriveMode AngularDriveMode = EOHAngularDriveMode::SLERP;
+};
+
+USTRUCT(BlueprintType)
+struct FSimpleConstraintInstanceState
+{
+    GENERATED_BODY()
+
+    // --- General State ---
+    UPROPERTY(BlueprintReadOnly) bool bConstraintEnabled = true;
+    UPROPERTY(BlueprintReadOnly) bool bDisableCollision = false;
+
+    // --- World/Local Space Reference Frames ---
+    UPROPERTY(BlueprintReadOnly) FVector ConstraintPos1 = FVector::ZeroVector;   // Local position in Body1 (child)
+    UPROPERTY(BlueprintReadOnly) FVector ConstraintPos2 = FVector::ZeroVector;   // Local position in Body2 (parent)
+    UPROPERTY(BlueprintReadOnly) FQuat   ConstraintQuat1 = FQuat::Identity;      // Local orientation in Body1 (child)
+    UPROPERTY(BlueprintReadOnly) FQuat   ConstraintQuat2 = FQuat::Identity;      // Local orientation in Body2 (parent)
+
+    // --- Runtime Offset ---
+    UPROPERTY(BlueprintReadOnly) FRotator AngularRotationOffset = FRotator::ZeroRotator; // Offset (degrees)
+
+    // --- Projection (Solver Correction) ---
+    UPROPERTY(BlueprintReadOnly) bool bEnableProjection = false;
+    UPROPERTY(BlueprintReadOnly) float ProjectionLinearTolerance = 1.f;
+    UPROPERTY(BlueprintReadOnly) float ProjectionAngularTolerance = 10.f;
+
+    // --- Breakable State ---
+    UPROPERTY(BlueprintReadOnly) bool bLinearBreakable = false;
+    UPROPERTY(BlueprintReadOnly) float LinearBreakThreshold = 300.f;
+    UPROPERTY(BlueprintReadOnly) bool bAngularBreakable = false;
+    UPROPERTY(BlueprintReadOnly) float AngularBreakThreshold = 300.f;
+
+    // --- Runtime Status (Live) ---
+    UPROPERTY(BlueprintReadOnly) bool bIsBroken = false; // If constraint has broken this frame (requires logic)
+    UPROPERTY(BlueprintReadOnly) float CurrentTwist = 0.f; // Current twist angle (degrees)
+    UPROPERTY(BlueprintReadOnly) float CurrentSwing1 = 0.f; // Current swing1 angle (degrees)
+    UPROPERTY(BlueprintReadOnly) float CurrentSwing2 = 0.f; // Current swing2 angle (degrees)
+
+    // --- Solver Iterations (Advanced, may be unsupported) ---
+    UPROPERTY(BlueprintReadOnly) int32 LinearBreakSolverIterationCount = 0;
+    UPROPERTY(BlueprintReadOnly) int32 AngularBreakSolverIterationCount = 0;
+
+    // --- Constraint Names/IDs ---
+    UPROPERTY(BlueprintReadOnly) FName ConstraintBone1 = NAME_None; // Child bone
+    UPROPERTY(BlueprintReadOnly) FName ConstraintBone2 = NAME_None; // Parent bone
+    UPROPERTY(BlueprintReadOnly) FName ConstraintName  = NAME_None;
+
+    // --- World Space Anchors (for debugging) ---
+    UPROPERTY(BlueprintReadOnly) FVector RefFrame1_World = FVector::ZeroVector;
+    UPROPERTY(BlueprintReadOnly) FVector RefFrame2_World = FVector::ZeroVector;
+};
+
+
 
 // --- Begin runtime support structs for constraint sampling and readback ---
 USTRUCT(BlueprintType)
@@ -1849,7 +4255,7 @@ public:
 	// == Snapshot/Diff ==
 	TSet<FName> CaptureBoneSnapshot(const FName& RootBone) const;
 	TSet<FName> CaptureConstraintSnapshot() const;
-	void DiffBoneSnapshots(const TSet<FName>& OldSnap, const TSet<FName>& NewSnap, TSet<FName>& OutRemoved, TSet<FName>& OutAdded) const;
+    static void DiffBoneSnapshots(const TSet<FName>& OldSnap, const TSet<FName>& NewSnap, TSet<FName>& OutRemoved, TSet<FName>& OutAdded);
 
 	// == Components (Islands) ==
 	/** Computes islands (disconnected subgraphs) in the current graph. */
@@ -2195,7 +4601,7 @@ struct FActivePhysicsBlend
 	float BlendAlpha = 0.0f;
 
 	UPROPERTY()
-	EOHBlendPhase Phase = EOHBlendPhase::BlendIn;
+	EOHBlendPhases Phase = EOHBlendPhases::BlendIn;
 
 	UPROPERTY()
 	FName ReactionTag = NAME_None;
@@ -2253,7 +4659,7 @@ struct ONLYHANDS_API FBlendOperation
     
     // Type of blend operation
     UPROPERTY(EditAnywhere, Category = "Blend|Type")
-    EOHBlendType BlendType = EOHBlendType::FadeIn;
+    EOHTransitionTypes BlendType = EOHTransitionTypes::FadeIn;
     
     // Optional curve to control the blend interpolation
     UPROPERTY(EditAnywhere, Category = "Blend|Curves")
@@ -2304,7 +4710,7 @@ struct ONLYHANDS_API FBlendOperation
         FBlendOperation Op;
         Op.Bone = Bone;
         Op.Duration = FMath::Max(Duration, 0.01f); // Ensure safe duration
-        Op.BlendType = EOHBlendType::FadeIn;
+        Op.BlendType = EOHTransitionTypes::FadeIn;
         Op.StartWeight = FMath::Clamp(CurrentWeight, 0.0f, 1.0f);
         Op.TargetWeight = 1.0f;
         Op.ProfileNameOverride = ProfileNameOverride;
@@ -2319,7 +4725,7 @@ struct ONLYHANDS_API FBlendOperation
         FBlendOperation Op;
         Op.Bone = Bone;
         Op.Duration = FMath::Max(Duration, 0.01f);
-        Op.BlendType = EOHBlendType::FadeOut;
+        Op.BlendType = EOHTransitionTypes::FadeOut;
         Op.StartWeight = FMath::Clamp(CurrentWeight, 0.0f, 1.0f);
         Op.TargetWeight = 0.0f;
         Op.ProfileNameOverride = ProfileNameOverride;
@@ -2392,6 +4798,7 @@ struct ONLYHANDS_API FBlendOperation
     }
     
 };
+
 #pragma endregion
 
 #pragma endregion

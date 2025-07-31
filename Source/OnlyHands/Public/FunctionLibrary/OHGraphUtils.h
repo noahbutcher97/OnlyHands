@@ -93,11 +93,11 @@ public:
 	// Fully rebuilds a graph node from skeletal mesh and physics asset.
 
 	static void ClearPhysicsGraph(FOHPhysicsGraphNode& Graph);
-	bool RefreshBonesOnlyFromComponent(USkeletalMeshComponent* SkeletalMeshComp, FOHPhysicsGraphNode& Graph,
-	                                   const FString& ContextTag, bool bRebindOwnerComponent);
-	bool RefreshConstraintsOnlyFromComponent(USkeletalMeshComponent* SkeletalMeshComp, FOHPhysicsGraphNode& Graph,
-	                                         const FString& ContextTag, bool bRebuildFullConstraintList,
-	                                         bool bRebindOwnerComponent);
+	static bool RefreshBonesOnlyFromComponent(USkeletalMeshComponent* SkeletalMeshComp, FOHPhysicsGraphNode& Graph,
+	                                          const FString& ContextTag, bool bRebindOwnerComponent);
+	static bool RefreshConstraintsOnlyFromComponent(USkeletalMeshComponent* SkeletalMeshComp, FOHPhysicsGraphNode& Graph,
+	                                                const FString& ContextTag, bool bRebuildFullConstraintList,
+	                                                bool bRebindOwnerComponent);
 	bool RefreshGraphFromComponent(USkeletalMeshComponent* SkeletalMeshComp, FOHPhysicsGraphNode& Graph,
 	                               const FString& ContextTag, bool bRefreshBones, bool bRefreshConstraints,
 	                               bool bRebindOwnerComponent, bool bFullConstraintRebuild);

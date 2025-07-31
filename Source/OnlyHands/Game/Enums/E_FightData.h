@@ -333,3 +333,12 @@ namespace Enm_MomentumPoints
 
 	};
 }
+
+UENUM(BlueprintType)
+enum class Enm_AI_Type : uint8
+{
+	ENM_None				UMETA(DisplayName = "None"),
+	ENM_RushDown			UMETA(DisplayName = "RushDown"),
+	ENM_Shoto				UMETA(DisplayName = "Shoto"),
+	ENM_Zoning				UMETA(DisplayName = "Zoning"),
+};

@@ -1,5 +1,4 @@
 #include "Component/OHPhysicsManager.h"
-#include "Data/Maps/OHSkeletalMappings.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "PhysicsEngine/PhysicalAnimationComponent.h"
 #include "Data/Struct/OHPhysicsStructs.h"
@@ -57,21 +56,33 @@ void UOHPhysicsManager::BeginPlay()
 
 void UOHPhysicsManager::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-	if (!bEnablePhysicsManager) return;
+	if (!bEnablePhysicsManager) 
+		return;
 
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	if (!SkeletalMesh)
 		return;
 
-	// === 1. Always update bone kinematic state (used for analysis, impact, sim logic)
+	// === 1. Update kinematic tracking for all bones (foundation data) ===
 	UpdateTrackedBoneKinematics(DeltaTime);
 
+	// === 2. Process physics blend phases and apply physics changes ===
 	if (ActiveBlends.Num() > 0)
 	{
 		ProcessBlendPhases(DeltaTime);
 	}
 
+	// === 3. Update constraint runtime states (strain tracking, etc.) ===
+	if (PhysicalAnimationComponent && SkeletalMesh)
+	{
+		UpdateConstraintRuntimeStates(DeltaTime);
+	}
+
+	// === 4. Sync graph simulation flags with actual physics engine state ===
+	UpdateBoneSimulationStates();
+
+	// === 5. Debug visualizations (based on current state) ===
 	if (bEnableDebugOverlay && GEngine && GEngine->IsEditor())
 	{
 		TickDebugOverlay();
@@ -80,15 +91,16 @@ void UOHPhysicsManager::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 	if (UOHGraphUtils::GetPhysicsGraphOverlayMode() != EPhysicsGraphOverlayMode::None)
 	{
 		UOHGraphUtils::DrawPhysicsGraphOverlay(
-			PhysicsGraph,              // FOHPhysicsGraphNode
-			SkeletalMesh,   // USkeletalMeshComponent*
+			PhysicsGraph,                           // FOHPhysicsGraphNode
+			SkeletalMesh,                          // USkeletalMeshComponent*
 			GetWorld(),
-			0.05f,                // Duration (short for per-frame overlay)
+			0.05f,                                 // Duration (short for per-frame overlay)
 			UOHGraphUtils::GetPhysicsGraphOverlayMode(),
-			true                  // Draw labels
+			true                                   // Draw labels
 		);
 	}
 
+	// === 6. Development analysis (editor-only, after all state updates) ===
 #if WITH_EDITOR
 	if (bEnableRuntimeTuningEvaluation)
 	{
@@ -96,8 +108,13 @@ void UOHPhysicsManager::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 	}
 #endif
 
-	UpdateBoneSimulationStates();
+	// === 7. Debug system analysis (captures final state after all processing) ===
+	if (bEnableDebugDisplay)
+	{
+		DebugTick(DeltaTime);
+	}
 }
+
 
 void UOHPhysicsManager::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
@@ -762,7 +779,7 @@ void UOHPhysicsManager::PlayPhysicsHitReaction_Internal(
 	// Skip if already blending and fully held
 	if (FActivePhysicsBlend* Existing = ActiveBlends.Find(BoneName))
 	{
-		if (Existing->Phase == EOHBlendPhase::Hold && Existing->BlendAlpha >= 0.99f)
+		if (Existing->Phase == EOHBlendPhases::Hold && Existing->BlendAlpha >= 0.99f)
 			return;
 	}
 
@@ -1225,8 +1242,7 @@ void UOHPhysicsManager::ApplyUnifiedPhysicsProfile(FName BoneName, const FPhysic
 
 			if (ConstraintBone == BoneName)
 			{
-				FConstraintInstance* Instance = SkeletalMesh->FindConstraintInstance(Template->DefaultInstance.JointName);
-				if (Instance)
+				if (FConstraintInstance* Instance = SkeletalMesh->FindConstraintInstance(Template->DefaultInstance.JointName))
 				{
 					const float Stiffness = Profile.OrientationStrength;
 					const float Damping = Profile.PositionStrength;
@@ -1480,6 +1496,927 @@ void UOHPhysicsManager::EditorValidateSkeletonCompatibility()
 #endif
 }
 
+#pragma region Debug_Special
+//================================================================
+// OHPhysicsManager.cpp - Debug Implementation
+//================================================================
+
+void UOHPhysicsManager::DebugTick(float DeltaTime)
+{
+    if (!bEnableDebugDisplay || !GetWorld())
+        return;
+        
+    // Reset frame data
+    CurrentFrameDebugData.Reset();
+    CurrentFrameDebugData.LastFrameTime = GetWorld()->GetRealTimeSeconds();
+    
+    // Gather performance data
+    PerformSystemComparison();
+    
+    // Display requested debug info
+    if (bShowSystemOverview)
+        DisplaySystemOverview();
+        
+    if (bShowPhysicsGraphAnalysis)
+        DisplayPhysicsGraphAnalysis();
+        
+    if (bShowDirectPointerComparison)
+        DisplayDirectPointerComparison();
+        
+    if (bShowPerformanceMetrics)
+        DisplayPerformanceMetrics();
+        
+    if (bShowBoneDetails)
+        DisplayBoneDetails();
+        
+    if (bShowConstraintDetails)
+        DisplayConstraintDetails();
+    
+    // Store frame data for history
+    if (DebugHistory.Num() > 60) // Keep 1 second of history at 60fps
+        DebugHistory.RemoveAt(0);
+    DebugHistory.Add(CurrentFrameDebugData);
+}
+
+void UOHPhysicsManager::RebuildDirectPointerMapsForTesting()
+{
+    if (!SkeletalMesh || !CachedPhysicsAsset)
+        return;
+        
+    DirectBodySetupMap.Reset();
+    DirectConstraintTemplateMap.Reset();
+    DirectConstraintInstanceMap.Reset();
+    DirectBoneIndexMap.Reset();
+    DirectBodyInstanceMap.Reset();
+    
+    StartDirectOperationTiming();
+    
+    // Build direct body pointer map
+    TArray<FName> AllBoneNames;
+    SkeletalMesh->GetBoneNames(AllBoneNames);
+    
+    for (const FName& BoneName : AllBoneNames)
+    {
+        // Direct bone index lookup
+        int32 BoneIndex = SkeletalMesh->GetBoneIndex(BoneName);
+        if (BoneIndex != INDEX_NONE)
+        {
+            DirectBoneIndexMap.Add(BoneName, BoneIndex);
+        }
+        
+        // Direct body instance lookup (component data, safe to store raw pointer)
+        FBodyInstance* Body = SkeletalMesh->GetBodyInstance(BoneName);
+        if (Body && Body->IsValidBodyInstance())
+        {
+            DirectBodyInstanceMap.Add(BoneName, Body);
+        }
+        
+        // Store body setup via weak pointer for safety
+        if (Body && Body->GetBodySetup())
+        {
+            DirectBodySetupMap.Add(BoneName, Body->GetBodySetup());
+        }
+    }
+    
+    // Build direct constraint template AND instance maps
+    for (const UPhysicsConstraintTemplate* ConstraintTemplate : CachedPhysicsAsset->ConstraintSetup)
+    {
+        if (ConstraintTemplate)
+        {
+            FName Bone1 = ConstraintTemplate->DefaultInstance.ConstraintBone1;
+            FName Bone2 = ConstraintTemplate->DefaultInstance.ConstraintBone2;
+            FName JointName = ConstraintTemplate->DefaultInstance.JointName;
+            
+            // Store constraint templates
+            if (!Bone1.IsNone())
+                DirectConstraintTemplateMap.Add(Bone1, const_cast<UPhysicsConstraintTemplate*>(ConstraintTemplate));
+            if (!Bone2.IsNone())
+                DirectConstraintTemplateMap.Add(Bone2, const_cast<UPhysicsConstraintTemplate*>(ConstraintTemplate));
+            
+            // Store runtime constraint instances (the actual important ones!)
+            if (FConstraintInstance* RuntimeInstance = SkeletalMesh->FindConstraintInstance(JointName))
+            {
+                if (!Bone1.IsNone())
+                    DirectConstraintInstanceMap.Add(Bone1, RuntimeInstance);
+                if (!Bone2.IsNone())
+                    DirectConstraintInstanceMap.Add(Bone2, RuntimeInstance);
+            }
+        }
+    }
+    
+    EndDirectOperationTiming();
+    
+    // Calculate memory footprint more accurately
+    CurrentFrameDebugData.DirectMapMemoryFootprint = 
+        DirectBodySetupMap.GetAllocatedSize() + 
+        DirectConstraintTemplateMap.GetAllocatedSize() + 
+        DirectConstraintInstanceMap.GetAllocatedSize() +
+        DirectBoneIndexMap.GetAllocatedSize() +
+        DirectBodyInstanceMap.GetAllocatedSize();
+}
+
+
+void UOHPhysicsManager::PerformSystemComparison()
+{
+    if (!SkeletalMesh)
+        return;
+        
+    // Rebuild direct maps for fresh comparison
+    RebuildDirectPointerMapsForTesting();
+    
+    // Test graph system performance
+    StartGraphOperationTiming();
+    for (const auto& Pair : TrackedBoneDataMap)
+    {
+        const FName& BoneName = Pair.Key;
+        
+        // Graph-based access patterns using actual API
+        if (const FOHBoneData* GraphBoneData = PhysicsGraph.GetBoneMap().Find(BoneName))
+        {
+            CurrentFrameDebugData.GraphTraversalCount++;
+            
+            // Use actual FOHBoneData methods and consume results
+            bool bIsSimulating = GraphBoneData->GetIsSimulating();
+            FBodyInstance* Body = GraphBoneData->GetBodyInstance();
+            float Mass = GraphBoneData->GetCachedBodyMass();
+            
+            // Track valid bones and use variables
+            if (Body && Body->IsValidBodyInstance())
+            {
+                CurrentFrameDebugData.ValidBoneCount++;
+                // Use variables to prevent optimization and warnings
+                if (bIsSimulating && Mass > 0.0f)
+                {
+                    // Variables consumed
+                }
+            }
+            else
+            {
+                CurrentFrameDebugData.InvalidBoneCount++;
+            }
+        }
+    }
+    
+    // Test graph constraint access patterns
+    for (const FOHConstraintInstanceData& ConstraintData : PhysicsGraph.GetConstraintLinks())
+    {
+        CurrentFrameDebugData.GraphTraversalCount++;
+        
+        // Test graph-based constraint instance access
+        if (FConstraintInstance* GraphConstraintInstance = ConstraintData.GetConstraintInstance())
+        {
+            CurrentFrameDebugData.ActiveConstraintCount++;
+            
+            // Simulate typical graph constraint operations and consume results
+            float Swing1 = GraphConstraintInstance->GetCurrentSwing1();
+            float Swing2 = GraphConstraintInstance->GetCurrentSwing2();
+            bool bBreakable = GraphConstraintInstance->IsAngularBreakable();
+            
+            // Meaningfully use values (prevents both optimization and unused warnings)
+            CurrentFrameDebugData.GraphMemoryFootprint += static_cast<int32>(Swing1 + Swing2) + (bBreakable ? 1 : 0);
+        }
+        else
+        {
+            CurrentFrameDebugData.InactiveConstraintCount++;
+        }
+    }
+    
+    EndGraphOperationTiming();
+    
+    // Test direct pointer system performance  
+    StartDirectOperationTiming();
+    for (const auto& Pair : TrackedBoneDataMap)
+    {
+        const FName& BoneName = Pair.Key;
+        
+        // Direct pointer access patterns
+        FBodyInstance* const* BodyPtr = DirectBodyInstanceMap.Find(BoneName);
+        if (BodyPtr && *BodyPtr)
+        {
+            CurrentFrameDebugData.DirectLookupCount++;
+            
+            // Equivalent direct operations and consume results
+            bool bIsSimulating = (*BodyPtr)->IsInstanceSimulatingPhysics();
+            float Mass = (*BodyPtr)->GetBodyMass();
+            bool bValidBody = (*BodyPtr)->IsValidBodyInstance();
+            
+            // Meaningfully use the values
+            if (bIsSimulating && Mass > 0.0f && bValidBody)
+            {
+                CurrentFrameDebugData.DirectMapMemoryFootprint += static_cast<int32>(Mass);
+            }
+        }
+    }
+    
+    // Test direct constraint instance access
+    for (const auto& Pair : DirectConstraintInstanceMap)
+    {
+        CurrentFrameDebugData.DirectLookupCount++;
+
+        if (FConstraintInstance* DirectConstraintInstance = Pair.Value)
+        {
+            // Equivalent direct constraint operations and consume results
+            float Swing1 = DirectConstraintInstance->GetCurrentSwing1();
+            float Swing2 = DirectConstraintInstance->GetCurrentSwing2();
+            bool bBreakable = DirectConstraintInstance->IsAngularBreakable();
+            
+            // Meaningfully use values
+            CurrentFrameDebugData.DirectMapMemoryFootprint += static_cast<int32>(Swing1 + Swing2) + (bBreakable ? 1 : 0);
+        }
+    }
+    
+    EndDirectOperationTiming();
+    
+    // Calculate memory footprints using proper methods (this will overwrite the small additions above)
+    CurrentFrameDebugData.GraphMemoryFootprint = CalculateGraphMemoryFootprint();
+    
+    // Validate consistency and store result
+    bool bConsistencyValid = ValidateGraphVsDirectConsistency();
+    if (!bConsistencyValid)
+    {
+        CurrentFrameDebugData.InvalidBoneCount++;
+    }
+}
+
+void UOHPhysicsManager::DisplaySystemOverview() const
+{
+	if (!GEngine)
+		return;
+        
+	FString OverviewText = FString::Printf(
+		TEXT("=== ONLYHANDS PHYSICS MANAGER DEBUG ===\n")
+		TEXT("Skeletal Mesh: %s\n")
+		TEXT("Physics Asset: %s\n")
+		TEXT("Tracked Bones: %d | Simulatable: %d\n")
+		TEXT("Active Blends: %d | Sim Ref Count Bones: %d\n")
+		TEXT("Physics Graph Nodes: %d | Constraint Links: %d\n")
+		TEXT("Graph Constraint Instances: %d Active, %d Inactive\n")
+		TEXT("Direct Body Map: %d | Direct Constraint Templates: %d\n")
+		TEXT("Direct Constraint Instances: %d\n"),
+		SkeletalMesh ? *SkeletalMesh->GetName() : TEXT("NULL"),
+		CachedPhysicsAsset ? *CachedPhysicsAsset->GetName() : TEXT("NULL"),
+		TrackedBoneDataMap.Num(), SimulatableBones.Num(),
+		ActiveBlends.Num(), BoneSimBlendRefCount.Num(),
+		PhysicsGraph.GetBoneMap().Num(), PhysicsGraph.GetConstraintLinks().Num(),
+		CurrentFrameDebugData.ActiveConstraintCount, CurrentFrameDebugData.InactiveConstraintCount,
+		DirectBodyInstanceMap.Num(), DirectConstraintTemplateMap.Num(),
+		DirectConstraintInstanceMap.Num()
+	);
+    
+	GEngine->AddOnScreenDebugMessage(
+		1001,
+		DebugDisplayDuration,
+		FColor::White,
+		OverviewText,
+		true,
+		FVector2D(DebugTextScale, DebugTextScale)
+	);
+}
+
+void UOHPhysicsManager::DisplayPhysicsGraphAnalysis() const
+{
+	if (!GEngine)
+		return;
+        
+	// Analyze graph efficiency
+	int32 GraphNodes = PhysicsGraph.GetBoneMap().Num();
+	int32 GraphConstraints = PhysicsGraph.GetConstraintLinks().Num();
+	int32 GraphMemoryKB = CurrentFrameDebugData.GraphMemoryFootprint / 1024;
+    
+	// Check for graph-specific issues
+	TArray<FString> GraphIssues = GetGraphInconsistencies();
+    
+	FString AnalysisText = FString::Printf(
+		TEXT("=== PHYSICS GRAPH ANALYSIS ===\n")
+		TEXT("Graph Nodes: %d | Memory: %d KB\n")
+		TEXT("Constraint Links: %d\n")
+		TEXT("Graph Traversals This Frame: %d\n")
+		TEXT("Graph Access Time: %.4f ms\n")
+		TEXT("Graph Issues Found: %d\n"),
+		GraphNodes, GraphMemoryKB,
+		GraphConstraints,
+		CurrentFrameDebugData.GraphTraversalCount,
+		CurrentFrameDebugData.PhysicsGraphAccessTime * 1000.0f,
+		GraphIssues.Num()
+	);
+    
+	if (GraphIssues.Num() > 0)
+	{
+		AnalysisText += TEXT("Issues: ");
+		for (const FString& Issue : GraphIssues)
+		{
+			AnalysisText += Issue + TEXT(" | ");
+		}
+		AnalysisText += TEXT("\n");
+	}
+    
+	GEngine->AddOnScreenDebugMessage(
+		1002,
+		DebugDisplayDuration,
+		GraphIssues.Num() > 0 ? FColor::Yellow : FColor::Green,
+		AnalysisText,
+		true,
+		FVector2D(DebugTextScale, DebugTextScale)
+	);
+}
+
+
+void UOHPhysicsManager::DisplayDirectPointerComparison() const
+{
+    if (!GEngine)
+        return;
+        
+    int32 DirectMemoryKB = CurrentFrameDebugData.DirectMapMemoryFootprint / 1024;
+    int32 GraphMemoryKB = CurrentFrameDebugData.GraphMemoryFootprint / 1024;
+    
+    float PerformanceRatio = CurrentFrameDebugData.DirectPointerAccessTime > 0.0f ? 
+        CurrentFrameDebugData.PhysicsGraphAccessTime / CurrentFrameDebugData.DirectPointerAccessTime : 
+        0.0f;
+        
+    bool bDirectIsFaster = CurrentFrameDebugData.DirectPointerAccessTime < CurrentFrameDebugData.PhysicsGraphAccessTime;
+    bool bDirectUsesLessMemory = DirectMemoryKB < GraphMemoryKB;
+    
+    TArray<FString> DirectIssues = GetDirectPointerIssues();
+    
+    // Calculate constraint instance efficiency
+    int32 GraphConstraintOps = CurrentFrameDebugData.ActiveConstraintCount + CurrentFrameDebugData.InactiveConstraintCount;
+    int32 DirectConstraintOps = DirectConstraintInstanceMap.Num();
+    float ConstraintEfficiencyRatio = DirectConstraintOps > 0 ? 
+        static_cast<float>(GraphConstraintOps) / static_cast<float>(DirectConstraintOps) : 0.0f;
+    
+    FString ComparisonText = FString::Printf(
+        TEXT("=== DIRECT POINTER vs GRAPH COMPARISON ===\n")
+        TEXT("Direct Memory: %d KB | Graph Memory: %d KB\n")
+        TEXT("Direct Lookups: %d | Graph Traversals: %d\n")
+        TEXT("Direct Access Time: %.4f ms | Graph Access Time: %.4f ms\n")
+        TEXT("Performance Ratio (Graph/Direct): %.2fx\n")
+        TEXT("Constraint Efficiency (Graph/Direct Ops): %.2fx\n")
+        TEXT("Runtime Constraint Instances: Graph %d | Direct %d\n")
+        TEXT("Direct is Faster: %s | Uses Less Memory: %s\n")
+        TEXT("Direct Issues: %d\n"),
+        DirectMemoryKB, GraphMemoryKB,
+        CurrentFrameDebugData.DirectLookupCount, CurrentFrameDebugData.GraphTraversalCount,
+        CurrentFrameDebugData.DirectPointerAccessTime * 1000.0f,
+        CurrentFrameDebugData.PhysicsGraphAccessTime * 1000.0f,
+        PerformanceRatio,
+        ConstraintEfficiencyRatio,
+        GraphConstraintOps, DirectConstraintOps,
+        bDirectIsFaster ? TEXT("YES") : TEXT("NO"),
+        bDirectUsesLessMemory ? TEXT("YES") : TEXT("NO"),
+        DirectIssues.Num()
+    );
+    
+    // Enhanced recommendation based on constraint instance analysis
+    if (bDirectIsFaster && bDirectUsesLessMemory && DirectIssues.Num() == 0 && ConstraintEfficiencyRatio > 1.5f)
+    {
+        ComparisonText += TEXT("RECOMMENDATION: Strong case for Direct Pointers\n");
+        ComparisonText += TEXT("  - Graph has significant constraint overhead\n");
+    }
+    else if (bDirectIsFaster && bDirectUsesLessMemory && DirectIssues.Num() == 0)
+    {
+        ComparisonText += TEXT("RECOMMENDATION: Switch to Direct Pointers\n");
+    }
+    else if (GraphMemoryKB > DirectMemoryKB * 2 || PerformanceRatio > 2.0f)
+    {
+        ComparisonText += TEXT("RECOMMENDATION: Consider Direct Pointers\n");
+        ComparisonText += FString::Printf(TEXT("  - Graph overhead is significant (%.1fx)\n"), 
+                                         FMath::Max(PerformanceRatio, static_cast<float>(GraphMemoryKB) / static_cast<float>(DirectMemoryKB)));
+    }
+    else if (ConstraintEfficiencyRatio > 2.0f)
+    {
+        ComparisonText += TEXT("RECOMMENDATION: Graph constraint system is inefficient\n");
+        ComparisonText += TEXT("  - Consider direct constraint instance access\n");
+    }
+    else
+    {
+        ComparisonText += TEXT("RECOMMENDATION: Graph system is reasonable\n");
+    }
+    
+    FColor DisplayColor = (bDirectIsFaster && bDirectUsesLessMemory) ? FColor::Cyan : FColor::White;
+    
+    GEngine->AddOnScreenDebugMessage(
+        1003,
+        DebugDisplayDuration,
+        DisplayColor,
+        ComparisonText,
+        true,
+        FVector2D(DebugTextScale, DebugTextScale)
+    );
+}
+
+
+void UOHPhysicsManager::DisplayPerformanceMetrics() const
+{
+	if (!GEngine || DebugHistory.Num() < 2)
+		return;
+        
+	// Calculate averages over last 30 frames
+	int32 SampleCount = FMath::Min(30, DebugHistory.Num());
+	float AvgGraphTime = 0.0f;
+	float AvgDirectTime = 0.0f;
+	int32 AvgGraphTraversals = 0;
+	int32 AvgDirectLookups = 0;
+    
+	for (int32 i = DebugHistory.Num() - SampleCount; i < DebugHistory.Num(); ++i)
+	{
+		const FDebugFrameData& Frame = DebugHistory[i];
+		AvgGraphTime += Frame.PhysicsGraphAccessTime;
+		AvgDirectTime += Frame.DirectPointerAccessTime;
+		AvgGraphTraversals += Frame.GraphTraversalCount;
+		AvgDirectLookups += Frame.DirectLookupCount;
+	}
+    
+	AvgGraphTime /= SampleCount;
+	AvgDirectTime /= SampleCount;
+	AvgGraphTraversals /= SampleCount;
+	AvgDirectLookups /= SampleCount;
+    
+	FString MetricsText = FString::Printf(
+		TEXT("=== PERFORMANCE METRICS (30-frame avg) ===\n")
+		TEXT("Graph Access Time: %.4f ms (avg)\n")
+		TEXT("Direct Access Time: %.4f ms (avg)\n")
+		TEXT("Graph Traversals: %d (avg)\n")
+		TEXT("Direct Lookups: %d (avg)\n")
+		TEXT("Operations per ms (Graph): %.1f\n")
+		TEXT("Operations per ms (Direct): %.1f\n"),
+		AvgGraphTime * 1000.0f,
+		AvgDirectTime * 1000.0f,
+		AvgGraphTraversals,
+		AvgDirectLookups,
+		AvgGraphTime > 0.0f ? AvgGraphTraversals / (AvgGraphTime * 1000.0f) : 0.0f,
+		AvgDirectTime > 0.0f ? AvgDirectLookups / (AvgDirectTime * 1000.0f) : 0.0f
+	);
+    
+	GEngine->AddOnScreenDebugMessage(
+		1004,
+		DebugDisplayDuration,
+		FColor::Magenta,
+		MetricsText,
+		true,
+		FVector2D(DebugTextScale, DebugTextScale)
+	);
+}
+
+
+// === HELPER IMPLEMENTATIONS ===
+
+void UOHPhysicsManager::StartGraphOperationTiming() const
+{
+	GraphOperationStartTime = FPlatformTime::Seconds();
+}
+
+void UOHPhysicsManager::EndGraphOperationTiming() const
+{
+	CurrentFrameDebugData.PhysicsGraphAccessTime = FPlatformTime::Seconds() - GraphOperationStartTime;
+}
+
+void UOHPhysicsManager::StartDirectOperationTiming() const
+{
+	DirectOperationStartTime = FPlatformTime::Seconds();
+}
+
+void UOHPhysicsManager::EndDirectOperationTiming() const
+{
+	CurrentFrameDebugData.DirectPointerAccessTime = FPlatformTime::Seconds() - DirectOperationStartTime;
+}
+
+bool UOHPhysicsManager::ValidateGraphVsDirectConsistency() const
+{
+	bool bConsistent = true;
+    
+	// Check if graph has bones that direct system doesn't
+	for (const auto& Pair : PhysicsGraph.GetBoneMap())
+	{
+		const FName& BoneName = Pair.Key;
+		if (!DirectBodyInstanceMap.Contains(BoneName))
+		{
+			CurrentFrameDebugData.InvalidBoneCount++;
+			bConsistent = false;
+		}
+		else
+		{
+			CurrentFrameDebugData.ValidBoneCount++;
+		}
+	}
+    
+	return bConsistent;
+}
+
+
+TArray<FString> UOHPhysicsManager::GetDirectPointerIssues() const
+{
+    TArray<FString> Issues;
+    
+    // Check for null pointers in direct maps
+    int32 NullBodyPointers = 0;
+    for (const auto& Pair : DirectBodyInstanceMap)
+    {
+        if (!Pair.Value || !Pair.Value->IsValidBodyInstance())
+        {
+            NullBodyPointers++;
+        }
+    }
+    
+    if (NullBodyPointers > 0)
+        Issues.Add(FString::Printf(TEXT("NullBodyPointers(%d)"), NullBodyPointers));
+    
+    // Check for stale weak references in constraint templates
+    int32 StaleTemplateReferences = 0;
+    for (const auto& Pair : DirectConstraintTemplateMap)
+    {
+        if (!Pair.Value.IsValid())
+        {
+            StaleTemplateReferences++;
+        }
+    }
+    
+    if (StaleTemplateReferences > 0)
+        Issues.Add(FString::Printf(TEXT("StaleTemplateRefs(%d)"), StaleTemplateReferences));
+    
+    // Check for null constraint instances (this is the critical check!)
+    int32 NullConstraintInstances = 0;
+    for (const auto& Pair : DirectConstraintInstanceMap)
+    {
+        if (!Pair.Value)
+        {
+            NullConstraintInstances++;
+        }
+    }
+    
+    if (NullConstraintInstances > 0)
+        Issues.Add(FString::Printf(TEXT("NullConstraintInstances(%d)"), NullConstraintInstances));
+    
+    // Check for mismatched template vs instance counts
+    int32 TemplateMismatch = FMath::Abs(DirectConstraintTemplateMap.Num() - DirectConstraintInstanceMap.Num());
+    if (TemplateMismatch > 0)
+        Issues.Add(FString::Printf(TEXT("TemplateInstanceMismatch(%d)"), TemplateMismatch));
+    
+    return Issues;
+}
+
+TArray<FString> UOHPhysicsManager::GetGraphInconsistencies() const
+{
+	TArray<FString> Issues;
+    
+	// Check for orphaned nodes
+	int32 OrphanedNodes = 0;
+	for (const auto& Pair : PhysicsGraph.GetBoneMap())
+	{
+		if (!SkeletalMesh->DoesSocketExist(Pair.Key))
+		{
+			OrphanedNodes++;
+		}
+	}
+    
+	if (OrphanedNodes > 0)
+		Issues.Add(FString::Printf(TEXT("OrphanedNodes(%d)"), OrphanedNodes));
+    
+	// Check for missing constraint links
+	int32 MissingConstraints = 0;
+	for (const auto& Constraint : PhysicsGraph.GetConstraintLinks())
+	{
+		if (!PhysicsGraph.GetBoneMap().Contains(Constraint.GetParentBone()) ||
+			!PhysicsGraph.GetBoneMap().Contains(Constraint.GetChildBone()))
+		{
+			MissingConstraints++;
+		}
+	}
+    
+	if (MissingConstraints > 0)
+		Issues.Add(FString::Printf(TEXT("MissingConstraints(%d)"), MissingConstraints));
+    
+	// Check for bones without valid body instances (renamed to avoid class member collision)
+	int32 InvalidBodyCount = 0;
+	for (const auto& Pair : PhysicsGraph.GetBoneMap())
+	{
+		const FOHBoneData& BoneData = Pair.Value;
+		if (!BoneData.GetBodyInstance() || !BoneData.GetBodyInstance()->IsValidBodyInstance())
+		{
+			InvalidBodyCount++;
+		}
+	}
+    
+	if (InvalidBodyCount > 0)
+		Issues.Add(FString::Printf(TEXT("InvalidBodies(%d)"), InvalidBodyCount));
+    
+	return Issues;
+}
+
+void UOHPhysicsManager::DisplayBoneDetails() const
+{
+    if (!GEngine || !bShowBoneDetails)
+        return;
+        
+    FString BoneText = TEXT("=== BONE DETAILS ANALYSIS ===\n");
+    
+    // If specific bones are requested, analyze only those
+    if (DebugSpecificBones.Num() > 0)
+    {
+        for (const FName& BoneName : DebugSpecificBones)
+        {
+            // Graph bone analysis
+            if (const FOHBoneData* GraphBone = PhysicsGraph.GetBoneMap().Find(BoneName))
+            {
+                FBodyInstance* Body = GraphBone->GetBodyInstance();
+                bool bIsSimulating = GraphBone->GetIsSimulating();
+                float Mass = GraphBone->GetCachedBodyMass();
+                int32 MotionSamples = GraphBone->GetMotionHistory().Num();
+                
+                BoneText += FString::Printf(
+                    TEXT("%s: Mass=%.2f | Sim=%s | Samples=%d | Valid=%s\n"),
+                    *BoneName.ToString(),
+                    Mass,
+                    bIsSimulating ? TEXT("Yes") : TEXT("No"),
+                    MotionSamples,
+                    (Body && Body->IsValidBodyInstance()) ? TEXT("Yes") : TEXT("No")
+                );
+            }
+            else
+            {
+                BoneText += FString::Printf(TEXT("%s: NOT FOUND IN GRAPH\n"), *BoneName.ToString());
+            }
+            
+            // Direct bone analysis
+            FBodyInstance* const* DirectBody = DirectBodyInstanceMap.Find(BoneName);
+            if (DirectBody && *DirectBody)
+            {
+                float DirectMass = (*DirectBody)->GetBodyMass();
+                bool bDirectSimulating = (*DirectBody)->IsInstanceSimulatingPhysics();
+                
+                BoneText += FString::Printf(
+                    TEXT("  Direct: Mass=%.2f | Sim=%s\n"),
+                    DirectMass,
+                    bDirectSimulating ? TEXT("Yes") : TEXT("No")
+                );
+            }
+            else
+            {
+                BoneText += TEXT("  Direct: NOT FOUND\n");
+            }
+        }
+    }
+    else
+    {
+        // General bone analysis summary
+        int32 GraphBones = PhysicsGraph.GetBoneMap().Num();
+        int32 DirectBones = DirectBodyInstanceMap.Num();
+        int32 SimulatingBones = 0;
+        int32 BonesWithMotionHistory = 0;
+        
+        for (const auto& Pair : PhysicsGraph.GetBoneMap())
+        {
+            if (Pair.Value.GetIsSimulating())
+                SimulatingBones++;
+            if (Pair.Value.HasMotionHistory())
+                BonesWithMotionHistory++;
+        }
+        
+        BoneText += FString::Printf(
+            TEXT("Graph Bones: %d | Direct Bones: %d\n")
+            TEXT("Simulating: %d | With Motion History: %d\n")
+            TEXT("Use DebugSpecificBones array for detailed bone analysis\n"),
+            GraphBones, DirectBones, SimulatingBones, BonesWithMotionHistory
+        );
+    }
+    
+    GEngine->AddOnScreenDebugMessage(
+        1005,
+        DebugDisplayDuration,
+        FColor::Cyan,
+        BoneText,
+        true,
+        FVector2D(DebugTextScale, DebugTextScale)
+    );
+}
+
+
+void UOHPhysicsManager::DisplayConstraintDetails() const
+{
+    if (!GEngine || !bShowConstraintDetails)
+        return;
+        
+    FString ConstraintText = TEXT("=== CONSTRAINT INSTANCE ANALYSIS ===\n");
+    
+    // Analyze graph constraint instances
+    int32 GraphValidInstances = 0;
+    int32 GraphNullInstances = 0;
+    float GraphTotalStrain = 0.0f;
+    
+    for (const FOHConstraintInstanceData& ConstraintData : PhysicsGraph.GetConstraintLinks())
+    {
+	    if (FConstraintInstance* Instance = ConstraintData.GetConstraintInstance())
+        {
+            GraphValidInstances++;
+            
+            // Get runtime strain data from both sources for comparison
+            const FConstraintRuntimeState& RuntimeState = ConstraintData.GetRuntimeState();
+            float GraphStrain = RuntimeState.GetStrain();
+            
+            // Also get direct strain from the constraint instance for validation
+            FVector Force, Torque;
+            Instance->GetConstraintForce(Force, Torque);
+            float DirectStrain = Force.Size() + Torque.Size();
+            
+            // Use graph strain for totals, but validate against direct calculation
+            GraphTotalStrain += GraphStrain;
+            
+            // Log significant discrepancies (optional validation)
+            if (FMath::Abs(GraphStrain - DirectStrain) > 50.0f && bEnableDebugDisplay)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Constraint strain mismatch: Graph=%.1f Direct=%.1f"), 
+                       GraphStrain, DirectStrain);
+            }
+        }
+        else
+        {
+            GraphNullInstances++;
+        }
+    }
+    
+    // Analyze direct constraint instances
+    int32 DirectValidInstances = 0;
+    int32 DirectNullInstances = 0;
+    float DirectTotalStrain = 0.0f;
+    
+    for (const auto& Pair : DirectConstraintInstanceMap)
+    {
+	    if (FConstraintInstance* Instance = Pair.Value)
+        {
+            DirectValidInstances++;
+            
+            // Calculate equivalent strain (force + torque magnitude)
+            FVector Force, Torque;
+            Instance->GetConstraintForce(Force, Torque);
+            DirectTotalStrain += Force.Size() + Torque.Size();
+        }
+        else
+        {
+            DirectNullInstances++;
+        }
+    }
+    
+    float GraphAvgStrain = GraphValidInstances > 0 ? GraphTotalStrain / GraphValidInstances : 0.0f;
+    float DirectAvgStrain = DirectValidInstances > 0 ? DirectTotalStrain / DirectValidInstances : 0.0f;
+    
+    ConstraintText += FString::Printf(
+        TEXT("Graph Constraints: %d Valid, %d Null | Avg Strain: %.2f\n")
+        TEXT("Direct Constraints: %d Valid, %d Null | Avg Strain: %.2f\n")
+        TEXT("Instance Validity: Graph %.1f%% | Direct %.1f%%\n")
+        TEXT("Strain Difference: %.2f (Graph-Direct)\n"),
+        GraphValidInstances, GraphNullInstances, GraphAvgStrain,
+        DirectValidInstances, DirectNullInstances, DirectAvgStrain,
+        GraphValidInstances > 0 ? (GraphValidInstances * 100.0f / (GraphValidInstances + GraphNullInstances)) : 0.0f,
+        DirectValidInstances > 0 ? (DirectValidInstances * 100.0f / (DirectValidInstances + DirectNullInstances)) : 0.0f,
+        GraphAvgStrain - DirectAvgStrain
+    );
+    
+    // Add constraint-specific recommendations
+    if (GraphNullInstances > DirectNullInstances)
+    {
+        ConstraintText += TEXT("WARNING: Graph has more null constraint instances\n");
+    }
+    
+    if (FMath::Abs(GraphAvgStrain - DirectAvgStrain) > 10.0f)
+    {
+        ConstraintText += TEXT("WARNING: Significant strain calculation differences\n");
+    }
+    
+    FColor ConstraintColor = (GraphNullInstances > 0) ? FColor::Yellow : FColor::Green;
+    
+    GEngine->AddOnScreenDebugMessage(
+        1006,
+        DebugDisplayDuration,
+        ConstraintColor,
+        ConstraintText,
+        true,
+        FVector2D(DebugTextScale, DebugTextScale)
+    );
+}
+
+// Add constraint instance validation helper
+bool UOHPhysicsManager::ValidateConstraintInstanceConsistency() const
+{
+	bool bConsistent = true;
+    
+	// Check if graph constraint instances match direct ones
+	for (const FOHConstraintInstanceData& ConstraintData : PhysicsGraph.GetConstraintLinks())
+	{
+		FName ParentBone = ConstraintData.GetParentBone();
+		FName ChildBone = ConstraintData.GetChildBone();
+        
+		FConstraintInstance* GraphInstance = ConstraintData.GetConstraintInstance();
+		FConstraintInstance* DirectInstance1 = nullptr;
+		FConstraintInstance* DirectInstance2 = nullptr;
+        
+		// Check both bones for direct instances
+		if (FConstraintInstance* const* Found1 = DirectConstraintInstanceMap.Find(ParentBone))
+			DirectInstance1 = *Found1;
+		if (FConstraintInstance* const* Found2 = DirectConstraintInstanceMap.Find(ChildBone))
+			DirectInstance2 = *Found2;
+        
+		// Validate consistency
+		if (GraphInstance && (!DirectInstance1 && !DirectInstance2))
+		{
+			bConsistent = false;
+			UE_LOG(LogTemp, Warning, TEXT("Graph has constraint instance for %s-%s but direct system doesn't"), 
+				   *ParentBone.ToString(), *ChildBone.ToString());
+		}
+		else if (!GraphInstance && (DirectInstance1 || DirectInstance2))
+		{
+			bConsistent = false;
+			UE_LOG(LogTemp, Warning, TEXT("Direct system has constraint instance for %s-%s but graph doesn't"), 
+				   *ParentBone.ToString(), *ChildBone.ToString());
+		}
+	}
+    
+	return bConsistent;
+}
+
+// Add helper method for memory calculation
+int32 UOHPhysicsManager::CalculateGraphMemoryFootprint() const
+{
+    // Comprehensive memory usage calculation for the graph structure
+    int32 TotalMemory = 0;
+    
+    // === CORE CONTAINER MEMORY ===
+    // Size of bone map container itself
+    TotalMemory += PhysicsGraph.GetBoneMap().GetAllocatedSize();
+    
+    // Size of constraint links container itself  
+    TotalMemory += PhysicsGraph.GetConstraintLinks().GetAllocatedSize();
+    
+    // === BONE DATA MEMORY (DETAILED) ===
+    for (const auto& Pair : PhysicsGraph.GetBoneMap())
+    {
+        const FOHBoneData& BoneData = Pair.Value;
+        
+        // Base bone data structure
+        TotalMemory += sizeof(FOHBoneData);
+        
+        // Motion history memory (this is significant!)
+        const TArray<FOHMotionSample>& MotionHistory = BoneData.GetMotionHistory();
+        TotalMemory += MotionHistory.GetAllocatedSize();
+        TotalMemory += MotionHistory.Num() * sizeof(FOHMotionSample);
+        
+        // Child bones array memory
+        // Note: GetChildBones() returns a TArray, which has overhead
+        TotalMemory += sizeof(TArray<FName>) + (sizeof(FName) * 4); // Estimate avg 4 children per bone
+    }
+    
+    // === CONSTRAINT DATA MEMORY (DETAILED) ===
+    int32 ConstraintCount = PhysicsGraph.GetConstraintLinks().Num();
+    
+    // Calculate constraint memory more efficiently without iterating
+    TotalMemory += ConstraintCount * (sizeof(FOHConstraintInstanceData) + sizeof(FConstraintRuntimeState));
+    
+    // Add buffer for potential dynamic constraint data (strain history, etc.)
+    TotalMemory += ConstraintCount * 32;
+    
+    // === GRAPH OVERHEAD ESTIMATION ===
+    // Hash table overhead for bone map (approximation)
+    TotalMemory += PhysicsGraph.GetBoneMap().Num() * 16; // Hash overhead per entry
+    
+    // Array overhead for constraint links
+    TotalMemory += sizeof(TArray<FOHConstraintInstanceData>);
+    
+    // === CACHED DATA MEMORY ===
+    // Add estimated memory for cached masses, lengths, etc.
+    TotalMemory += PhysicsGraph.GetBoneMap().Num() * (sizeof(float) * 4); // Mass, length, and other cached values
+    
+    // === VALIDATION AND LOGGING ===
+    if (bEnableDebugDisplay)
+    {
+        // In debug builds, add some buffer for debug data structures
+        TotalMemory += ConstraintCount * 64; // Debug overhead per constraint
+        TotalMemory += PhysicsGraph.GetBoneMap().Num() * 32; // Debug overhead per bone
+    }
+    
+    return TotalMemory;
+}
+
+
+void UOHPhysicsManager::ToggleDebugMode(bool bNewEnabled)
+{
+	bEnableDebugDisplay = bNewEnabled;
+	if (bNewEnabled)
+	{
+		UE_LOG(LogTemp, Log, TEXT("OHPhysicsManager Debug Mode ENABLED"));
+		UE_LOG(LogTemp, Log, TEXT("  - Monitoring both constraint templates AND runtime instances"));
+		UE_LOG(LogTemp, Log, TEXT("  - Tracking graph vs direct pointer performance"));
+		UE_LOG(LogTemp, Log, TEXT("  - Validating constraint instance consistency"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("OHPhysicsManager Debug Mode DISABLED"));
+	}
+}
+
+
+
+
+
+
+#pragma endregion
 void UOHPhysicsManager::TickDebugOverlay() const
 {
 	if (!bEnableDebugOverlay || !SkeletalMesh) return;
@@ -1521,9 +2458,9 @@ void UOHPhysicsManager::DrawSimBlendDebugOverlay() const
 			FColor PhaseColor;
 			switch (Blend.Phase)
 			{
-			case EOHBlendPhase::BlendIn:  PhaseColor = FColor::Yellow; break;
-			case EOHBlendPhase::Hold:     PhaseColor = FColor::Green;  break;
-			case EOHBlendPhase::BlendOut: PhaseColor = FColor::Red;    break;
+			case EOHBlendPhases::BlendIn:  PhaseColor = FColor::Yellow; break;
+			case EOHBlendPhases::Hold:     PhaseColor = FColor::Green;  break;
+			case EOHBlendPhases::BlendOut: PhaseColor = FColor::Red;    break;
 			default:                      PhaseColor = FColor::White;  break;
 			}
 
@@ -2252,7 +3189,7 @@ FActivePhysicsBlend UOHPhysicsManager::CreatePhysicsBlendState(
 	Blend.RootBone = RootBone;
 	Blend.BlendAlpha = StartAlpha;
 	Blend.StartAlpha = StartAlpha; // <-- Set this
-	Blend.Phase = EOHBlendPhase::BlendIn;
+	Blend.Phase = EOHBlendPhases::BlendIn;
 	Blend.Elapsed = 0.0f;
 	Blend.BlendInDuration = BlendIn;
 	Blend.HoldDuration = Hold;
@@ -2268,7 +3205,7 @@ void UOHPhysicsManager::UpdateBlendState(FActivePhysicsBlend& Blend, float Delta
 
 	Blend.Elapsed += DeltaTime;
 
-	auto AdvancePhase = [&Blend](EOHBlendPhase NewPhase)
+	auto AdvancePhase = [&Blend](EOHBlendPhases NewPhase)
 	{
 		Blend.Phase = NewPhase;
 		Blend.Elapsed = 0.f;
@@ -2276,10 +3213,10 @@ void UOHPhysicsManager::UpdateBlendState(FActivePhysicsBlend& Blend, float Delta
 
 	switch (Blend.Phase)
 	{
-	case EOHBlendPhase::BlendIn:
+	case EOHBlendPhases::BlendIn:
 		if (Blend.BlendInDuration <= KINDA_SMALL_NUMBER)
 		{
-			AdvancePhase(EOHBlendPhase::Hold);
+			AdvancePhase(EOHBlendPhases::Hold);
 			Blend.BlendAlpha = 1.f;
 			break;
 		}
@@ -2290,15 +3227,15 @@ void UOHPhysicsManager::UpdateBlendState(FActivePhysicsBlend& Blend, float Delta
 
 		if (Progress >= 1.f)
 		{
-			AdvancePhase(EOHBlendPhase::Hold);
+			AdvancePhase(EOHBlendPhases::Hold);
 		}
 		break;
 		}
 
-	case EOHBlendPhase::Hold:
+	case EOHBlendPhases::Hold:
 		if (Blend.HoldDuration <= KINDA_SMALL_NUMBER)
 		{
-			AdvancePhase(EOHBlendPhase::BlendOut);
+			AdvancePhase(EOHBlendPhases::BlendOut);
 			break;
 		}
 
@@ -2306,11 +3243,11 @@ void UOHPhysicsManager::UpdateBlendState(FActivePhysicsBlend& Blend, float Delta
 
 		if (Blend.Elapsed >= Blend.HoldDuration)
 		{
-			AdvancePhase(EOHBlendPhase::BlendOut);
+			AdvancePhase(EOHBlendPhases::BlendOut);
 		}
 		break;
 
-	case EOHBlendPhase::BlendOut:
+	case EOHBlendPhases::BlendOut:
 		if (Blend.BlendOutDuration <= KINDA_SMALL_NUMBER)
 		{
 			Blend.BlendAlpha = 0.f;
@@ -2429,10 +3366,10 @@ bool UOHPhysicsManager::IsBoneBlending(FName BoneName) const
 }
 
 
-EOHBlendPhase UOHPhysicsManager::GetCurrentBlendPhase(FName BoneName) const
+EOHBlendPhases UOHPhysicsManager::GetCurrentBlendPhase(FName BoneName) const
 {
 	const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
-	return Blend ? Blend->Phase : EOHBlendPhase::BlendOut; // default = not blending / fallback state
+	return Blend ? Blend->Phase : EOHBlendPhases::BlendOut; // default = not blending / fallback state
 }
 
 
@@ -2472,9 +3409,9 @@ float UOHPhysicsManager::GetCurrentPhaseProgress(FName BoneName) const
 	{
 		switch (Blend->Phase)
 		{
-		case EOHBlendPhase::BlendIn:  return FMath::Max(Blend->BlendInDuration, KINDA_SMALL_NUMBER);
-		case EOHBlendPhase::Hold:     return FMath::Max(Blend->HoldDuration, KINDA_SMALL_NUMBER);
-		case EOHBlendPhase::BlendOut: return FMath::Max(Blend->BlendOutDuration, KINDA_SMALL_NUMBER);
+		case EOHBlendPhases::BlendIn:  return FMath::Max(Blend->BlendInDuration, KINDA_SMALL_NUMBER);
+		case EOHBlendPhases::Hold:     return FMath::Max(Blend->HoldDuration, KINDA_SMALL_NUMBER);
+		case EOHBlendPhases::BlendOut: return FMath::Max(Blend->BlendOutDuration, KINDA_SMALL_NUMBER);
 		default:                      return 1.f; // fallback duration avoids divide by 0
 		}
 	}();
@@ -2483,18 +3420,18 @@ float UOHPhysicsManager::GetCurrentPhaseProgress(FName BoneName) const
 }
 
 
-float UOHPhysicsManager::GetPhaseDuration(FName BoneName, EOHBlendPhase Phase) const
+float UOHPhysicsManager::GetPhaseDuration(FName BoneName, EOHBlendPhases Phase) const
 {
 	const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
 	if (!Blend) return 0.f;
 
 	switch (Phase)
 	{
-	case EOHBlendPhase::BlendIn:
+	case EOHBlendPhases::BlendIn:
 		return Blend->BlendInDuration;
-	case EOHBlendPhase::Hold:
+	case EOHBlendPhases::Hold:
 		return Blend->HoldDuration;
-	case EOHBlendPhase::BlendOut:
+	case EOHBlendPhases::BlendOut:
 		return Blend->BlendOutDuration;
 	default:
 		return 0.f;
@@ -2512,9 +3449,9 @@ void UOHPhysicsManager::ApplyBlendAlphaToBone(FName Bone, float BlendAlpha)
 }
 
 
-bool UOHPhysicsManager::IsBlendComplete(const FActivePhysicsBlend& Blend) const
+bool UOHPhysicsManager::IsBlendComplete(const FActivePhysicsBlend& Blend)
 {
-	return Blend.Phase == EOHBlendPhase::BlendOut && Blend.Elapsed >= Blend.BlendOutDuration;
+	return Blend.Phase == EOHBlendPhases::BlendOut && Blend.Elapsed >= Blend.BlendOutDuration;
 }
 
 
@@ -2530,8 +3467,7 @@ void UOHPhysicsManager::FinalizeBlend(FName RootBone)
 	{
 		if (!IsBoneValidForChain(Bone, RootBone)) continue;
 
-		int32* RefCountPtr = BoneSimBlendRefCount.Find(Bone);
-		if (RefCountPtr)
+		if (int32* RefCountPtr = BoneSimBlendRefCount.Find(Bone))
 		{
 			(*RefCountPtr)--;
 

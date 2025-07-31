@@ -17,6 +17,9 @@ UOHAnimInstance_Base::UOHAnimInstance_Base()
     LockedRightFootWorldPos = FVector::ZeroVector;
     DampedLeftEffector = FVector::ZeroVector;
     DampedRightEffector = FVector::ZeroVector;
+
+    LastRootMotionMode = ERootMotionMode::IgnoreRootMotion;
+
 }
 
 
@@ -24,6 +27,9 @@ UOHAnimInstance_Base::UOHAnimInstance_Base()
 void UOHAnimInstance_Base::NativeInitializeAnimation()
 {
     Super::NativeInitializeAnimation();
+
+    // Set initial mode at startup
+    LastRootMotionMode = RootMotionMode;
 }
 
 // --- Critical damping smoothing ---
@@ -184,6 +190,7 @@ void UOHAnimInstance_Base::NativeUpdateAnimation(float DeltaSeconds)
 {
     Super::NativeUpdateAnimation(DeltaSeconds);
 
+    
     // --- 0. Early outs & handle pointers ---
     APawn* OwnerPawn = TryGetPawnOwner();
     if (!OwnerPawn) return;
@@ -192,6 +199,16 @@ void UOHAnimInstance_Base::NativeUpdateAnimation(float DeltaSeconds)
     UWorld* World = Mesh->GetWorld();
     if (!World) return;
 
+// Compare our own AnimInstance RootMotionMode property
+    ERootMotionMode::Type CurrentMode = RootMotionMode;
+
+    if (CurrentMode != LastRootMotionMode)
+    {
+        OnRootMotionModeChanged.Broadcast(LastRootMotionMode, CurrentMode);
+        HandleRootMotionModeChanged(LastRootMotionMode, CurrentMode);
+        LastRootMotionMode = CurrentMode;
+    }
+    
     // --- 1. Auto foot size detection (first tick only) ---
     if (!bMeasuredFootLength)
     {
@@ -444,15 +461,15 @@ void UOHAnimInstance_Base::NativeUpdateAnimation(float DeltaSeconds)
     FootDeltaZ = FMath::Abs(LeftFootIKOffset - RightFootIKOffset);
 
     // Optionally expose stride phase, confidence, ghost lookahead time for debug:
-    LeftStridePhase = (int32)LeftPhase;
-    RightStridePhase = (int32)RightPhase;
+    LeftStridePhase = static_cast<int32>(LeftPhase);
+    RightStridePhase = static_cast<int32>(RightPhase);
     LeftFootStrideConfidence = PhaseConfidenceL;
     LeftFootStrideConfidence = PhaseConfidenceR;
     LeftGhostLookaheadTime = GhostStepLookaheadTimeL;
     RightGhostLookaheadTime = GhostStepLookaheadTimeR;
 
     #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-if (GEngine && Mesh)
+if (GEngine && Mesh && bDrawDebug)
 {
     const FTransform& MeshCompXform = Mesh->GetComponentTransform();
 

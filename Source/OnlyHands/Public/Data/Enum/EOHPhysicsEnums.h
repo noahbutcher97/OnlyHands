@@ -6,6 +6,51 @@
 #include "EOHPhysicsEnums.generated.h"
 
 UENUM(BlueprintType)
+enum class EOHBiologicalMaterial : uint8
+{
+	Skin            UMETA(DisplayName = "Skin"),
+	Muscle          UMETA(DisplayName = "Muscle"),
+	Fat             UMETA(DisplayName = "Fat Tissue"),
+	Bone            UMETA(DisplayName = "Bone"),
+	Cartilage       UMETA(DisplayName = "Cartilage"),
+	Tendon          UMETA(DisplayName = "Tendon/Ligament"),
+	Hair            UMETA(DisplayName = "Hair"),
+	Clothing_Cotton UMETA(DisplayName = "Cotton Clothing"),
+	Clothing_Leather UMETA(DisplayName = "Leather"),
+	Clothing_Synthetic UMETA(DisplayName = "Synthetic Fabric"),
+	Metal_Armor     UMETA(DisplayName = "Metal Armor"),
+	Unknown         UMETA(DisplayName = "Unknown")
+};
+
+UENUM(BlueprintType)
+enum class EOHShapeType : uint8
+{
+	Sphere          UMETA(DisplayName = "Sphere"),
+	Cylinder        UMETA(DisplayName = "Cylinder"),
+	Box             UMETA(DisplayName = "Box"),
+	Ellipsoid       UMETA(DisplayName = "Ellipsoid"),
+	Cone            UMETA(DisplayName = "Cone"),
+	Human_Limb      UMETA(DisplayName = "Human Limb"),
+	Human_Torso     UMETA(DisplayName = "Human Torso"),
+	Human_Head      UMETA(DisplayName = "Human Head")
+};
+
+UENUM(BlueprintType)
+enum class EOHReferenceSpace : uint8
+{
+	WorldSpace,
+	ComponentSpace,
+	LocalSpace
+};
+
+UENUM(BlueprintType)
+enum class EOHAngularDriveMode : uint8
+{
+	SLERP      UMETA(DisplayName="SLERP"),
+	TwistAndSwing UMETA(DisplayName="TwistAndSwing"),
+};
+
+UENUM(BlueprintType)
 enum class EOHImpulseMode : uint8
 {
 	Directional      UMETA(DisplayName = "Directional"),       // Applies impulse in hit direction
@@ -34,7 +79,21 @@ enum class EPhysicsGraphOverlayMode : uint8
 	Both UMETA(DisplayName = "Full + Anomalies")
 };
 
+UENUM(BlueprintType)
+enum class EOHAngularConstraintMotion : uint8
+{
+	ACM_Locked  UMETA(DisplayName="Locked"),
+	ACM_Limited UMETA(DisplayName="Limited"),
+	ACM_Free    UMETA(DisplayName="Free")
+};
 
+UENUM(BlueprintType)
+enum class EOHLinearConstraintMotion : uint8
+{
+	LCM_Locked  UMETA(DisplayName="Locked"),
+	LCM_Limited UMETA(DisplayName="Limited"),
+	LCM_Free    UMETA(DisplayName="Free")
+};
 
 UENUM(BlueprintType)
 enum class EOHNameMatchingStrategy : uint8
@@ -57,9 +116,14 @@ enum class EOHNameMatchingStrategy : uint8
 UENUM(BlueprintType)
 enum class EOHPhysicsProfile : uint8
 {
+	Baseline,
 	Light,
 	Medium,
-	Heavy
+	Heavy,
+	Stable,
+	Responsive,
+	Cinematic,
+	Aggressive
 };
 
 UENUM()
@@ -109,11 +173,12 @@ enum class EOHBoneSimulationState : uint8
 
 // Enum to track the type of blend operation
 UENUM(BlueprintType)
-enum class EOHBlendType : uint8
+enum class EOHTransitionTypes : uint8
 {
 	None UMETA(DisplayName = "None"), //No Blending
 	FadeIn UMETA(DisplayName = "FadeIn"), // Blending from animation to physics
-	FadeOut UMETA(DisplayName = "FadeOut") // Blending from physics to animation
+	FadeOut UMETA(DisplayName = "FadeOut"), // Blending from physics to animation
+	Crossfade UMETA(DisplayName = "Crossfade") // Crossfading too transitions
 };
 
 // New
@@ -693,12 +758,14 @@ enum class EOHHitDirection : uint8
 };
 
 
-UENUM()
-enum class EOHBlendPhase : uint8
+UENUM(BlueprintType)
+enum class EOHBlendPhases : uint8
 {
-	BlendIn,
-	Hold,
-	BlendOut,
+	BlendIn     UMETA(DisplayName = "Blending In"),
+	Hold        UMETA(DisplayName = "Hold Phase"),
+	BlendOut    UMETA(DisplayName = "Blending Out"),
+	Complete    UMETA(DisplayName = "Complete"),
+	Permanent   UMETA(DisplayName = "Permanent Active") // NEW: Never blends out
 };
 
 

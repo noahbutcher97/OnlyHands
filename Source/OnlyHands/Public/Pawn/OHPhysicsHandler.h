@@ -143,5 +143,5 @@ private:
     void OnGrabMoveY(float AxisValue);
     
     // Distance for grabbing
-    FVector GetTargetLocation() const;
+    FVector GetGrabTargetLocation() const;
 };

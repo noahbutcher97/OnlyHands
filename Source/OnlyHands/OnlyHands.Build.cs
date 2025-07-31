@@ -21,10 +21,17 @@ public class OnlyHands : ModuleRules
             }
         );
 
-        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "Niagara","AnimationCore", "PhysicsCore", "LevelSequence", "UMG", "Slate", "SlateCore", "ApplicationCore", "AnimGraphRuntime","MotionWarping", "Chaos" });
-            
-            
-        PrivateDependencyModuleNames.AddRange(new string[] { "GameplayAbilities", "GameplayTags", "GameplayTasks", "NavigationSystem", "AnimGraphRuntime" });
+        PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "Niagara","AnimationCore", "PhysicsCore", "LevelSequence", "UMG", "Slate", "SlateCore", "ApplicationCore", "AnimGraphRuntime","MotionWarping", "Chaos", "AIModule" });
+
+
+        PrivateDependencyModuleNames.AddRange(new string[] { "GameplayAbilities", "GameplayTags", "GameplayTasks", "NavigationSystem", "AnimGraphRuntime"});
+
+        if (Target.bBuildEditor)
+        {
+            PrivateDependencyModuleNames.AddRange(new string[] {"EditorScriptingUtilities", "Blutility" });
+
+        }
+
 
         if (Target.Platform == UnrealTargetPlatform.IOS)
         {

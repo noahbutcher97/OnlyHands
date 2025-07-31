@@ -282,7 +282,7 @@ void AOHPhysicsHandler::UpdateGrabbedTargetFromScreen()
 }
 
 
-FVector AOHPhysicsHandler::GetTargetLocation() const
+FVector AOHPhysicsHandler::GetGrabTargetLocation() const
 {
     if (!Camera) return FVector::ZeroVector;
 

@@ -13,7 +13,14 @@
  * 
  */
 
-
+UENUM(BlueprintType)
+enum class ERotationContext : uint8
+{
+	Off        UMETA(DisplayName = "Off"),
+	TurnOn      UMETA(DisplayName = "Turn On"),
+	TurnOff     UMETA(DisplayName = "Turn Off"),
+	Tracking    UMETA(DisplayName = "Tracking")
+};
 
 USTRUCT(BlueprintType)
 struct FStrikeAnalysisResult
@@ -81,11 +88,96 @@ class ONLYHANDS_API UOHCombatUtils : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 public:
-	// -------- High-Value Vector/Simulation Helpers (defined in .cpp)
 
+	static void AddCharacterUpdateState(
+	ACharacter* Character,
+	UPARAM(ref) TArray<ACharacter*>& OverlappingCharacters,
+	FVector SourceLocation,
+	ERotationContext CurrentState,
+	ERotationContext& NextState,
+	ACharacter*& ClosestCharacter
+);
+
+static void RemoveCharacterUpdateState(
+	ACharacter* Character,
+	TArray<ACharacter*>& OverlappingCharacters,
+	FVector SourceLocation,
+	ERotationContext CurrentState,
+	ERotationContext& NextState,
+	ACharacter*& ClosestCharacter);
+	
+	/**
+	 * Interpolates a scene component's rotation towards the specified target depending on context.
+	 * @param Component         The scene component to rotate.
+	 * @param DeltaTime         Interp step (pass world delta time).
+	 * @param Context           TurnOn, TurnOff, or Tracking.
+	 * @param OnRotation        Target rotation for TurnOn.
+	 * @param OffRotation       Target rotation for TurnOff.
+	 * @param TrackingRotation  Target rotation for Tracking (can be updated externally each tick).
+	 * @param InterpSpeed       How quickly to rotate (degrees/sec).
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Rotation|Utils")
+	static void InterpComponentRotation(
+		USceneComponent* Component,
+		float DeltaTime,
+		ERotationContext Context,
+		const FRotator& OnRotation,
+		const FRotator& OffRotation,
+		const FRotator& TrackingRotation,
+		float InterpSpeed = 5.f
+	);
+
+	// Returns true if the pivot's relative rotation equals target rotation within a tolerance
+	UFUNCTION(BlueprintPure, Category="SecurityCamera|Utils")
+	static bool HasReachedRotation(
+		USceneComponent* Pivot,
+		FRotator TargetRotation,
+		float Tolerance = 1.0f);
+
+	// Interpolates pivot's relative rotation towards target rotation
+	UFUNCTION(BlueprintCallable, Category="SecurityCamera|Utils")
+	static void InterpPivotToTarget(
+		USceneComponent* Pivot,
+		FRotator TargetRotation,
+		float DeltaTime,
+		float InterpSpeed);
+
+
+
+	UFUNCTION(BlueprintPure, Category="Helper|Utils")
+	static ACharacter* GetClosestCharacter(
+		FVector SourceLocation,
+		const TArray<ACharacter*>& Characters
+	);
+
+	static ACharacter* GetClosestCharacter(
+		USceneComponent* Pivot,
+		const TArray<ACharacter*>& Characters
+	);
+
+	
+	UFUNCTION(BlueprintPure, Category="SecurityCamera|Utils")
+	static FRotator GetLookAtRotationToCharacter(
+		USceneComponent* Pivot,
+		ACharacter* TargetCharacter
+	);
+
+	
+	UFUNCTION(BlueprintPure, Category="SecurityCamera|Utils")
+	static ERotationContext DetermineNextRotationContext(
+		ERotationContext CurrentContext,
+		int32 NumOverlappingCharacters
+	);
+
+
+
+	
 	/** Projects a 3D vector onto the XY (2D) plane */
 	UFUNCTION(BlueprintPure, Category = "Math|Vector")
 	static FVector2D ProjectVectorTo2D(const FVector& Vector);
+
+	UFUNCTION(BlueprintPure, Category = "Math|Vector")
+	static float ComputeDirectionalAlignment2D(const FVector& A, const FVector& B);
 
 	/** Reflects a vector across a normalized axis */
 	UFUNCTION(BlueprintPure, Category = "Math|Vector")
@@ -308,17 +400,49 @@ public:
 	UFUNCTION(BlueprintPure, Category = "OH|Combat|Camera")
 	static float GetActorMovementDirectionRelativeToCamera(const AActor* TargetActor);
 
+	
+	
+	/**
+	 * Returns an array containing only ACharacter actors from the input.
+	 * @param Actors           Array of actor pointers to filter.
+	 * @return                 Array of ACharacter* contained in input.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Character|Utils")
+	static TArray<ACharacter*> GetCharactersFromActors(
+		const TArray<AActor*>& Actors
+	);
+
+	/**
+ * Returns true if any actors are characters, and outputs the closest character to SourceLocation.
+ * @param SourceLocation        Point to measure from.
+ * @param Actors                Array of actors to check.
+ * @param ClosestCharacter      (Out) The closest character pointer (nullptr if none).
+ * @return                      True if any valid character is in the array.
+ */
+	UFUNCTION(BlueprintPure, Category = "Character|Utils")
+	static bool GetClosestCharacterToLocationFromActors(
+		const FVector& SourceLocation,
+		const TArray<AActor*>& Actors,
+		ACharacter*& ClosestCharacter
+	);
+
 
 /** Gets the local player's camera location and rotation (client-side only).
  *  Use with caution in multiplayer. This retrieves the local viewport player's camera.
  */
-UFUNCTION(BlueprintPure, Category = "Combat|Camera", meta = (WorldContext = "ContextObject"))
-static bool GetPlayerCameraView(
-	const UObject* ContextObject,
-	FVector& OutCameraLocation,
-	FRotator& OutCameraRotation);
+	UFUNCTION(BlueprintPure, Category = "Combat|Camera", meta = (WorldContext = "ContextObject"))
+	static bool GetPlayerCameraView(
+		const UObject* ContextObject, FTransform& OutTransform);
 
-	
+	UFUNCTION(BlueprintPure, Category = "Combat|Camera", meta = (WorldContext = "ContextObject"))
+	static bool GetActorView(const UObject* ContextObject, FTransform& OutTransform);
+
+	static FTransform GetActorView(const UObject* ContextObject, bool& bSuccess);
+
+	static FTransform GetActorView(const UObject* ContextObject);
+
+	static bool GetActorView_Internal(const UObject* ContextObject, FTransform& OutTransform);
+
 
 	UFUNCTION(BlueprintCallable, Category = "OH|Combat|Debug")
 	static void DebugDrawActorMovementDirection(const AActor* TargetActor, float Duration = 2.0f,
@@ -501,6 +625,63 @@ static bool GetPlayerCameraView(
 		FVector ContactNormal,
 		float EstimatedForce);
 
+
+	// Calculate contact quality from bone velocities in world space (0=tangential, 1=perpendicular)
+	UFUNCTION(BlueprintPure, Category = "OH|Combat|Contact", meta = (DisplayName = "Calculate Contact Quality"))
+	static float CalculateContactQuality(
+		const FVector& StrikingBoneWorldVelocity,
+		const FVector& ContactNormal,
+		const FVector& TargetBoneWorldVelocity = FVector::ZeroVector
+	)
+	{
+		FVector RelativeVelocity = StrikingBoneWorldVelocity - TargetBoneWorldVelocity;
+		float Speed = RelativeVelocity.Size();
+    
+		if (Speed < KINDA_SMALL_NUMBER)
+			return 0.0f;
+    
+		// Dot product with negative normal (velocity INTO surface)
+		float Alignment = FVector::DotProduct(RelativeVelocity.GetSafeNormal(), -ContactNormal);
+    
+		// Remap [-1,1] to [0,1] where 1 = perpendicular impact
+		return FMath::Clamp((Alignment + 1.0f) * 0.5f, 0.0f, 1.0f);
+	}
+
+	// Determine if contact is glancing based on world velocity and normal
+	UFUNCTION(BlueprintPure, Category = "OH|Combat|Contact", meta = (DisplayName = "Is Glancing Contact"))
+	static bool IsGlancingContact(
+		const FVector& BoneWorldVelocity,
+		const FVector& ContactNormal,
+		float GlancingThreshold = 0.3f // Below this = glancing
+	)
+	{
+		float Quality = CalculateContactQuality(BoneWorldVelocity, ContactNormal);
+		return Quality < GlancingThreshold;
+	}
+
+	// Calculate deflection direction for glancing blows in world space
+	UFUNCTION(BlueprintPure, Category = "OH|Combat|Contact", meta = (DisplayName = "Calculate Deflection Direction"))
+	static FVector CalculateDeflectionDirection(
+		const FVector& IncomingWorldVelocity,
+		const FVector& ContactNormal,
+		float Elasticity = 0.3f // 0=pure slide, 1=perfect bounce
+	)
+	{
+		// Reflect velocity about normal
+		FVector Reflected = IncomingWorldVelocity - 2.0f * FVector::DotProduct(IncomingWorldVelocity, ContactNormal) * ContactNormal;
+    
+		// Tangent component (sliding along surface)
+		FVector Tangent = IncomingWorldVelocity - FVector::DotProduct(IncomingWorldVelocity, ContactNormal) * ContactNormal;
+    
+		// Blend between sliding and bouncing
+		return FMath::Lerp(Tangent, Reflected, Elasticity).GetSafeNormal();
+	}
+
+
+	// Calculate how flush/direct a strike is (0=glancing, 1=perpendicular)
+	UFUNCTION(BlueprintPure, Category = "OH|Combat|Analysis", meta = (DisplayName = "Calculate Strike Flushness"))
+	static float CalculateStrikeFlushness(const FHitResult& Hit);
+	
 	/** Sorts contacts by impact severity */
 	UFUNCTION(BlueprintCallable, Category = "Combat|HitScoring")
 	static void SortContactsByImpactScore_Raw(
@@ -1233,4 +1414,35 @@ public:
 		bool bDrawDebug = false
 	);
 
+	/**
+ * Calculates the ratio of Attacker mass to Target mass for physics force scaling.
+ * Returns a safe, clamped positive value. Falls back to 1.0 if mass is invalid or actors missing.
+ *
+ * @param Attacker   The actor applying force (can be nullptr).
+ * @param Target     The actor receiving force (can be nullptr).
+ * @param bVerbose   Enable logging for debugging.
+ */
+	UFUNCTION(BlueprintPure, Category="Combat|Physics")
+	static float CalculateMassRatio(
+		AActor* Attacker,
+		AActor* Target,
+		bool bVerbose = false
+	);
+
+	/**
+ * Returns the sum (or optionally average) mass of all specified bones for the given actor.
+ * Skips missing or non-simulated bones. Returns 0.0 if no valid bones found.
+ *
+ * @param Actor           The actor whose skeletal mesh to query.
+ * @param BoneNames       Array of bone names to aggregate mass from.
+ * @param bAverage        If true, returns the average mass instead of the total.
+ * @param bVerbose        If true, logs missing bones and other info.
+ */
+	UFUNCTION(BlueprintPure, Category="Combat|Physics")
+	static float CalculateChainMass(
+		AActor* Actor,
+		const TArray<FName>& BoneNames,
+		bool bAverage = false,
+		bool bVerbose = false
+	);
 };

@@ -2,6 +2,7 @@
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
 #include "OHAnimInstance_Base.generated.h"
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnRootMotionModeChangedSignature, ERootMotionMode::Type, PreviousMode, ERootMotionMode::Type, CurrentMode);
 
 UENUM()
 enum class EFootPhase : uint8
@@ -50,7 +51,7 @@ struct FFootTraceBuffer
 		if (Valid < 1) return FVector::ZeroVector;
 		FVector Sum = FVector::ZeroVector;
 		for (int i = 0; i < Valid; ++i) Sum += Positions[i];
-		return Sum / float(Valid);
+		return Sum / static_cast<float>(Valid);
 	}
 
 	// --- Get oldest sample ---
@@ -245,9 +246,12 @@ public:
 	UOHAnimInstance_Base();
 	
 
-	UFUNCTION(BlueprintPure, Category = "Animation")
-	ERootMotionMode::Type GetRootMotionModePublic() const { return RootMotionMode; }
 
+
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="IK|Debug")
+	bool bDrawDebug = false;
+	
 	// --- Stride phase thresholds (used in DetectFootPhase) ---
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="IK|PhaseDetection")
 	float PhaseSwingVerticalSpeed = 5.0f;
@@ -371,11 +375,22 @@ UPROPERTY(BlueprintReadOnly, Category="IK|Debug") float RightFootSlopeAngle = 0.
 	// --- World effector debug values (component/local space) ---
 	UPROPERTY(BlueprintReadOnly, Category="IK|Debug") FVector NewLockedLEffector;
 	UPROPERTY(BlueprintReadOnly, Category="IK|Debug")FVector NewLockedREffector;
+
+	UPROPERTY(BlueprintAssignable, Category = "RootMotion")
+	FOnRootMotionModeChangedSignature OnRootMotionModeChanged;
+	virtual void HandleRootMotionModeChanged(ERootMotionMode::Type Previous, ERootMotionMode::Type Current) {}
+	
+	UFUNCTION(BlueprintPure, Category = "RootMotion")
+	FORCEINLINE ERootMotionMode::Type GetRootMotionModePublic() const { return RootMotionMode; }
+
+	UFUNCTION(BlueprintPure, Category = "RootMotion")
+	FORCEINLINE ERootMotionMode::Type GetLastRootMotionModePublic() const { return LastRootMotionMode; }
 	
 protected:
 	
 	virtual void NativeInitializeAnimation() override;
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
+	ERootMotionMode::Type LastRootMotionMode = ERootMotionMode::IgnoreRootMotion;
 
 private:
 

@@ -317,6 +317,7 @@ struct F_HitDef : public FTableRowBase
 };
 
 
+
 //PlayerData
 
 USTRUCT(BlueprintType)
@@ -564,6 +565,17 @@ struct F_FightClassPerfil : public FTableRowBase
 };
 
 USTRUCT(BlueprintType)
+struct F_AI_Data : public FTableRowBase
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    Enm_AI_Type AiType;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 AI_Level;
+
+};
+
+USTRUCT(BlueprintType)
 struct F_LoadCharacter : public FTableRowBase
 {
     GENERATED_BODY()
@@ -573,7 +585,11 @@ struct F_LoadCharacter : public FTableRowBase
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TMap <FName, FString> Left_Char;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    F_AI_Data AI_Left;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TMap <FName, FString> Right_Char;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    F_AI_Data AI_Right;
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
     TSoftObjectPtr<USoundCue> Music;
 
@@ -746,4 +762,75 @@ struct FInputWindow : public FTableRowBase
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FName WindowName;
+};
+
+
+
+USTRUCT(BlueprintType)
+struct F_AI_MovementsTypes : public FTableRowBase
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float WalkForward;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float WalkAround;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float WalkBack;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float DashForward;
+};
+
+USTRUCT(BlueprintType)
+struct F_AI_AttackTypes : public FTableRowBase
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere,BlueprintReadWrite)
+    float LightAttack;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float MediumAttack;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float HighAttack;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float SmartAttack;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float DoubleAttack;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float ChainAttack;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float ChainVariation;
+
+};
+
+USTRUCT(BlueprintType)
+struct F_AI_DefenseTypes : public FTableRowBase
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere,BlueprintReadWrite)
+    float Block;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float PerfectBlock;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float DashBack;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float DashLeft_Right;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float PerfectEvade;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float PerfectPivot;
+};
+
+USTRUCT(BlueprintType)
+struct F_AI_Action : public FTableRowBase
+{
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    float AI_Agressive;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    F_AI_MovementsTypes AI_MovementTypes;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    F_AI_AttackTypes AI_AttackTypes;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    F_AI_DefenseTypes AI_DefenseTypes;
+
 };

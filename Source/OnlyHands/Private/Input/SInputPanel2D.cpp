@@ -687,6 +687,9 @@ bool SInputPanel2D::IsPositionOutsideDeadZone(FVector2D PositionToCheck)
 
 bool SInputPanel2D::ForwardGamepadAxis(const FGamepadKeyNames::Type KeyName, float AnalogValue)
 {
+	if (!KeyName.IsValid())
+		return false;
+
 	const FInputDeviceId PrimaryInputDevice = IPlatformInputDeviceMapper::Get().GetPrimaryInputDeviceForUser(FSlateApplicationBase::SlateAppPrimaryPlatformUser);
 	return 	FSlateApplication::Get().OnControllerAnalog(KeyName, FSlateApplicationBase::SlateAppPrimaryPlatformUser, PrimaryInputDevice, AnalogValue);
 	return false;

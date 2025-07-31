@@ -142,11 +142,103 @@ class ONLYHANDS_API UOHLocomotionUtils : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
+#pragma region Basic Movement
+public:
+	
+	// Lock-On/Strafe
+	static FVector CalculateLockOnMovementInputVector(
+		const FVector2D& Input,
+		const ACharacter* Character,
+		const AActor* TargetActor);
+
+	// Momentum/Inertia Blend
+	static FVector CalculateMomentumBlendedMovementInputVector(
+		const FVector2D& Input,
+		const FRotator& ControlRotation,
+		const FVector& Velocity,
+		float MomentumBlendAlpha);
+
+	UFUNCTION(BlueprintPure, Category = "OH|Locomotion")
+	static FRotator CalculateControlRotation(const AActor* Owner, bool bIncludePitch);
+	
+	static FRotator CalculateControlRotation(const AActor* Owner);
+
+	/** Blends between previous (momentum) and new (input) direction. Responsiveness: 0 = only momentum, 1 = instantly matches input. */
+	UFUNCTION(BlueprintPure, Category="OH|Math|Movement")
+	static FVector BlendDirectionalInput(const FVector& LastDir, const FVector& NewDir, float Responsiveness);
+
+	/** Returns force (in N) required to reach target speed in DeltaTime, given mass. */
+	UFUNCTION(BlueprintPure, Category="OH|Physics")
+	static float CalculateRequiredForce(float TargetSpeed, float CurrentSpeed, float Mass, float DeltaTime);
+	
+	/** Returns an adaptive deadzone based on recent joystick activity (smaller deadzone if user is very active, larger if mostly idle or drifting). */
+	UFUNCTION(BlueprintPure, Category="OH|Input")
+	static float GetDynamicDeadzone(const TArray<FVector2D>& RecentInputHistory, float MinDeadzone = 0.1f, float MaxDeadzone = 0.3f);
+
+	UFUNCTION(BlueprintCallable, Category="OH|Movement")
+	static void ApplyWeightedMovementInput(
+		AActor* Owner,
+		const FVector& MoveVector,
+		const FVector& LastDir,
+		float Weight);
+
+	UFUNCTION(BlueprintPure, Category="OH|Movement")
+	static FVector CalculateMovementInputVector(
+		const FVector2D& LocalInput,
+		const FRotator& ControlRotation
+	);
+	
+	UFUNCTION(BlueprintPure, Category="OH|Movement")
+	static FVector CalculateSmoothedMovementInputVector(
+		const FVector2D& RawInput,
+		const FRotator& ControlRotation,
+		float Deadzone = 0.15f,
+		float InputSmoothingBlendSpeed = 0.f,  // set 0 to skip smoothing
+		const FVector2D& PreviousInput = FVector2D::ZeroVector // Only needed if smoothing
+	);
+	// In UOHLocomotionUtils.h
+	UFUNCTION(BlueprintPure, Category="OH|Movement")
+	static FVector CalculateBlendedMovementInputVector(
+		const FVector2D& Input,
+		const FRotator& CameraRotation,
+		const FRotator& FacingRotation,
+		float FacingBlend = 0.4f // 0 = camera, 1 = facing, in-between = hybrid
+	);
+
+	UFUNCTION(BlueprintPure, Category="OH|Facing")
+	static FRotator CalculateBlendedHybridFacing(
+		const FRotator& CurrentFacing,           // Pawn's current rotation (yaw-only is fine)
+		const FVector& CharacterLocation,
+		const FVector& TargetLocation,
+		float DeadzoneAngle = 8.f,               // Free-facing zone (degrees)
+		float MaxOffsetAngle = 22.f,             // Max allowed offset (degrees)
+		float PullStrength = 8.f,                // How quickly to blend back (typical: 6–12)
+		float HardSnapStrength = 24.f,           // How hard to snap if way out (typical: 16–32)
+		float DeltaTime = .01f        // For consistent interpolation
+	);
+
+
+	
+#pragma endregion
+
+#pragma region Curves
+	
+	/** Samples a curve vector and returns the appropriate channel for the given gait. */
+	UFUNCTION(BlueprintPure, Category="OH|Curve")
+	static float SampleGaitCurve(UCurveVector* Curve, float Input, EOHGait Gait, float SpeedFactor = 1.f);
+
+	/** Samples a float curve (e.g., for rotational or directional effects) */
+	UFUNCTION(BlueprintPure, Category="OH|Curve")
+	static float SampleFloatCurve(UCurveFloat* Curve, float Input, float DefaultValue = 1.f);
+	
+#pragma endregion
+
 #pragma region StructuredDirectionOutput
 	
 #pragma region Screen-Relative Directions
 	// ----- Screen-Relative -----
-
+	
+	
 	UFUNCTION(BlueprintCallable, Category = "OH|Locomotion|Movement")
 	static void ApplyStableCameraRelativeMovement(ACharacter* Character, const FVector2D& Input);
 
@@ -160,8 +252,8 @@ class ONLYHANDS_API UOHLocomotionUtils : public UBlueprintFunctionLibrary
 	);
 
 	UFUNCTION(BlueprintPure)
-	void GetLockOnMovementBasis(ACharacter* Character, AActor* LockOnTarget, FVector& ForwardVector,
-	                            FVector& RightVector);
+	static void GetLockOnMovementBasis(ACharacter* Character, AActor* LockOnTarget, FVector& ForwardVector,
+	                                   FVector& RightVector);
 
 	UFUNCTION(BlueprintPure, Category = "OH|Locomotion|Direction")
 	static float ComputeSmoothedQuadrantMovementAngle(
@@ -551,7 +643,7 @@ class ONLYHANDS_API UOHLocomotionUtils : public UBlueprintFunctionLibrary
 	
 #pragma endregion
 
-	#pragma region InlineHelpers
+#pragma region InlineHelpers
 	// ===== Inline Utilities =====
 
 	FORCEINLINE static FVector2D ComputeBlendFactors_Inline(
@@ -756,6 +848,7 @@ class ONLYHANDS_API UOHLocomotionUtils : public UBlueprintFunctionLibrary
 	 float ProcNoise               = 1e-3f,
 	 float MeasNoise               = 1e-1f
  );
+
 };
 
 
