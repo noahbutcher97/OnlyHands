@@ -6,7 +6,10 @@
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 
-AOHPhysicsHandler::AOHPhysicsHandler() {
+
+
+AOHPhysicsHandler::AOHPhysicsHandler()
+{
     PrimaryActorTick.bCanEverTick = true;
 
     Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
@@ -18,17 +21,23 @@ AOHPhysicsHandler::AOHPhysicsHandler() {
     HighlightedComponent = nullptr;
 }
 
-void AOHPhysicsHandler::BeginPlay() {
+
+
+void AOHPhysicsHandler::BeginPlay()
+{
     Super::BeginPlay();
 }
 
-void AOHPhysicsHandler::Tick(float DeltaTime) {
+void AOHPhysicsHandler::Tick(float DeltaTime)
+{
     Super::Tick(DeltaTime);
-    // MoveGrabbedComponent();
+    //MoveGrabbedComponent();
     UpdateHighlight();
 }
 
-void AOHPhysicsHandler::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) {
+
+void AOHPhysicsHandler::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 
     // Movement
@@ -52,9 +61,11 @@ void AOHPhysicsHandler::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
     PlayerInputComponent->BindAxis("MouseMoveY", this, &AOHPhysicsHandler::OnGrabMoveY);
 }
 
-void AOHPhysicsHandler::StartCameraLook() {
+void AOHPhysicsHandler::StartCameraLook()
+{
     bIsCameraLookActive = true;
-    if (APlayerController* PC = Cast<APlayerController>(GetController())) {
+    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    {
         PC->bShowMouseCursor = false;
         FInputModeGameOnly InputMode;
         InputMode.SetConsumeCaptureMouseDown(true);
@@ -64,9 +75,11 @@ void AOHPhysicsHandler::StartCameraLook() {
         GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, TEXT("Camera Look Mode: ON (RMB Down)"));
 }
 
-void AOHPhysicsHandler::StopCameraLook() {
+void AOHPhysicsHandler::StopCameraLook()
+{
     bIsCameraLookActive = false;
-    if (APlayerController* PC = Cast<APlayerController>(GetController())) {
+    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    {
         PC->bShowMouseCursor = true;
         FInputModeGameAndUI InputMode;
         InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
@@ -76,71 +89,82 @@ void AOHPhysicsHandler::StopCameraLook() {
         GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, TEXT("Camera Look Mode: OFF (RMB Up)"));
 }
 
-void AOHPhysicsHandler::CameraLookYaw(float AxisValue) {
-    if (GEngine) {
-        FString Msg = FString::Printf(TEXT("CameraLookYaw: %f | RMB active: %d"), AxisValue,
-                                      static_cast<int>(bIsCameraLookActive));
+
+void AOHPhysicsHandler::CameraLookYaw(float AxisValue)
+{
+    if (GEngine)
+    {
+        FString Msg = FString::Printf(TEXT("CameraLookYaw: %f | RMB active: %d"), AxisValue, static_cast<int>(bIsCameraLookActive));
         GEngine->AddOnScreenDebugMessage(-1, 0.02f, FColor::Cyan, Msg);
     }
 
-    if (bIsCameraLookActive && AxisValue != 0.f) {
+    if (bIsCameraLookActive && AxisValue != 0.f)
+    {
         AddControllerYawInput(AxisValue);
     }
 }
 
-void AOHPhysicsHandler::CameraLookPitch(float AxisValue) {
-    if (GEngine) {
-        FString Msg = FString::Printf(TEXT("CameraLookPitch: %f | RMB active: %d"), AxisValue,
-                                      static_cast<int>(bIsCameraLookActive));
+void AOHPhysicsHandler::CameraLookPitch(float AxisValue)
+{
+    if (GEngine)
+    {
+        FString Msg = FString::Printf(TEXT("CameraLookPitch: %f | RMB active: %d"), AxisValue, static_cast<int>(bIsCameraLookActive));
         GEngine->AddOnScreenDebugMessage(-1, 0.02f, FColor::Cyan, Msg);
     }
 
-    if (bIsCameraLookActive && AxisValue != 0.f) {
+    if (bIsCameraLookActive && AxisValue != 0.f)
+    {
         AddControllerPitchInput(AxisValue);
     }
 }
 
-void AOHPhysicsHandler::MoveForward(float Value) {
+void AOHPhysicsHandler::MoveForward(float Value)
+{
     UE_LOG(LogTemp, Warning, TEXT("MoveForward: %f"), Value);
     if (Value != 0.f)
         AddMovementInput(Camera->GetForwardVector(), Value);
 }
 
-void AOHPhysicsHandler::MoveRight(float Value) {
+void AOHPhysicsHandler::MoveRight(float Value)
+{
     if (Value != 0.f)
         AddMovementInput(Camera->GetRightVector(), Value);
 }
 
-void AOHPhysicsHandler::MoveUp(float Value) {
+void AOHPhysicsHandler::MoveUp(float Value)
+{
     if (Value != 0.f)
         AddMovementInput(Camera->GetUpVector(), Value);
 }
 
-void AOHPhysicsHandler::OnGrabMoveX(float AxisValue) {
-    if (bIsGrabbingWithMouse && FMath::Abs(AxisValue) > KINDA_SMALL_NUMBER) {
-        if (GEngine)
-            GEngine->AddOnScreenDebugMessage(-1, 0.01f, FColor::Red,
-                                             FString::Printf(TEXT("MouseMoveX: %f"), AxisValue));
+void AOHPhysicsHandler::OnGrabMoveX(float AxisValue)
+{
+    if (bIsGrabbingWithMouse && FMath::Abs(AxisValue) > KINDA_SMALL_NUMBER)
+    {
+        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.01f, FColor::Red, FString::Printf(TEXT("MouseMoveX: %f"), AxisValue));
         AccumulatedGrabDelta.X += AxisValue * MouseDragSensitivity;
         UpdateGrabbedTargetFromScreen();
     }
 }
 
-void AOHPhysicsHandler::OnGrabMoveY(float AxisValue) {
-    if (bIsGrabbingWithMouse && FMath::Abs(AxisValue) > KINDA_SMALL_NUMBER) {
-        if (GEngine)
-            GEngine->AddOnScreenDebugMessage(-1, 0.01f, FColor::Green,
-                                             FString::Printf(TEXT("MouseMoveY: %f"), AxisValue));
+void AOHPhysicsHandler::OnGrabMoveY(float AxisValue)
+{
+    if (bIsGrabbingWithMouse && FMath::Abs(AxisValue) > KINDA_SMALL_NUMBER)
+    {
+        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.01f, FColor::Green, FString::Printf(TEXT("MouseMoveY: %f"), AxisValue));
 
         AccumulatedGrabDelta.Y += AxisValue * MouseDragSensitivity;
         UpdateGrabbedTargetFromScreen();
     }
 }
-void AOHPhysicsHandler::Grab() {
+void AOHPhysicsHandler::Grab()
+{
     bool bDidGrab = TryGrabUnderCursor(GrabObjectTypes, GrabDistance);
-    if (bDidGrab) {
+    if (bDidGrab)
+    {
         // Store mouse and world positions for mouse-dragging logic
-        if (APlayerController* PC = Cast<APlayerController>(GetController())) {
+        if (APlayerController* PC = Cast<APlayerController>(GetController()))
+        {
             PC->bShowMouseCursor = false;
             FInputModeGameOnly InputMode;
             InputMode.SetConsumeCaptureMouseDown(true);
@@ -149,7 +173,8 @@ void AOHPhysicsHandler::Grab() {
             // Store start mouse pos and world pos for dragging
             PC->GetMousePosition(GrabStartScreenPos.X, GrabStartScreenPos.Y);
 
-            if (PhysicsHandle && PhysicsHandle->GrabbedComponent) {
+            if (PhysicsHandle && PhysicsHandle->GrabbedComponent)
+            {
                 GrabStartWorldPos = PhysicsHandle->GrabbedComponent->GetComponentLocation();
             }
 
@@ -163,8 +188,12 @@ void AOHPhysicsHandler::Grab() {
     }
 }
 
-void AOHPhysicsHandler::Release() {
-    if (PhysicsHandle && PhysicsHandle->GrabbedComponent) {
+
+
+void AOHPhysicsHandler::Release()
+{
+    if (PhysicsHandle && PhysicsHandle->GrabbedComponent)
+    {
         PhysicsHandle->ReleaseComponent();
         GrabbedComponent = nullptr;
         HeldRotationOffset = FRotator::ZeroRotator;
@@ -174,7 +203,8 @@ void AOHPhysicsHandler::Release() {
         bIsGrabbingWithMouse = false;
         AccumulatedGrabDelta = FVector2D::ZeroVector;
 
-        if (APlayerController* PC = Cast<APlayerController>(GetController())) {
+        if (APlayerController* PC = Cast<APlayerController>(GetController()))
+        {
             PC->bShowMouseCursor = true;
             FInputModeGameAndUI InputMode;
             InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
@@ -186,11 +216,12 @@ void AOHPhysicsHandler::Release() {
     }
 }
 
-void AOHPhysicsHandler::MoveGrabbedComponent() {
-    if (PhysicsHandle && PhysicsHandle->GrabbedComponent && bIsGrabbingWithMouse) {
+void AOHPhysicsHandler::MoveGrabbedComponent()
+{
+    if (PhysicsHandle && PhysicsHandle->GrabbedComponent && bIsGrabbingWithMouse)
+    {
         APlayerController* PC = Cast<APlayerController>(GetController());
-        if (!PC)
-            return;
+        if (!PC) return;
 
         FVector2D MousePos;
         PC->GetMousePosition(MousePos.X, MousePos.Y);
@@ -204,45 +235,59 @@ void AOHPhysicsHandler::MoveGrabbedComponent() {
         TargetLoc += GrabbedOffset;
 
         // Interpolate for smoothing
-        CurrentGrabTargetLocation =
-            FMath::VInterpTo(CurrentGrabTargetLocation, TargetLoc, GetWorld()->GetDeltaSeconds(), 20.0f);
+        CurrentGrabTargetLocation = FMath::VInterpTo(
+            CurrentGrabTargetLocation,
+            TargetLoc,
+            GetWorld()->GetDeltaSeconds(),
+            20.0f
+        );
 
         // Set the handle
-        PhysicsHandle->SetTargetLocationAndRotation(CurrentGrabTargetLocation,
-                                                    PhysicsHandle->GrabbedComponent->GetComponentRotation());
+        PhysicsHandle->SetTargetLocationAndRotation(
+            CurrentGrabTargetLocation,
+            PhysicsHandle->GrabbedComponent->GetComponentRotation()
+        );
     }
 }
 
-void AOHPhysicsHandler::UpdateGrabbedTargetFromScreen() {
-    if (!PhysicsHandle || !PhysicsHandle->GrabbedComponent || !bIsGrabbingWithMouse)
-        return;
+void AOHPhysicsHandler::UpdateGrabbedTargetFromScreen()
+{
+    if (!PhysicsHandle || !PhysicsHandle->GrabbedComponent || !bIsGrabbingWithMouse) return;
 
     FVector2D NewScreenPos = GrabStartScreenPos + AccumulatedGrabDelta;
     FVector WorldOrigin, WorldDirection;
 
-    if (APlayerController* PC = Cast<APlayerController>(GetController())) {
-        if (PC->DeprojectScreenPositionToWorld(NewScreenPos.X, NewScreenPos.Y, WorldOrigin, WorldDirection)) {
+    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    {
+        if (PC->DeprojectScreenPositionToWorld(NewScreenPos.X, NewScreenPos.Y, WorldOrigin, WorldDirection))
+        {
             // Move object to the new world position at the original grab distance
             FVector TargetLoc = WorldOrigin + WorldDirection * GrabbedDistance;
             TargetLoc += GrabbedOffset;
 
             // Smoothing (optional)
-            CurrentGrabTargetLocation =
-                FMath::VInterpTo(CurrentGrabTargetLocation, TargetLoc, GetWorld()->GetDeltaSeconds(), 20.0f);
+            CurrentGrabTargetLocation = FMath::VInterpTo(
+                CurrentGrabTargetLocation,
+                TargetLoc,
+                GetWorld()->GetDeltaSeconds(),
+                20.0f
+            );
 
-            PhysicsHandle->SetTargetLocationAndRotation(CurrentGrabTargetLocation,
-                                                        PhysicsHandle->GrabbedComponent->GetComponentRotation());
+            PhysicsHandle->SetTargetLocationAndRotation(
+                CurrentGrabTargetLocation,
+                PhysicsHandle->GrabbedComponent->GetComponentRotation()
+            );
         }
     }
 }
 
-FVector AOHPhysicsHandler::GetGrabTargetLocation() const {
-    if (!Camera)
-        return FVector::ZeroVector;
+
+FVector AOHPhysicsHandler::GetTargetLocation() const
+{
+    if (!Camera) return FVector::ZeroVector;
 
     APlayerController* PC = Cast<APlayerController>(GetController());
-    if (!PC)
-        return FVector::ZeroVector;
+    if (!PC) return FVector::ZeroVector;
 
     FVector WorldOrigin, WorldDirection;
     PC->DeprojectMousePositionToWorld(WorldOrigin, WorldDirection);
@@ -250,9 +295,12 @@ FVector AOHPhysicsHandler::GetGrabTargetLocation() const {
 }
 
 // -------- HIGHLIGHTING --------
-void AOHPhysicsHandler::UpdateHighlight() {
-    if (!GetWorld() || !GetController() || (PhysicsHandle && PhysicsHandle->GrabbedComponent)) {
-        if (HighlightedComponent) {
+void AOHPhysicsHandler::UpdateHighlight()
+{
+    if (!GetWorld() || !GetController() || (PhysicsHandle && PhysicsHandle->GrabbedComponent))
+    {
+        if (HighlightedComponent)
+        {
             HighlightedComponent->SetRenderCustomDepth(false);
             HighlightedComponent = nullptr;
         }
@@ -260,8 +308,7 @@ void AOHPhysicsHandler::UpdateHighlight() {
     }
 
     APlayerController* PC = Cast<APlayerController>(GetController());
-    if (!PC)
-        return;
+    if (!PC) return;
 
     // Use a trace with GrabObjectTypes (BP-configurable) for more flexibility:
     FHitResult HitResult;
@@ -272,37 +319,48 @@ void AOHPhysicsHandler::UpdateHighlight() {
     FVector ClosestPoint = FVector::ZeroVector;
     float ClosestDist = 0.f;
 
-    if (HitResult.GetActor() && FindClosestSimulatingComponent(HitResult.GetActor(), HitResult.ImpactPoint,
-                                                               GrabDistance, // Or some "highlight" distance
-                                                               ClosestSimComp, ClosestPoint, ClosestDist)) {
-        if (HighlightedComponent != ClosestSimComp) {
+    if (HitResult.GetActor() && FindClosestSimulatingComponent(
+        HitResult.GetActor(),
+        HitResult.ImpactPoint,
+        GrabDistance, // Or some "highlight" distance
+        ClosestSimComp,
+        ClosestPoint,
+        ClosestDist
+    ))
+    {
+        if (HighlightedComponent != ClosestSimComp)
+        {
             if (HighlightedComponent)
                 HighlightedComponent->SetRenderCustomDepth(false);
 
             HighlightedComponent = ClosestSimComp;
             HighlightedComponent->SetRenderCustomDepth(true);
         }
-    } else {
-        if (HighlightedComponent) {
+    }
+    else
+    {
+        if (HighlightedComponent)
+        {
             HighlightedComponent->SetRenderCustomDepth(false);
             HighlightedComponent = nullptr;
         }
     }
 }
 
-bool AOHPhysicsHandler::TryGrabUnderCursor(const TArray<TEnumAsByte<EObjectTypeQuery>>& ObjectTypes,
-                                           float MaxGrabDistance) {
 
-    if (!PhysicsHandle) {
-        if (GEngine)
-            GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, TEXT("No PhysicsHandle component!"));
+bool AOHPhysicsHandler::TryGrabUnderCursor(const TArray<TEnumAsByte<EObjectTypeQuery>>& ObjectTypes, float MaxGrabDistance)
+{
+
+    if (!PhysicsHandle)
+    {
+        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, TEXT("No PhysicsHandle component!"));
         return false;
     }
-
+    
     APlayerController* PC = Cast<APlayerController>(GetController());
-    if (!PC) {
-        if (GEngine)
-            GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, TEXT("No PlayerController found."));
+    if (!PC)
+    {
+        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, TEXT("No PlayerController found."));
         return false;
     }
 
@@ -311,18 +369,17 @@ bool AOHPhysicsHandler::TryGrabUnderCursor(const TArray<TEnumAsByte<EObjectTypeQ
     PC->GetHitResultUnderCursorForObjects(ObjectTypes, false, HitResult);
 
     // No hit? Print and exit
-    if (!HitResult.GetActor()) {
-        if (GEngine)
-            GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, TEXT("No actor under cursor!"));
+    if (!HitResult.GetActor())
+    {
+        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, TEXT("No actor under cursor!"));
         return false;
     }
 
     float ActualDistance = FVector::Dist(Camera->GetComponentLocation(), HitResult.ImpactPoint);
-    if (ActualDistance > MaxGrabDistance) {
-        FString Msg = FString::Printf(TEXT("Hit '%s' but too far: %.0f / %.0f"), *HitResult.GetActor()->GetName(),
-                                      ActualDistance, MaxGrabDistance);
-        if (GEngine)
-            GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, Msg);
+    if (ActualDistance > MaxGrabDistance)
+    {
+        FString Msg = FString::Printf(TEXT("Hit '%s' but too far: %.0f / %.0f"), *HitResult.GetActor()->GetName(), ActualDistance, MaxGrabDistance);
+        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, Msg);
         return false;
     }
 
@@ -330,34 +387,46 @@ bool AOHPhysicsHandler::TryGrabUnderCursor(const TArray<TEnumAsByte<EObjectTypeQ
     UPrimitiveComponent* ClosestComponent = nullptr;
     FVector ClosestCompPoint = FVector::ZeroVector;
     float ClosestCompDist = 0.f;
-    bool bFoundComponent = FindClosestSimulatingComponent(HitResult.GetActor(), HitResult.ImpactPoint, MaxGrabDistance,
-                                                          ClosestComponent, ClosestCompPoint, ClosestCompDist);
+    bool bFoundComponent = FindClosestSimulatingComponent(
+        HitResult.GetActor(),
+        HitResult.ImpactPoint,
+        MaxGrabDistance,
+        ClosestComponent,
+        ClosestCompPoint,
+        ClosestCompDist
+    );
 
-    if (!bFoundComponent || !ClosestComponent) {
-        FString Msg = FString::Printf(TEXT("'%s' has no simulating physics component near click."),
-                                      *HitResult.GetActor()->GetName());
-        if (GEngine)
-            GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, Msg);
+    if (!bFoundComponent || !ClosestComponent)
+    {
+        FString Msg = FString::Printf(TEXT("'%s' has no simulating physics component near click."), *HitResult.GetActor()->GetName());
+        if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, Msg);
         return false;
     }
 
     // If it's a skeletal mesh, find the closest simulating bone
-    if (USkeletalMeshComponent* SkelMesh = Cast<USkeletalMeshComponent>(ClosestComponent)) {
+    if (USkeletalMeshComponent* SkelMesh = Cast<USkeletalMeshComponent>(ClosestComponent))
+    {
         const FBodyInstance* ClosestBody = nullptr;
         FName ClosestBone = NAME_None;
         FVector ClosestCOM = FVector::ZeroVector;
         float ClosestBodyDist = 0.f;
 
-        if (FindClosestSimulatingBodyInstance(SkelMesh, HitResult.ImpactPoint, MaxGrabDistance, ClosestBody,
-                                              ClosestBone, ClosestCOM, ClosestBodyDist)) {
+        if (FindClosestSimulatingBodyInstance(
+                SkelMesh, HitResult.ImpactPoint, MaxGrabDistance,
+                ClosestBody, ClosestBone, ClosestCOM, ClosestBodyDist))
+        {
             // Grab bone at COM
-            PhysicsHandle->GrabComponentAtLocationWithRotation(SkelMesh, ClosestBone, ClosestCOM,
-                                                               SkelMesh->GetComponentRotation());
+            PhysicsHandle->GrabComponentAtLocationWithRotation(
+                SkelMesh,
+                ClosestBone,
+                ClosestCOM,
+                SkelMesh->GetComponentRotation()
+            );
 
-            FString Msg = FString::Printf(TEXT("Grabbed bone '%s' (%.1f units) on '%s'"), *ClosestBone.ToString(),
-                                          ClosestBodyDist, *SkelMesh->GetName());
-            if (GEngine)
-                GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Green, Msg);
+            FString Msg = FString::Printf(
+                TEXT("Grabbed bone '%s' (%.1f units) on '%s'"),
+                *ClosestBone.ToString(), ClosestBodyDist, *SkelMesh->GetName());
+            if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Green, Msg);
 
             GrabbedComponent = SkelMesh;
             HeldRotationOffset = FRotator::ZeroRotator;
@@ -366,27 +435,34 @@ bool AOHPhysicsHandler::TryGrabUnderCursor(const TArray<TEnumAsByte<EObjectTypeQ
             GrabbedDistance = (ClosestCOM - Camera->GetComponentLocation()).Size();
             GrabbedOffset = ClosestCOM - HitResult.ImpactPoint;
             bIsGrabbingWithMouse = true;
-            if (PC) {
+            if (PC)
+            {
                 PC->GetMousePosition(GrabStartScreenPos.X, GrabStartScreenPos.Y);
             }
             GrabStartWorldPos = ClosestCOM;
-            return true;
-        } else {
+            return true
+            ;
+        }
+        else
+        {
             FString Msg = FString::Printf(TEXT("'%s' has no simulating bone near click."), *SkelMesh->GetName());
-            if (GEngine)
-                GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, Msg);
+            if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, Msg);
             return false;
         }
     }
 
     // For static mesh/primitive components
-    PhysicsHandle->GrabComponentAtLocationWithRotation(ClosestComponent, NAME_None, ClosestCompPoint,
-                                                       ClosestComponent->GetComponentRotation());
+    PhysicsHandle->GrabComponentAtLocationWithRotation(
+        ClosestComponent,
+        NAME_None,
+        ClosestCompPoint,
+        ClosestComponent->GetComponentRotation()
+    );
 
-    FString Msg =
-        FString::Printf(TEXT("Grabbed component '%s' (%.1f units)"), *ClosestComponent->GetName(), ClosestCompDist);
-    if (GEngine)
-        GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Green, Msg);
+    FString Msg = FString::Printf(
+        TEXT("Grabbed component '%s' (%.1f units)"),
+        *ClosestComponent->GetName(), ClosestCompDist);
+    if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Green, Msg);
 
     GrabbedComponent = ClosestComponent;
     HeldRotationOffset = FRotator::ZeroRotator;
@@ -395,7 +471,8 @@ bool AOHPhysicsHandler::TryGrabUnderCursor(const TArray<TEnumAsByte<EObjectTypeQ
     GrabbedDistance = (ClosestCompPoint - Camera->GetComponentLocation()).Size();
     GrabbedOffset = ClosestCompPoint - HitResult.ImpactPoint;
     bIsGrabbingWithMouse = true;
-    if (PC) {
+    if (PC)
+    {
         PC->GetMousePosition(GrabStartScreenPos.X, GrabStartScreenPos.Y);
     }
     GrabStartWorldPos = ClosestCompPoint;
@@ -403,16 +480,17 @@ bool AOHPhysicsHandler::TryGrabUnderCursor(const TArray<TEnumAsByte<EObjectTypeQ
 }
 
 // 1. Closest Actor
-AActor* AOHPhysicsHandler::FindClosestActor(const TArray<AActor*>& Actors, const FVector& ToLocation, float MaxDistance,
-                                            float& OutDistance) {
+AActor* AOHPhysicsHandler::FindClosestActor(const TArray<AActor*>& Actors, const FVector& ToLocation, float MaxDistance, float& OutDistance)
+{
     float ClosestDist = TNumericLimits<float>::Max();
     AActor* ClosestActor = nullptr;
 
-    for (AActor* Actor : Actors) {
-        if (!Actor)
-            continue;
+    for (AActor* Actor : Actors)
+    {
+        if (!Actor) continue;
         float Dist = FVector::Dist(Actor->GetActorLocation(), ToLocation);
-        if (Dist < ClosestDist && Dist <= MaxDistance) {
+        if (Dist < ClosestDist && Dist <= MaxDistance)
+        {
             ClosestDist = Dist;
             ClosestActor = Actor;
         }
@@ -421,27 +499,33 @@ AActor* AOHPhysicsHandler::FindClosestActor(const TArray<AActor*>& Actors, const
     return ClosestActor;
 }
 
-bool AOHPhysicsHandler::FindClosestSimulatingComponent(AActor* Actor, const FVector& ClickLocation, float MaxDistance,
-                                                       UPrimitiveComponent*& OutComponent, FVector& OutClosestPoint,
-                                                       float& OutDistance) {
+bool AOHPhysicsHandler::FindClosestSimulatingComponent(
+    AActor* Actor, 
+    const FVector& ClickLocation, 
+    float MaxDistance,
+    UPrimitiveComponent*& OutComponent, 
+    FVector& OutClosestPoint, 
+    float& OutDistance)
+{
     OutComponent = nullptr;
     OutDistance = TNumericLimits<float>::Max();
     OutClosestPoint = FVector::ZeroVector;
 
-    if (!Actor)
-        return false;
+    if (!Actor) return false;
 
     TArray<UPrimitiveComponent*> Prims;
     Actor->GetComponents<UPrimitiveComponent>(Prims);
 
-    for (UPrimitiveComponent* Prim : Prims) {
+    for (UPrimitiveComponent* Prim : Prims)
+    {
         if (!IsComponentOrAnyBodySimulatingPhysics(Prim))
             continue;
 
         FVector OutPoint;
         Prim->GetClosestPointOnCollision(ClickLocation, OutPoint);
         float Dist = FVector::Dist(OutPoint, ClickLocation);
-        if (Dist < OutDistance && Dist <= MaxDistance) {
+        if (Dist < OutDistance && Dist <= MaxDistance)
+        {
             OutComponent = Prim;
             OutClosestPoint = OutPoint;
             OutDistance = Dist;
@@ -450,10 +534,15 @@ bool AOHPhysicsHandler::FindClosestSimulatingComponent(AActor* Actor, const FVec
     return OutComponent != nullptr;
 }
 
-bool AOHPhysicsHandler::FindClosestSimulatingBodyInstance(USkeletalMeshComponent* SkelMesh,
-                                                          const FVector& ClickLocation, float MaxDistance,
-                                                          const FBodyInstance*& OutBodyInstance, FName& OutBoneName,
-                                                          FVector& OutBodyCOM, float& OutBodyDistance) {
+bool AOHPhysicsHandler::FindClosestSimulatingBodyInstance(
+    USkeletalMeshComponent* SkelMesh,
+    const FVector& ClickLocation,
+    float MaxDistance,
+    const FBodyInstance*& OutBodyInstance,
+    FName& OutBoneName,
+    FVector& OutBodyCOM,
+    float& OutBodyDistance)
+{
     OutBodyInstance = nullptr;
     OutBoneName = NAME_None;
     OutBodyCOM = FVector::ZeroVector;
@@ -472,7 +561,8 @@ bool AOHPhysicsHandler::FindClosestSimulatingBodyInstance(USkeletalMeshComponent
     FVector ClosestAnyCOM = FVector::ZeroVector;
 
     // Iterate all bodies, check for closest simulating AND closest overall
-    for (const FBodyInstance* Body : SkelMesh->Bodies) {
+    for (const FBodyInstance* Body : SkelMesh->Bodies)
+    {
         if (!Body || !Body->IsValidBodyInstance())
             continue;
 
@@ -481,7 +571,8 @@ bool AOHPhysicsHandler::FindClosestSimulatingBodyInstance(USkeletalMeshComponent
         float Dist = FVector::Dist(COM, ClickLocation);
 
         // Track closest simulating
-        if (Body->IsInstanceSimulatingPhysics() && Dist < ClosestDist && Dist <= MaxDistance) {
+        if (Body->IsInstanceSimulatingPhysics() && Dist < ClosestDist && Dist <= MaxDistance)
+        {
             ClosestSimBody = Body;
             ClosestDist = Dist;
             ClosestBone = Bone;
@@ -489,7 +580,8 @@ bool AOHPhysicsHandler::FindClosestSimulatingBodyInstance(USkeletalMeshComponent
         }
 
         // Track closest (any)
-        if (Dist < ClosestAnyDist) {
+        if (Dist < ClosestAnyDist)
+        {
             ClosestAnyDist = Dist;
             ClosestAnyBone = Bone;
             ClosestAnyCOM = COM;
@@ -497,24 +589,28 @@ bool AOHPhysicsHandler::FindClosestSimulatingBodyInstance(USkeletalMeshComponent
     }
 
     // Did we find a simulating body?
-    if (ClosestSimBody) {
+    if (ClosestSimBody)
+    {
         OutBodyInstance = ClosestSimBody;
         OutBoneName = ClosestBone;
         OutBodyCOM = ClosestCOM;
         OutBodyDistance = ClosestDist;
-        if (GEngine) {
-            FString Msg = FString::Printf(TEXT("Simulating body found: %s (dist=%.2f)"), *OutBoneName.ToString(),
-                                          OutBodyDistance);
+        if (GEngine)
+        {
+            FString Msg = FString::Printf(TEXT("Simulating body found: %s (dist=%.2f)"), *OutBoneName.ToString(), OutBodyDistance);
             GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Green, Msg);
         }
         return true;
-    } else {
+    }
+    else
+    {
         // No simulating bodies, but report closest anyway
         OutBodyInstance = nullptr;
         OutBoneName = ClosestAnyBone;
         OutBodyCOM = ClosestAnyCOM;
         OutBodyDistance = ClosestAnyDist;
-        if (GEngine) {
+        if (GEngine)
+        {
             FString Msg = FString::Printf(TEXT("No Simulating bodies but closest bone is: %s (dist=%.2f)"),
                                           *OutBoneName.ToString(), OutBodyDistance);
             GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Yellow, Msg);
@@ -523,18 +619,21 @@ bool AOHPhysicsHandler::FindClosestSimulatingBodyInstance(USkeletalMeshComponent
     }
 }
 
-bool AOHPhysicsHandler::HasAnySimulatingBody(USkeletalMeshComponent* SkelMesh) {
-    if (!SkelMesh)
-        return false;
-    for (const FBodyInstance* Body : SkelMesh->Bodies) {
-        if (Body && Body->IsValidBodyInstance() && Body->IsInstanceSimulatingPhysics()) {
+bool AOHPhysicsHandler::HasAnySimulatingBody(USkeletalMeshComponent* SkelMesh)
+{
+    if (!SkelMesh) return false;
+    for (const FBodyInstance* Body : SkelMesh->Bodies)
+    {
+        if (Body && Body->IsValidBodyInstance() && Body->IsInstanceSimulatingPhysics())
+        {
             return true;
         }
     }
     return false;
 }
 
-bool AOHPhysicsHandler::IsComponentOrAnyBodySimulatingPhysics(UPrimitiveComponent* Prim) {
+bool AOHPhysicsHandler::IsComponentOrAnyBodySimulatingPhysics(UPrimitiveComponent* Prim)
+{
     if (auto* SkelMesh = Cast<USkeletalMeshComponent>(Prim))
         return HasAnySimulatingBody(SkelMesh);
     else

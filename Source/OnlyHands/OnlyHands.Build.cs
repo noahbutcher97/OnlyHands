@@ -22,8 +22,8 @@ public class OnlyHands : ModuleRules
         );
 
         PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "Niagara","AnimationCore", "PhysicsCore", "LevelSequence", "UMG", "Slate", "SlateCore", "ApplicationCore", "AnimGraphRuntime","MotionWarping", "Chaos" });
-
-
+            
+            
         PrivateDependencyModuleNames.AddRange(new string[] { "GameplayAbilities", "GameplayTags", "GameplayTasks", "NavigationSystem", "AnimGraphRuntime" });
 
         if (Target.Platform == UnrealTargetPlatform.IOS)
