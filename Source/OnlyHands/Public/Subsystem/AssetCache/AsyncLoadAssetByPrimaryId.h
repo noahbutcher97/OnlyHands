@@ -9,6 +9,7 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnPrimaryDataAssetLoaded, UObject*, LoadedAsset);
 
 UCLASS()
+<<<<<<< HEAD
 class ONLYHANDS_API UAsyncLoadAssetByPrimaryId : public UBlueprintAsyncActionBase {
     GENERATED_BODY()
 
@@ -18,15 +19,33 @@ class ONLYHANDS_API UAsyncLoadAssetByPrimaryId : public UBlueprintAsyncActionBas
 
     UFUNCTION(BlueprintCallable, Category = "Asset Loading",
               meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject"))
-    static UAsyncLoadAssetByPrimaryId* LoadPrimaryAssetAsync(UObject* WorldContextObject, FPrimaryAssetId AssetId);
+    == == == = class ONLYHANDS_API UAsyncLoadAssetByPrimaryId : public UBlueprintAsyncActionBase {
+        GENERATED_BODY()
 
-    virtual void Activate() override;
+      public:
+        UPROPERTY(BlueprintAssignable)
+        FOnPrimaryDataAssetLoaded OnLoaded;
 
-  private:
-    UPROPERTY()
-    UObject* WorldContextObject;
+        UFUNCTION(BlueprintCallable, Category = "Asset Loading",
+                  meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject"))
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+        static UAsyncLoadAssetByPrimaryId* LoadPrimaryAssetAsync(UObject* WorldContextObject, FPrimaryAssetId AssetId);
 
-    FPrimaryAssetId RequestedAssetId;
+        virtual void Activate() override;
 
-    void OnAssetLoadedInternal(UObject* Loaded);
-};
+<<<<<<< HEAD
+
+      private:
+      == == == = private :
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+          UPROPERTY() UObject *
+          WorldContextObject;
+
+        FPrimaryAssetId RequestedAssetId;
+
+        void OnAssetLoadedInternal(UObject* Loaded);
+<<<<<<< HEAD
+    };
+    == == == =
+}; 
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9

@@ -289,9 +289,50 @@ enum Enm_MomentumPoints {
 }
 
 UENUM(BlueprintType)
-enum class Enm_AI_Type : uint8 {
+<<<<<<< HEAD
+namespace Enm_Defense_Types {
+enum Enm_Defense_Types {
     ENM_None UMETA(DisplayName = "None"),
-    ENM_RushDown UMETA(DisplayName = "RushDown"),
-    ENM_Shoto UMETA(DisplayName = "Shoto"),
-    ENM_Zoning UMETA(DisplayName = "Zoning"),
+    ENM_PBlock UMETA(DisplayName = "PBlock"),
+    ENM_PEvade UMETA(DisplayName = "PEvade"),
+    ENM_PPivot UMETA(DisplayName = "PPivot"),
+
 };
+}
+
+UENUM(BlueprintType)
+namespace Enm_MomentumPoints {
+enum Enm_MomentumPoints {
+    ENM_None UMETA(DisplayName = "None"),
+    ENM_Light_AttackHit UMETA(DisplayName = "Light_AttackHit"),
+    ENM_Medium_AttackHit UMETA(DisplayName = "Medium_AttackHit"),
+    ENM_Heavy_AttackHit UMETA(DisplayName = "Heavy_AttackHit"),
+    ENM_Combo_ChainPlus UMETA(DisplayName = "Combo_ChainPlus"),
+    ENM_Critical_Hit UMETA(DisplayName = "Critical_Hit"),
+    ENM_Perfect_Parry UMETA(DisplayName = "Perfect_Parry"),
+    ENM_Perfect_Counter UMETA(DisplayName = "Perfect_Counter"),
+    ENM_Kndown_StaggerInfli UMETA(DisplayName = "Kndown_StaggerInfli"),
+    ENM_Perfect_Evasion UMETA(DisplayName = "Perfect_Evasion"),
+    ENM_Light_HitTaken UMETA(DisplayName = "Light_HitTaken"),
+    ENM_Medium_HitTaken UMETA(DisplayName = "Medium_HitTaken"),
+    ENM_Heavy_HitTaken UMETA(DisplayName = "Heavy_HitTaken"),
+    ENM_Perfect_Block UMETA(DisplayName = "Perfect_Block"),
+    ENM_NOT_Perfect_Block UMETA(DisplayName = "NOT_Perfect_Block"),
+    ENM_Whiffed_Heavy UMETA(DisplayName = "Whiffed_Heavy"),
+    ENM_Staggered_KnockedDown UMETA(DisplayName = "Staggered_KnockedDown"),
+    ENM_Passive_Idle UMETA(DisplayName = "Passive_Idle"),
+
+};
+}
+
+UENUM(BlueprintType)
+enum class Enm_AI_Type : uint8 {
+    ENM_None UMETA(DisplayName = "None"), ENM_RushDown UMETA(DisplayName = "RushDown"),
+    ENM_Shoto UMETA(DisplayName = "Shoto"), ENM_Zoning UMETA(DisplayName = "Zoning"),
+    == == == = enum class Enm_AI_Type : uint8{
+                 ENM_None UMETA(DisplayName = "None"),
+                 ENM_RushDown UMETA(DisplayName = "RushDown"),
+                 ENM_Shoto UMETA(DisplayName = "Shoto"),
+                 ENM_Zoning UMETA(DisplayName = "Zoning"),
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+             };

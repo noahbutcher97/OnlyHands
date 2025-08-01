@@ -7,6 +7,7 @@
 #include "CharacterAssetActionUtility.generated.h"
 
 UCLASS(Blueprintable)
+<<<<<<< HEAD
 class ONLYHANDSEDITOR_API UCharacterAssetActionUtility : public UAssetActionUtility {
     GENERATED_BODY()
 
@@ -18,19 +19,40 @@ class ONLYHANDSEDITOR_API UCharacterAssetActionUtility : public UAssetActionUtil
     FDirectoryPath ArenaDataRootDir;
 
     UPROPERTY(EditAnywhere, Category = "Data Paths", meta = (RelativeToGameContentDir))
-    FDirectoryPath ArchetypeDataRootDir;
+    == == == = class ONLYHANDSEDITOR_API UCharacterAssetActionUtility : public UAssetActionUtility {
+        GENERATED_BODY()
 
-    UCharacterAssetActionUtility();
+      public:
+        UPROPERTY(EditAnywhere, Category = "Data Paths", meta = (RelativeToGameContentDir))
+        FDirectoryPath CharacterDataRootDir;
 
-    /** Function will appear in right-click menu when valid assets are selected */
-    UFUNCTION(CallInEditor, Category = "Generate PDA")
-    void GeneratePDAsFromDataTables();
+        UPROPERTY(EditAnywhere, Category = "Data Paths", meta = (RelativeToGameContentDir))
+        FDirectoryPath ArenaDataRootDir;
 
-    // protected:
-    //
-    //     /** Limit what types this utility applies to */
-    //     UPROPERTY(EditDefaultsOnly, Category = "Asset Filtering")
-    //     TArray<TSoftClassPtr<UObject>> SupportedClasses = { UDataTable::StaticClass() };
-};
+        UPROPERTY(EditAnywhere, Category = "Data Paths", meta = (RelativeToGameContentDir))
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+        FDirectoryPath ArchetypeDataRootDir;
+
+        UCharacterAssetActionUtility();
+
+        /** Function will appear in right-click menu when valid assets are selected */
+        UFUNCTION(CallInEditor, Category = "Generate PDA")
+        void GeneratePDAsFromDataTables();
+
+<<<<<<< HEAD
+        // protected:
+        //
+        //     /** Limit what types this utility applies to */
+        //     UPROPERTY(EditDefaultsOnly, Category = "Asset Filtering")
+        //     TArray<TSoftClassPtr<UObject>> SupportedClasses = { UDataTable::StaticClass() };
+        == == == =
+
+        // protected:
+        //
+        //     /** Limit what types this utility applies to */
+        //     UPROPERTY(EditDefaultsOnly, Category = "Asset Filtering")
+        //     TArray<TSoftClassPtr<UObject>> SupportedClasses = { UDataTable::StaticClass() };
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+    };
 
 #endif

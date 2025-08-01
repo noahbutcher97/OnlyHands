@@ -10,42 +10,61 @@
 DECLARE_DELEGATE_OneParam(FOnAssetLoadedNative, UObject*);
 
 UCLASS()
+<<<<<<< HEAD
 class ONLYHANDS_API UAssetCacheSubsystem : public UGameInstanceSubsystem {
     GENERATED_BODY()
 
   public:
-    // Request by PrimaryAssetId
-    void RequestAsset(FPrimaryAssetId AssetId, FOnAssetLoadedNative OnLoaded);
+    == == == = class ONLYHANDS_API UAssetCacheSubsystem : public UGameInstanceSubsystem {
+        GENERATED_BODY()
 
-    // Request by SoftObjectPtr
-    void RequestAsset(TSoftObjectPtr<UObject> AssetRef, FOnAssetLoadedNative OnLoaded);
+      public:
 
-    // Manual unload
-    void UnloadAssetByKey(const FString& Key);
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+        // Request by PrimaryAssetId
+        void RequestAsset(FPrimaryAssetId AssetId, FOnAssetLoadedNative OnLoaded);
 
-    UFUNCTION(BlueprintCallable, Category = "Asset Cache")
-    void UnloadAssetByPrimaryId(FPrimaryAssetId AssetId);
+        // Request by SoftObjectPtr
+        void RequestAsset(TSoftObjectPtr<UObject> AssetRef, FOnAssetLoadedNative OnLoaded);
 
-    UFUNCTION(BlueprintCallable, Category = "Asset Cache")
-    void UnloadAssetBySoftPtr(TSoftObjectPtr<UObject> AssetRef);
+        // Manual unload
+        void UnloadAssetByKey(const FString& Key);
 
-    UFUNCTION(BlueprintCallable, Category = "Asset Cache")
-    void UnloadAllAssets();
+        UFUNCTION(BlueprintCallable, Category = "Asset Cache")
+        void UnloadAssetByPrimaryId(FPrimaryAssetId AssetId);
 
-    // Used internally by async nodes, not exposed to BP
-    bool IsAssetCachedByKey(const FString& Key) const;
+        UFUNCTION(BlueprintCallable, Category = "Asset Cache")
+        void UnloadAssetBySoftPtr(TSoftObjectPtr<UObject> AssetRef);
 
-    //    UObject* GetCachedAsset(const FString& Key) const;
+        UFUNCTION(BlueprintCallable, Category = "Asset Cache")
+        void UnloadAllAssets();
 
-  protected:
-    TMap<FString, UObject*> CachedAssets;
-    FStreamableManager StreamableManager;
+        // Used internally by async nodes, not exposed to BP
+        bool IsAssetCachedByKey(const FString& Key) const;
 
-    // Active loads in progress
-    TMap<FString, TArray<FOnAssetLoadedNative>> PendingLoads;
+<<<<<<< HEAD
+        //    UObject* GetCachedAsset(const FString& Key) const;
 
-    // Optional: Reference-counted cache
-    TMap<FString, int32> AssetRefCounts;
+      protected:
+      == == == =
+                   //    UObject* GetCachedAsset(const FString& Key) const;
 
-    void LoadAssetInternal(const FString& Key, const FSoftObjectPath& AssetPath, const FOnAssetLoadedNative& OnLoaded);
-};
+          protected :
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+          TMap<FString, UObject*>
+              CachedAssets;
+        FStreamableManager StreamableManager;
+
+        // Active loads in progress
+        TMap<FString, TArray<FOnAssetLoadedNative>> PendingLoads;
+
+        // Optional: Reference-counted cache
+        TMap<FString, int32> AssetRefCounts;
+
+        void LoadAssetInternal(const FString& Key, const FSoftObjectPath& AssetPath,
+                               const FOnAssetLoadedNative& OnLoaded);
+<<<<<<< HEAD
+        == == == =
+
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+    };

@@ -530,6 +530,23 @@ class ONLYHANDS_API UOHPhysicsManager : public UActorComponent {
 
     void ApplyBlendAlphaToBone(FName Bone, float BlendAlpha);
 
+<<<<<<< HEAD
+    UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics")
+    EOHBlendPhases GetCurrentBlendPhase(FName BoneName) const;
+
+    UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics")
+    float GetBlendAlpha(FName BoneName) const;
+
+    UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics")
+    float GetPhaseDuration(FName BoneName, EOHBlendPhases Phase) const;
+
+    UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics")
+    FName GetActiveReactionTag(FName BoneName) const;
+
+    static void UpdateBlendState(FActivePhysicsBlend& Blend, float DeltaTime);
+
+    void ApplyBlendAlphaToBone(FName Bone, float BlendAlpha);
+
     static bool IsBlendComplete(const FActivePhysicsBlend& Blend);
 
     void FinalizeBlend(FName Bone);
@@ -537,6 +554,14 @@ class ONLYHANDS_API UOHPhysicsManager : public UActorComponent {
     /** Finalizes all active physics blends and clears associated simulation and PAC */
     UFUNCTION(BlueprintCallable, Category = "OnlyHands|Physics")
     void FinalizeAllBlends();
+    == == == = static bool IsBlendComplete(const FActivePhysicsBlend& Blend);
+
+    void FinalizeBlend(FName Bone);
+
+    /** Finalizes all active physics blends and clears associated simulation and PAC */
+    UFUNCTION(BlueprintCallable, Category = "OnlyHands|Physics")
+    void FinalizeAllBlends();
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
 
 #pragma endregion
 
@@ -618,7 +643,35 @@ class ONLYHANDS_API UOHPhysicsManager : public UActorComponent {
 
 #pragma endregion
 
+    < < < < < < < HEAD
+        // === Skeletal Asset Validation ===
+        == == ==
+        =
+#pragma region BodyPartStatus
+            UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "OH|BodyParts") TMap<FName, FOHBodyPartStatus>
+                BoneStatusMap;
+
+    UFUNCTION(BlueprintCallable, Category = "OH|BodyParts")
+    void ApplyDamageToBone(FName Bone, float Damage);
+
+    UFUNCTION(BlueprintCallable, Category = "OH|BodyParts")
+    bool IsBoneDestroyed(FName Bone) const;
+
+    UFUNCTION(BlueprintCallable, Category = "OH|BodyParts")
+    float GetBoneHealth(FName Bone) const;
+
+    UFUNCTION(BlueprintCallable, Category = "OH|BodyParts")
+    void ResetBoneStatus(FName Bone);
+
+    UFUNCTION(BlueprintCallable, Category = "OH|BodyParts")
+    TArray<FName> GetSkeletalBonesInBodyPart(EOHBodyPart Part) const;
+
+    UFUNCTION(BlueprintCallable, Category = "OH|BodyParts")
+    bool IsBodyPartFullyDestroyed(EOHBodyPart Part) const;
+
+#pragma endregion
     // === Skeletal Asset Validation ===
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
 #pragma region SkeletalAssetValidation
     UFUNCTION(BlueprintCallable, Category = "OnlyHands|Physics|Validation")
     bool ValidateBoneMappings(bool bLogResults = true);

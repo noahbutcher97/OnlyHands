@@ -7,9 +7,11 @@
 #include "OHSpecialAbility.generated.h"
 
 /**
- *
+ * 
  */
 UCLASS()
-class ONLYHANDS_API UOHSpecialAbility : public UOHCombatAbility {
-    GENERATED_BODY()
+class ONLYHANDS_API UOHSpecialAbility : public UOHCombatAbility
+{
+	GENERATED_BODY()
+	
 };

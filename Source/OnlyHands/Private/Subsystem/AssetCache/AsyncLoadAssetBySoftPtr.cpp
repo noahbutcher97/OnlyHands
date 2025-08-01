@@ -4,31 +4,54 @@
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 
-UAsyncLoadAssetBySoftPtr* UAsyncLoadAssetBySoftPtr::LoadSoftAssetAsync(UObject* WorldContextObject,
-                                                                       TSoftObjectPtr<UObject> AssetRef) {
-    UAsyncLoadAssetBySoftPtr* Node = NewObject<UAsyncLoadAssetBySoftPtr>();
-    Node->WorldContextObject = WorldContextObject;
-    Node->RequestedAsset = AssetRef;
-    return Node;
-}
+<<<<<<< HEAD UAsyncLoadAssetBySoftPtr* UAsyncLoadAssetBySoftPtr::LoadSoftAssetAsync(UObject* WorldContextObject,
+                                                                         TSoftObjectPtr<UObject> AssetRef) {
+    == == == =
 
-void UAsyncLoadAssetBySoftPtr::Activate() {
-    if (!WorldContextObject || RequestedAsset.IsNull()) {
-        OnLoaded.Broadcast(nullptr);
-        return;
+                 UAsyncLoadAssetBySoftPtr * UAsyncLoadAssetBySoftPtr::LoadSoftAssetAsync(
+                                                UObject * WorldContextObject, TSoftObjectPtr<UObject> AssetRef) {
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+        UAsyncLoadAssetBySoftPtr* Node = NewObject<UAsyncLoadAssetBySoftPtr>();
+        Node->WorldContextObject = WorldContextObject;
+        Node->RequestedAsset = AssetRef;
+        return Node;
     }
 
-    UAssetCacheSubsystem* Cache =
-        UGameplayStatics::GetGameInstance(WorldContextObject)->GetSubsystem<UAssetCacheSubsystem>();
-    if (!Cache) {
-        OnLoaded.Broadcast(nullptr);
-        return;
-    }
+<<<<<<< HEAD
+    void UAsyncLoadAssetBySoftPtr::Activate() {
+        if (!WorldContextObject || RequestedAsset.IsNull()) {
+            == == == = void UAsyncLoadAssetBySoftPtr::Activate() {
+                if (!WorldContextObject || RequestedAsset.IsNull()) {
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+                    OnLoaded.Broadcast(nullptr);
+                    return;
+                }
 
-    Cache->RequestAsset(RequestedAsset,
-                        FOnAssetLoadedNative::CreateUObject(this, &UAsyncLoadAssetBySoftPtr::OnAssetLoadedInternal));
-}
+<<<<<<< HEAD
+                UAssetCacheSubsystem* Cache =
+                    UGameplayStatics::GetGameInstance(WorldContextObject)->GetSubsystem<UAssetCacheSubsystem>();
+                if (!Cache) {
+                    == == ==
+                        = UAssetCacheSubsystem* Cache =
+                            UGameplayStatics::GetGameInstance(WorldContextObject)->GetSubsystem<UAssetCacheSubsystem>();
+                    if (!Cache) {
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+                        OnLoaded.Broadcast(nullptr);
+                        return;
+                    }
 
-void UAsyncLoadAssetBySoftPtr::OnAssetLoadedInternal(UObject* Loaded) {
-    OnLoaded.Broadcast(Loaded);
-}
+<<<<<<< HEAD
+                    Cache->RequestAsset(RequestedAsset, FOnAssetLoadedNative::CreateUObject(
+                                                            this, &UAsyncLoadAssetBySoftPtr::OnAssetLoadedInternal));
+                }
+
+                void UAsyncLoadAssetBySoftPtr::OnAssetLoadedInternal(UObject * Loaded) {
+                    == == == = Cache->RequestAsset(RequestedAsset,
+                                                   FOnAssetLoadedNative::CreateUObject(
+                                                       this, &UAsyncLoadAssetBySoftPtr::OnAssetLoadedInternal));
+                }
+
+                void UAsyncLoadAssetBySoftPtr::OnAssetLoadedInternal(UObject * Loaded) {
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+                    OnLoaded.Broadcast(Loaded);
+                }

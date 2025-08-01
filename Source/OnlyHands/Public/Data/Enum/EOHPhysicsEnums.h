@@ -6,6 +6,7 @@
 #include "EOHPhysicsEnums.generated.h"
 
 UENUM(BlueprintType)
+<<<<<<< HEAD
 enum class EOHBiologicalMaterial : uint8 {
     Skin UMETA(DisplayName = "Skin"),
     Muscle UMETA(DisplayName = "Muscle"),
@@ -49,356 +50,376 @@ enum class EOHImpulseMode : uint8 {
     VerticalOnly UMETA(DisplayName = "Vertical Only"), // Ignores lateral, uses upward force
     Custom UMETA(DisplayName = "Custom"),              // User-defined application logic
     Auto UMETA(DisplayName = "Auto Infer")             // Let system infer best mode from graph or hit
-};
+        == == ==
+    = enum class EOHBiologicalMaterial :
+        uint8{Skin UMETA(DisplayName = "Skin"), Muscle UMETA(DisplayName = "Muscle"),
+              Fat UMETA(DisplayName = "Fat Tissue"), Bone UMETA(DisplayName = "Bone"),
+              Cartilage UMETA(DisplayName = "Cartilage"), Tendon UMETA(DisplayName = "Tendon/Ligament"),
+              Hair UMETA(DisplayName = "Hair"), Clothing_Cotton UMETA(DisplayName = "Cotton Clothing"),
+              Clothing_Leather UMETA(DisplayName = "Leather"),
+              Clothing_Synthetic UMETA(DisplayName = "Synthetic Fabric"),
+              Metal_Armor UMETA(DisplayName = "Metal Armor"), Unknown UMETA(DisplayName = "Unknown")
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+        };
 
-UENUM(BlueprintType)
-enum class EOHMutationResult : uint8 {
-    SuccessDirect UMETA(DisplayName = "Success (Direct)"),
-    SuccessFallback UMETA(DisplayName = "Success (Fallback)"),
-    Failure UMETA(DisplayName = "Failure"),
-    NoChange UMETA(DisplayName = "No Change")
-};
+    UENUM(BlueprintType) enum class
+    EOHShapeType : uint8{Sphere UMETA(DisplayName = "Sphere"), Cylinder UMETA(DisplayName = "Cylinder"),
+                         Box UMETA(DisplayName = "Box"), Ellipsoid UMETA(DisplayName = "Ellipsoid"),
+                         Cone UMETA(DisplayName = "Cone"), Human_Limb UMETA(DisplayName = "Human Limb"),
+                         Human_Torso UMETA(DisplayName = "Human Torso"), Human_Head UMETA(DisplayName = "Human Head")};
 
-UENUM(BlueprintType)
-enum class EPhysicsGraphOverlayMode : uint8 {
-    None UMETA(DisplayName = "None"),
-    Full UMETA(DisplayName = "Full Graph"),
-    Anomalies UMETA(DisplayName = "Anomalies Only"),
-    Both UMETA(DisplayName = "Full + Anomalies")
-};
+    UENUM(BlueprintType) enum class EOHReferenceSpace : uint8{WorldSpace, ComponentSpace, LocalSpace};
 
-UENUM(BlueprintType)
-enum class EOHAngularConstraintMotion : uint8 {
-    ACM_Locked UMETA(DisplayName = "Locked"),
-    ACM_Limited UMETA(DisplayName = "Limited"),
-    ACM_Free UMETA(DisplayName = "Free")
-};
+    UENUM(BlueprintType)
+<<<<<<< HEAD
+        enum class EOHAngularConstraintMotion :
+            uint8{ACM_Locked UMETA(DisplayName = "Locked"), ACM_Limited UMETA(DisplayName = "Limited"),
+                  ACM_Free UMETA(DisplayName = "Free")};
 
-UENUM(BlueprintType)
-enum class EOHLinearConstraintMotion : uint8 {
-    LCM_Locked UMETA(DisplayName = "Locked"),
-    LCM_Limited UMETA(DisplayName = "Limited"),
-    LCM_Free UMETA(DisplayName = "Free")
-};
+    UENUM(BlueprintType) enum class
+    EOHLinearConstraintMotion : uint8{LCM_Locked UMETA(DisplayName = "Locked"),
+                                      LCM_Limited UMETA(DisplayName = "Limited"), LCM_Free UMETA(DisplayName = "Free")};
 
-UENUM(BlueprintType)
-enum class EOHNameMatchingStrategy : uint8 {
-    Exact,
-    Prefix,
-    Suffix,
-    Contains,
-    Levenshtein,
-    DamerauLevenshtein,
-    Bigram,
-    Jaccard,
-    JaroWinkler,
-    CosineTFIDF,
-    Soundex,
-    Metaphone
+    UENUM(BlueprintType) enum class EOHNameMatchingStrategy :
+    uint8{Exact,
+          Prefix,
+          Suffix,
+          Contains,
+          Levenshtein,
+          DamerauLevenshtein,
+          Bigram,
+          Jaccard,
+          JaroWinkler,
+          CosineTFIDF,
+          Soundex,
+          Metaphone == == == =
+                                 enum class EOHAngularDriveMode : uint8{
+                                     SLERP UMETA(DisplayName = "SLERP"),
+                                     TwistAndSwing UMETA(DisplayName = "TwistAndSwing"),
+                                 };
 
-};
+          UENUM(BlueprintType) enum class EOHImpulseMode : uint8{
+              Directional UMETA(DisplayName = "Directional"),    // Applies impulse in hit direction
+              Radial UMETA(DisplayName = "Radial"),              // Impulse radiates from a center point
+              VerticalOnly UMETA(DisplayName = "Vertical Only"), // Ignores lateral, uses upward force
+              Custom UMETA(DisplayName = "Custom"),              // User-defined application logic
+              Auto UMETA(DisplayName = "Auto Infer")             // Let system infer best mode from graph or hit
+          };
 
-UENUM(BlueprintType)
-enum class EOHPhysicsProfile : uint8 { Baseline, Light, Medium, Heavy, Stable, Responsive, Cinematic, Aggressive };
+          UENUM(BlueprintType) enum class
+          EOHMutationResult : uint8{SuccessDirect UMETA(DisplayName = "Success (Direct)"),
+                                    SuccessFallback UMETA(DisplayName = "Success (Fallback)"),
+                                    Failure UMETA(DisplayName = "Failure"), NoChange UMETA(DisplayName = "No Change")};
 
-UENUM()
-enum class EValidationStrictness : uint8 { CriticalOnly, Standard, Strict };
+          UENUM(BlueprintType) enum class EPhysicsGraphOverlayMode :
+              uint8{None UMETA(DisplayName = "None"), Full UMETA(DisplayName = "Full Graph"),
+                    Anomalies UMETA(DisplayName = "Anomalies Only"), Both UMETA(DisplayName = "Full + Anomalies")};
 
-UENUM(BlueprintType)
-enum class EOHResolutionContext : uint8 { Trackable, Simulatable };
+          UENUM(BlueprintType) enum class EOHAngularConstraintMotion :
+              uint8{ACM_Locked UMETA(DisplayName = "Locked"), ACM_Limited UMETA(DisplayName = "Limited"),
+                    ACM_Free UMETA(DisplayName = "Free")};
 
-UENUM(BlueprintType)
-enum class EOHBlendEasingType : uint8 {
-    Linear,
-    EaseIn,
-    EaseOut,
-    EaseInOut,
-};
+          UENUM(BlueprintType) enum class EOHLinearConstraintMotion :
+              uint8{LCM_Locked UMETA(DisplayName = "Locked"), LCM_Limited UMETA(DisplayName = "Limited"),
+                    LCM_Free UMETA(DisplayName = "Free")};
 
-// Old
-UENUM(BlueprintType)
-enum class EOHBoneSimulationRole : uint8 {
-    AnimationOnly UMETA(DisplayName = "Animation Only"),
-    Simulated UMETA(DisplayName = "Simulated"),
-    AttachedToSimulated UMETA(DisplayName = "Attached to Simulated BoneEnum")
-};
+          UENUM(BlueprintType) enum class
+          EOHNameMatchingStrategy : uint8{Exact, Prefix, Suffix, Contains, Levenshtein, DamerauLevenshtein, Bigram,
+                                          Jaccard, JaroWinkler, CosineTFIDF, Soundex, Metaphone
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
 
-// Enum to track bone simulation state
-UENUM(BlueprintType)
-enum class EOHBoneSimulationState : uint8 {
-    Kinematic UMETA(DisplayName = "Kinematic"),  // Fully animation-driven
-    Blending UMETA(DisplayName = "Blending"),    // Partially simulating (during fade)
-    Simulating UMETA(DisplayName = "Simulating") // Fully physics-driven
-};
+          };
 
-// Enum to track the type of blend operation
-UENUM(BlueprintType)
-enum class EOHTransitionTypes : uint8 {
-    None UMETA(DisplayName = "None"),          // No Blending
-    FadeIn UMETA(DisplayName = "FadeIn"),      // Blending from animation to physics
-    FadeOut UMETA(DisplayName = "FadeOut"),    // Blending from physics to animation
-    Crossfade UMETA(DisplayName = "Crossfade") // Crossfading too transitions
-};
+          UENUM(BlueprintType)
+<<<<<<< HEAD
+              enum class
+          EOHPhysicsProfile : uint8{Baseline, Light, Medium, Heavy, Stable, Responsive, Cinematic, Aggressive};
+          == == == = enum class
+          EOHPhysicsProfile : uint8{Baseline, Light, Medium, Heavy, Stable, Responsive, Cinematic, Aggressive};
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
 
-// New
-UENUM(BlueprintType)
-enum class EOHBlendState : uint8 {
-    None UMETA(DisplayName = "None"),          // No Blending
-    Delayed UMETA(DisplayName = "Delayed"),    // Waiting to Blend
-    Blending UMETA(DisplayName = "Blending"),  // Blending between animation and physics
-    Completed UMETA(DisplayName = "Completed") // Blend completed
-};
+          UENUM() enum class EValidationStrictness : uint8{CriticalOnly, Standard, Strict};
 
-UENUM(BlueprintType)
-enum class EOHBlendDirection : uint8 {
-    None UMETA(DisplayName = "None"),         // No Blend Direction
-    Forward UMETA(DisplayName = "Forward"),   // Blend Forward
-    Backward UMETA(DisplayName = "Backward"), // Blend Backward
-};
+          UENUM(BlueprintType) enum class EOHResolutionContext : uint8{Trackable, Simulatable};
 
-UENUM(BlueprintType)
-enum class EOHDriveType : uint8 {
-    Kinematic UMETA(DisplayName = "Kinematic"),                       // Driven Entirely By Animation Transform
-    Simulated UMETA(DisplayName = "Simulated"),                       // Driven Entirely By Physics Transform
-    AttachedToSimulated UMETA(DisplayName = "Attached To Simulated"), // Driven By Parent Physics Transform
-};
+          UENUM(BlueprintType) enum class EOHBlendEasingType : uint8{
+              Linear,
+              EaseIn,
+              EaseOut,
+              EaseInOut,
+          };
 
-UENUM(BlueprintType)
-enum class EOHForceApplicationSource : uint8 {
-    None UMETA(DisplayName = "None"),                            // No Force Application
-    PhysicalAnimation UMETA(DisplayName = "Physical Animation"), // Force Applied By Physical Animation Component
-    Chaos UMETA(DisplayName = "Chaos"),                          // Force Applied by world chaos simulation
-    Custom UMETA(DisplayName = "Custom")                         // Force Applied by custom logic
-};
+          // Old
+          UENUM(BlueprintType) enum class EOHBoneSimulationRole :
+              uint8{AnimationOnly UMETA(DisplayName = "Animation Only"), Simulated UMETA(DisplayName = "Simulated"),
+                    AttachedToSimulated UMETA(DisplayName = "Attached to Simulated BoneEnum")};
 
-UENUM(BlueprintType)
-enum class FollowMode : uint8 { None, Self, Target, Proxy, Custom };
+          // Enum to track bone simulation state
+          UENUM(BlueprintType) enum class EOHBoneSimulationState : uint8{
+              Kinematic UMETA(DisplayName = "Kinematic"),  // Fully animation-driven
+              Blending UMETA(DisplayName = "Blending"),    // Partially simulating (during fade)
+              Simulating UMETA(DisplayName = "Simulating") // Fully physics-driven
+          };
 
-UENUM(BlueprintType)
-enum class EOHMotionCorrectionSource : uint8 {
-    None UMETA(DisplayName = "None"),
-    Pelvis UMETA(DisplayName = "Pelvis"),
-    Root UMETA(DisplayName = "Root"),
-    PelvisAndRoot UMETA(DisplayName = "Pelvis and Root"),
-    Parent UMETA(DisplayName = "Parent BoneEnum"),
-    Child UMETA(DisplayName = "First Child BoneEnum"),
-    Custom UMETA(DisplayName = "Custom")
-};
+          // Enum to track the type of blend operation
+          UENUM(BlueprintType)
+<<<<<<< HEAD
+              enum class EOHTransitionTypes : uint8{
+                  None UMETA(DisplayName = "None"),          // No Blending
+                  FadeIn UMETA(DisplayName = "FadeIn"),      // Blending from animation to physics
+                  FadeOut UMETA(DisplayName = "FadeOut"),    // Blending from physics to animation
+                  Crossfade UMETA(DisplayName = "Crossfade") // Crossfading too transitions
+                      == == ==
+                  =
+                      enum class EOHTransitionTypes : uint8{
+                          None UMETA(DisplayName = "None"),          // No Blending
+                          FadeIn UMETA(DisplayName = "FadeIn"),      // Blending from animation to physics
+                          FadeOut UMETA(DisplayName = "FadeOut"),    // Blending from physics to animation
+                          Crossfade UMETA(DisplayName = "Crossfade") // Crossfading too transitions
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+                      };
 
-UENUM(BlueprintType)
-enum class EOHFunctionalBoneGroup : uint8 {
-    None UMETA(DisplayName = "None"),
+                  // New
+                  UENUM(BlueprintType) enum class EOHBlendState : uint8{
+                      None UMETA(DisplayName = "None"),          // No Blending
+                      Delayed UMETA(DisplayName = "Delayed"),    // Waiting to Blend
+                      Blending UMETA(DisplayName = "Blending"),  // Blending between animation and physics
+                      Completed UMETA(DisplayName = "Completed") // Blend completed
+                  };
 
-    //  Functional groups for gameplay systems
-    Cranial UMETA(DisplayName = "Cranial"), // Head + neck
-    Core UMETA(DisplayName = "Core"),       // Pelvis + lower spine
+                  UENUM(BlueprintType) enum class EOHBlendDirection : uint8{
+                      None UMETA(DisplayName = "None"),         // No Blend Direction
+                      Forward UMETA(DisplayName = "Forward"),   // Blend Forward
+                      Backward UMETA(DisplayName = "Backward"), // Blend Backward
+                  };
 
-    //  Arm-related groups
-    Arms UMETA(DisplayName = "All Arms"),   // Both arms
-    Hands UMETA(DisplayName = "All Hands"), // Both hands
-    LeftArm UMETA(DisplayName = "Left Arm"),
-    RightArm UMETA(DisplayName = "Right Arm"),
-    LeftHand UMETA(DisplayName = "Left Hand"),
-    RightHand UMETA(DisplayName = "Right Hand"),
+                  UENUM(BlueprintType) enum class EOHDriveType : uint8{
+                      Kinematic UMETA(DisplayName = "Kinematic"), // Driven Entirely By Animation Transform
+                      Simulated UMETA(DisplayName = "Simulated"), // Driven Entirely By Physics Transform
+                      AttachedToSimulated UMETA(DisplayName =
+                                                    "Attached To Simulated"), // Driven By Parent Physics Transform
+                  };
 
-    //  Leg-related groups
-    Legs UMETA(DisplayName = "All Legs"), // Both legs
-    Feet UMETA(DisplayName = "All Feet"), // Both feet
-    LeftLeg UMETA(DisplayName = "Left Leg"),
-    RightLeg UMETA(DisplayName = "Right Leg"),
-    LeftFoot UMETA(DisplayName = "Left Foot"),
-    RightFoot UMETA(DisplayName = "Right Foot"),
+                  UENUM(BlueprintType) enum class EOHForceApplicationSource : uint8{
+                      None UMETA(DisplayName = "None"), // No Force Application
+                      PhysicalAnimation UMETA(
+                          DisplayName = "Physical Animation"), // Force Applied By Physical Animation Component
+                      Chaos UMETA(DisplayName = "Chaos"),      // Force Applied by world chaos simulation
+                      Custom UMETA(DisplayName = "Custom")     // Force Applied by custom logic
+                  };
 
-    //  Full body composites
-    UpperBody UMETA(DisplayName = "Upper Body"),   // Arms, chest, head
-    LowerBody UMETA(DisplayName = "Lower Body"),   // Legs, pelvis
-    LeftLimbs UMETA(DisplayName = "Left Limbs"),   // Arm_L + Leg_L
-    RightLimbs UMETA(DisplayName = "Right Limbs"), // Arm_R + Leg_R
-    FullBody UMETA(DisplayName = "Full Body")
-};
+                  UENUM(BlueprintType) enum class FollowMode : uint8{None, Self, Target, Proxy, Custom};
 
-UENUM(BlueprintType)
-enum class EOHBodyZone : uint8 {
-    None UMETA(DisplayName = "None"),
+                  UENUM(BlueprintType) enum class EOHMotionCorrectionSource :
+                      uint8{None UMETA(DisplayName = "None"), Pelvis UMETA(DisplayName = "Pelvis"),
+                            Root UMETA(DisplayName = "Root"), PelvisAndRoot UMETA(DisplayName = "Pelvis and Root"),
+                            Parent UMETA(DisplayName = "Parent BoneEnum"),
+                            Child UMETA(DisplayName = "First Child BoneEnum"), Custom UMETA(DisplayName = "Custom")};
 
-    // Core
-    Torso_Upper UMETA(DisplayName = "Torso - Upper"), // spine_02, spine_03
-    Torso_Lower UMETA(DisplayName = "Torso - Lower"), // pelvis, spine_01
-    Cranial UMETA(DisplayName = "Cranial"),           // neck_01, head
+                  UENUM(BlueprintType) enum class EOHFunctionalBoneGroup :
+                      uint8{None UMETA(DisplayName = "None"),
 
-    // Left Arm
-    Arm_L_Upper UMETA(DisplayName = "Upper Arm - Left"), // clavicle_l, upperarm_l
-    Arm_L_Lower UMETA(DisplayName = "Lower Arm - Left"), // lowerarm_l
-    Hand_L UMETA(DisplayName = "Hand - Left"),           // hand_l + fingers
+                            //  Functional groups for gameplay systems
+                            Cranial UMETA(DisplayName = "Cranial"), // Head + neck
+                            Core UMETA(DisplayName = "Core"),       // Pelvis + lower spine
 
-    // Right Arm
-    Arm_R_Upper UMETA(DisplayName = "Upper Arm - Right"), // clavicle_r, upperarm_r
-    Arm_R_Lower UMETA(DisplayName = "Lower Arm - Right"), // lowerarm_r
-    Hand_R UMETA(DisplayName = "Hand - Right"),           // hand_r + fingers
+                            //  Arm-related groups
+                            Arms UMETA(DisplayName = "All Arms"),   // Both arms
+                            Hands UMETA(DisplayName = "All Hands"), // Both hands
+                            LeftArm UMETA(DisplayName = "Left Arm"), RightArm UMETA(DisplayName = "Right Arm"),
+                            LeftHand UMETA(DisplayName = "Left Hand"), RightHand UMETA(DisplayName = "Right Hand"),
 
-    // Left Leg
-    Leg_L_Upper UMETA(DisplayName = "Thigh - Left"), // thigh_l
-    Leg_L_Lower UMETA(DisplayName = "Calf - Left"),  // calf_l
-    Foot_L UMETA(DisplayName = "Foot - Left"),       // foot_l, ball_l
+                            //  Leg-related groups
+                            Legs UMETA(DisplayName = "All Legs"), // Both legs
+                            Feet UMETA(DisplayName = "All Feet"), // Both feet
+                            LeftLeg UMETA(DisplayName = "Left Leg"), RightLeg UMETA(DisplayName = "Right Leg"),
+                            LeftFoot UMETA(DisplayName = "Left Foot"), RightFoot UMETA(DisplayName = "Right Foot"),
 
-    // Right Leg
-    Leg_R_Upper UMETA(DisplayName = "Thigh - Right"), // thigh_r
-    Leg_R_Lower UMETA(DisplayName = "Calf - Right"),  // calf_r
-    Foot_R UMETA(DisplayName = "Foot - Right")        // foot_r, ball_r
-};
+                            //  Full body composites
+                            UpperBody UMETA(DisplayName = "Upper Body"),   // Arms, chest, head
+                            LowerBody UMETA(DisplayName = "Lower Body"),   // Legs, pelvis
+                            LeftLimbs UMETA(DisplayName = "Left Limbs"),   // Arm_L + Leg_L
+                            RightLimbs UMETA(DisplayName = "Right Limbs"), // Arm_R + Leg_R
+                            FullBody UMETA(DisplayName = "Full Body")};
 
-// Fine-grained body parts (specific anatomical areas)
-UENUM(BlueprintType)
-enum class EOHBodyPart : uint8 {
-    None UMETA(DisplayName = "None"),
-    Pelvis UMETA(DisplayName = "Pelvis"),
-    // Upper Body
-    Torso UMETA(DisplayName = "Torso"),
-    Head UMETA(DisplayName = "Head"),
-    Arm_Left UMETA(DisplayName = "Left Arm"),
-    Arm_Right UMETA(DisplayName = "Right Arm"),
+                  UENUM(BlueprintType) enum class EOHBodyZone : uint8{
+                      None UMETA(DisplayName = "None"),
 
-    // Lower Body
-    Leg_Left UMETA(DisplayName = "Left Leg"),
-    Leg_Right UMETA(DisplayName = "Right Leg"),
-};
+                      // Core
+                      Torso_Upper UMETA(DisplayName = "Torso - Upper"), // spine_02, spine_03
+                      Torso_Lower UMETA(DisplayName = "Torso - Lower"), // pelvis, spine_01
+                      Cranial UMETA(DisplayName = "Cranial"),           // neck_01, head
 
-// Coarse-grained body regions (broad control zones)
-UENUM(BlueprintType)
-enum class EOHBodyRegion : uint8 {
-    None UMETA(DisplayName = "None"),
-    UpperBody UMETA(DisplayName = "Upper Body"),
-    LowerBody UMETA(DisplayName = "Lower Body"),
-};
+                      // Left Arm
+                      Arm_L_Upper UMETA(DisplayName = "Upper Arm - Left"), // clavicle_l, upperarm_l
+                      Arm_L_Lower UMETA(DisplayName = "Lower Arm - Left"), // lowerarm_l
+                      Hand_L UMETA(DisplayName = "Hand - Left"),           // hand_l + fingers
 
-UENUM(BlueprintType,
-      meta = (HiddenItems =
-                  "None,EndOfSpine,EndOfHead,EndOfArm_L,EndOfHand_L,FirstFinger_L,LastFinger_L,EndOfArm_R,EndOfHand_R,"
-                  "FirstFinger_R,LastFinger_R,EndOfLeg_L,EndOfLeg_R,FirstIKBone,LastIKBone,FirstBone,LastBone"))
-enum class EOHSkeletalBone : uint8 {
-    // Optional placeholder
-    None UMETA(Hidden),
-    // ----------------------- Root -----------------------
-    Root UMETA(DisplayName = "root"),
+                      // Right Arm
+                      Arm_R_Upper UMETA(DisplayName = "Upper Arm - Right"), // clavicle_r, upperarm_r
+                      Arm_R_Lower UMETA(DisplayName = "Lower Arm - Right"), // lowerarm_r
+                      Hand_R UMETA(DisplayName = "Hand - Right"),           // hand_r + fingers
 
-    // ----------------------- Spine & Core -----------------------
-    Pelvis UMETA(DisplayName = "pelvis"),
-    Spine_01 UMETA(DisplayName = "spine_01"),
-    Spine_02 UMETA(DisplayName = "spine_02"),
-    Spine_03 UMETA(DisplayName = "spine_03"),
+                      // Left Leg
+                      Leg_L_Upper UMETA(DisplayName = "Thigh - Left"), // thigh_l
+                      Leg_L_Lower UMETA(DisplayName = "Calf - Left"),  // calf_l
+                      Foot_L UMETA(DisplayName = "Foot - Left"),       // foot_l, ball_l
 
-    EndOfSpine = Spine_03,
+                      // Right Leg
+                      Leg_R_Upper UMETA(DisplayName = "Thigh - Right"), // thigh_r
+                      Leg_R_Lower UMETA(DisplayName = "Calf - Right"),  // calf_r
+                      Foot_R UMETA(DisplayName = "Foot - Right")        // foot_r, ball_r
+                  };
 
-    // ----------------------- Head -----------------------
-    Neck_01 UMETA(DisplayName = "neck_01"),
-    Head UMETA(DisplayName = "head"),
+                  // Fine-grained body parts (specific anatomical areas)
+                  UENUM(BlueprintType) enum class EOHBodyPart : uint8{
+                      None UMETA(DisplayName = "None"),
+                      Pelvis UMETA(DisplayName = "Pelvis"),
+                      // Upper Body
+                      Torso UMETA(DisplayName = "Torso"),
+                      Head UMETA(DisplayName = "Head"),
+                      Arm_Left UMETA(DisplayName = "Left Arm"),
+                      Arm_Right UMETA(DisplayName = "Right Arm"),
 
-    EndOfHead = Head UMETA(Hidden),
+                      // Lower Body
+                      Leg_Left UMETA(DisplayName = "Left Leg"),
+                      Leg_Right UMETA(DisplayName = "Right Leg"),
+                  };
 
-    // ----------------------- Left Arm -----------------------
-    Clavicle_L UMETA(DisplayName = "clavicle_l"),
-    UpperArm_L UMETA(DisplayName = "upperarm_l"),
-    LowerArm_L UMETA(DisplayName = "lowerarm_l"),
-    Hand_L UMETA(DisplayName = "hand_l"),
+                  // Coarse-grained body regions (broad control zones)
+                  UENUM(BlueprintType) enum class EOHBodyRegion : uint8{
+                      None UMETA(DisplayName = "None"),
+                      UpperBody UMETA(DisplayName = "Upper Body"),
+                      LowerBody UMETA(DisplayName = "Lower Body"),
+                  };
 
-    Thumb_01_L UMETA(DisplayName = "thumb_01_l"),
-    Thumb_02_L UMETA(DisplayName = "thumb_02_l"),
-    Thumb_03_L UMETA(DisplayName = "thumb_03_l"),
+                  UENUM(BlueprintType,
+                        meta = (HiddenItems = "None,EndOfSpine,EndOfHead,EndOfArm_L,EndOfHand_L,FirstFinger_L,"
+                                              "LastFinger_L,EndOfArm_R,EndOfHand_R,FirstFinger_R,LastFinger_R,EndOfLeg_"
+                                              "L,EndOfLeg_R,FirstIKBone,LastIKBone,FirstBone,LastBone")) enum class
+                  EOHSkeletalBone : uint8{
+                      // Optional placeholder
+                      None UMETA(Hidden),
+                      // ----------------------- Root -----------------------
+                      Root UMETA(DisplayName = "root"),
 
-    Index_01_L UMETA(DisplayName = "index_01_l"),
-    Index_02_L UMETA(DisplayName = "index_02_l"),
-    Index_03_L UMETA(DisplayName = "index_03_l"),
+                      // ----------------------- Spine & Core -----------------------
+                      Pelvis UMETA(DisplayName = "pelvis"),
+                      Spine_01 UMETA(DisplayName = "spine_01"),
+                      Spine_02 UMETA(DisplayName = "spine_02"),
+                      Spine_03 UMETA(DisplayName = "spine_03"),
 
-    Middle_01_L UMETA(DisplayName = "middle_01_l"),
-    Middle_02_L UMETA(DisplayName = "middle_02_l"),
-    Middle_03_L UMETA(DisplayName = "middle_03_l"),
+                      EndOfSpine = Spine_03,
 
-    Ring_01_L UMETA(DisplayName = "ring_01_l"),
-    Ring_02_L UMETA(DisplayName = "ring_02_l"),
-    Ring_03_L UMETA(DisplayName = "ring_03_l"),
+                      // ----------------------- Head -----------------------
+                      Neck_01 UMETA(DisplayName = "neck_01"),
+                      Head UMETA(DisplayName = "head"),
 
-    Pinky_01_L UMETA(DisplayName = "pinky_01_l"),
-    Pinky_02_L UMETA(DisplayName = "pinky_02_l"),
-    Pinky_03_L UMETA(DisplayName = "pinky_03_l"),
+                      EndOfHead = Head UMETA(Hidden),
 
-    EndOfArm_L = Hand_L UMETA(Hidden),
-    EndOfHand_L = Pinky_03_L UMETA(Hidden),
-    FirstFinger_L = Thumb_01_L UMETA(Hidden),
-    LastFinger_L = Pinky_03_L UMETA(Hidden),
+                      // ----------------------- Left Arm -----------------------
+                      Clavicle_L UMETA(DisplayName = "clavicle_l"),
+                      UpperArm_L UMETA(DisplayName = "upperarm_l"),
+                      LowerArm_L UMETA(DisplayName = "lowerarm_l"),
+                      Hand_L UMETA(DisplayName = "hand_l"),
 
-    // ----------------------- Right Arm -----------------------
-    Clavicle_R UMETA(DisplayName = "clavicle_r"),
-    UpperArm_R UMETA(DisplayName = "upperarm_r"),
-    LowerArm_R UMETA(DisplayName = "lowerarm_r"),
-    Hand_R UMETA(DisplayName = "hand_r"),
+                      Thumb_01_L UMETA(DisplayName = "thumb_01_l"),
+                      Thumb_02_L UMETA(DisplayName = "thumb_02_l"),
+                      Thumb_03_L UMETA(DisplayName = "thumb_03_l"),
 
-    Thumb_01_R UMETA(DisplayName = "thumb_01_r"),
-    Thumb_02_R UMETA(DisplayName = "thumb_02_r"),
-    Thumb_03_R UMETA(DisplayName = "thumb_03_r"),
+                      Index_01_L UMETA(DisplayName = "index_01_l"),
+                      Index_02_L UMETA(DisplayName = "index_02_l"),
+                      Index_03_L UMETA(DisplayName = "index_03_l"),
 
-    Index_01_R UMETA(DisplayName = "index_01_r"),
-    Index_02_R UMETA(DisplayName = "index_02_r"),
-    Index_03_R UMETA(DisplayName = "index_03_r"),
+                      Middle_01_L UMETA(DisplayName = "middle_01_l"),
+                      Middle_02_L UMETA(DisplayName = "middle_02_l"),
+                      Middle_03_L UMETA(DisplayName = "middle_03_l"),
 
-    Middle_01_R UMETA(DisplayName = "middle_01_r"),
-    Middle_02_R UMETA(DisplayName = "middle_02_r"),
-    Middle_03_R UMETA(DisplayName = "middle_03_r"),
+                      Ring_01_L UMETA(DisplayName = "ring_01_l"),
+                      Ring_02_L UMETA(DisplayName = "ring_02_l"),
+                      Ring_03_L UMETA(DisplayName = "ring_03_l"),
 
-    Ring_01_R UMETA(DisplayName = "ring_01_r"),
-    Ring_02_R UMETA(DisplayName = "ring_02_r"),
-    Ring_03_R UMETA(DisplayName = "ring_03_r"),
+                      Pinky_01_L UMETA(DisplayName = "pinky_01_l"),
+                      Pinky_02_L UMETA(DisplayName = "pinky_02_l"),
+                      Pinky_03_L UMETA(DisplayName = "pinky_03_l"),
 
-    Pinky_01_R UMETA(DisplayName = "pinky_01_r"),
-    Pinky_02_R UMETA(DisplayName = "pinky_02_r"),
-    Pinky_03_R UMETA(DisplayName = "pinky_03_r"),
+                      EndOfArm_L = Hand_L UMETA(Hidden),
+                      EndOfHand_L = Pinky_03_L UMETA(Hidden),
+                      FirstFinger_L = Thumb_01_L UMETA(Hidden),
+                      LastFinger_L = Pinky_03_L UMETA(Hidden),
 
-    EndOfArm_R = Hand_R UMETA(Hidden),
-    EndOfHand_R = Pinky_03_R UMETA(Hidden),
-    FirstFinger_R = Thumb_01_R UMETA(Hidden),
-    LastFinger_R = Pinky_03_R UMETA(Hidden),
+                      // ----------------------- Right Arm -----------------------
+                      Clavicle_R UMETA(DisplayName = "clavicle_r"),
+                      UpperArm_R UMETA(DisplayName = "upperarm_r"),
+                      LowerArm_R UMETA(DisplayName = "lowerarm_r"),
+                      Hand_R UMETA(DisplayName = "hand_r"),
 
-    // ----------------------- Left Leg -----------------------
-    Thigh_L UMETA(DisplayName = "thigh_l"),
-    Calf_L UMETA(DisplayName = "calf_l"),
-    Foot_L UMETA(DisplayName = "foot_l"),
-    Ball_L UMETA(DisplayName = "ball_l"),
+                      Thumb_01_R UMETA(DisplayName = "thumb_01_r"),
+                      Thumb_02_R UMETA(DisplayName = "thumb_02_r"),
+                      Thumb_03_R UMETA(DisplayName = "thumb_03_r"),
 
-    EndOfLeg_L = Ball_L UMETA(Hidden),
+                      Index_01_R UMETA(DisplayName = "index_01_r"),
+                      Index_02_R UMETA(DisplayName = "index_02_r"),
+                      Index_03_R UMETA(DisplayName = "index_03_r"),
 
-    // ----------------------- Right Leg -----------------------
-    Thigh_R UMETA(DisplayName = "thigh_r"),
-    Calf_R UMETA(DisplayName = "calf_r"),
-    Foot_R UMETA(DisplayName = "foot_r"),
-    Ball_R UMETA(DisplayName = "ball_r"),
+                      Middle_01_R UMETA(DisplayName = "middle_01_r"),
+                      Middle_02_R UMETA(DisplayName = "middle_02_r"),
+                      Middle_03_R UMETA(DisplayName = "middle_03_r"),
 
-    EndOfLeg_R = Ball_R UMETA(Hidden),
+                      Ring_01_R UMETA(DisplayName = "ring_01_r"),
+                      Ring_02_R UMETA(DisplayName = "ring_02_r"),
+                      Ring_03_R UMETA(DisplayName = "ring_03_r"),
 
-    // ----------------------- IK Bones -----------------------
-    IK_Root UMETA(DisplayName = "ik_root"),
-    IK_Hand_L UMETA(DisplayName = "ik_hand_l"),
-    IK_Hand_R UMETA(DisplayName = "ik_hand_r"),
-    IK_Foot_L UMETA(DisplayName = "ik_foot_l"),
-    IK_Foot_R UMETA(DisplayName = "ik_foot_r"),
-    IK_Hand_Gun UMETA(DisplayName = "ik_hand_gun"),
-    IK_Hand_Root UMETA(DisplayName = "ik_hand_root"),
-    IK_Foot_Root UMETA(DisplayName = "ik_foot_root"),
+                      Pinky_01_R UMETA(DisplayName = "pinky_01_r"),
+                      Pinky_02_R UMETA(DisplayName = "pinky_02_r"),
+                      Pinky_03_R UMETA(DisplayName = "pinky_03_r"),
 
-    FirstIKBone = IK_Root UMETA(Hidden),
-    LastIKBone = IK_Foot_Root UMETA(Hidden),
+                      EndOfArm_R = Hand_R UMETA(Hidden),
+                      EndOfHand_R = Pinky_03_R UMETA(Hidden),
+                      FirstFinger_R = Thumb_01_R UMETA(Hidden),
+                      LastFinger_R = Pinky_03_R UMETA(Hidden),
 
-    // ----------------------- Enum Range Support -----------------------
-    FirstBone = Root UMETA(Hidden),
-    LastBone = IK_Foot_Root UMETA(Hidden),
-};
+                      // ----------------------- Left Leg -----------------------
+                      Thigh_L UMETA(DisplayName = "thigh_l"),
+                      Calf_L UMETA(DisplayName = "calf_l"),
+                      Foot_L UMETA(DisplayName = "foot_l"),
+                      Ball_L UMETA(DisplayName = "ball_l"),
 
-ENUM_RANGE_BY_FIRST_AND_LAST(EOHSkeletalBone, EOHSkeletalBone::FirstBone, EOHSkeletalBone::LastBone);
+                      EndOfLeg_L = Ball_L UMETA(Hidden),
 
-// ----------------------- Simple BoneEnum Classification Helpers -----------------------
+                      // ----------------------- Right Leg -----------------------
+                      Thigh_R UMETA(DisplayName = "thigh_r"),
+                      Calf_R UMETA(DisplayName = "calf_r"),
+                      Foot_R UMETA(DisplayName = "foot_r"),
+                      Ball_R UMETA(DisplayName = "ball_r"),
 
-/** Check if a bone is in a specific inclusive range */
-FORCEINLINE bool IsInBoneRange(const EOHSkeletalBone Bone, const EOHSkeletalBone First, const EOHSkeletalBone Last) {
-    return (Bone >= First && Bone <= Last);
-}
+                      EndOfLeg_R = Ball_R UMETA(Hidden),
+
+                      // ----------------------- IK Bones -----------------------
+                      IK_Root UMETA(DisplayName = "ik_root"),
+                      IK_Hand_L UMETA(DisplayName = "ik_hand_l"),
+                      IK_Hand_R UMETA(DisplayName = "ik_hand_r"),
+                      IK_Foot_L UMETA(DisplayName = "ik_foot_l"),
+                      IK_Foot_R UMETA(DisplayName = "ik_foot_r"),
+                      IK_Hand_Gun UMETA(DisplayName = "ik_hand_gun"),
+                      IK_Hand_Root UMETA(DisplayName = "ik_hand_root"),
+                      IK_Foot_Root UMETA(DisplayName = "ik_foot_root"),
+
+                      FirstIKBone = IK_Root UMETA(Hidden),
+                      LastIKBone = IK_Foot_Root UMETA(Hidden),
+
+                      // ----------------------- Enum Range Support -----------------------
+                      FirstBone = Root UMETA(Hidden),
+                      LastBone = IK_Foot_Root UMETA(Hidden),
+                  };
+
+                  ENUM_RANGE_BY_FIRST_AND_LAST(EOHSkeletalBone, EOHSkeletalBone::FirstBone, EOHSkeletalBone::LastBone);
+
+                  // ----------------------- Simple BoneEnum Classification Helpers -----------------------
+
+                  /** Check if a bone is in a specific inclusive range */
+                  FORCEINLINE bool IsInBoneRange(const EOHSkeletalBone Bone, const EOHSkeletalBone First,
+                                                 const EOHSkeletalBone Last){return (Bone >= First && Bone <= Last);}
 
 /** Check if a bone is a core/spine bone */
 FORCEINLINE bool IsSpineBone(const EOHSkeletalBone Bone) {
@@ -621,7 +642,7 @@ FORCEINLINE void BuildMappings() {
         RegionToBonesMap.FindOrAdd(Region).Add(Bone);
     }
 }
-} // namespace OHCachedMappings
+}
 
 UENUM(BlueprintType)
 enum class EOHRelativeDirection : uint8 { Forward, Backward, Left, Right, None };
@@ -656,11 +677,17 @@ enum class EImpulseDirectionMode : uint8 {
 };
 
 UENUM(BlueprintType)
-enum class EOHMotionTimeDomain : uint8 {
-    GameWorldTime UMETA(DisplayName = "World Time"),
-    AnimationTime UMETA(DisplayName = "Animation Time"),
-    PhysicsTime UMETA(DisplayName = "Physics Time")
-};
+<<<<<<< HEAD
+enum class EOHBlendPhases : uint8 {
+    BlendIn UMETA(DisplayName = "Blending In"), Hold UMETA(DisplayName = "Hold Phase"),
+    BlendOut UMETA(DisplayName = "Blending Out"), Complete UMETA(DisplayName = "Complete"),
+    Permanent UMETA(DisplayName = "Permanent Active") // NEW: Never blends out
+        == == ==
+    = enum class EOHMotionTimeDomain :
+        uint8{GameWorldTime UMETA(DisplayName = "World Time"), AnimationTime UMETA(DisplayName = "Animation Time"),
+              PhysicsTime UMETA(DisplayName = "Physics Time")
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+        };
 
-UENUM(BlueprintType)
-enum class EDriveAccessMode : uint8 { Cached UMETA(DisplayName = "Cached"), Live UMETA(DisplayName = "Live") };
+    UENUM(BlueprintType) enum class
+    EDriveAccessMode : uint8{Cached UMETA(DisplayName = "Cached"), Live UMETA(DisplayName = "Live")};

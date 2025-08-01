@@ -573,6 +573,7 @@ bool SInputPanel2D::IsPositionOutsideDeadZone(FVector2D PositionToCheck) {
     return xCheck || yCheck;
 }
 
+<<<<<<< HEAD
 bool SInputPanel2D::ForwardGamepadAxis(const FGamepadKeyNames::Type KeyName, float AnalogValue) {
     if (!KeyName.IsValid())
         return false;
@@ -582,38 +583,48 @@ bool SInputPanel2D::ForwardGamepadAxis(const FGamepadKeyNames::Type KeyName, flo
     return FSlateApplication::Get().OnControllerAnalog(KeyName, FSlateApplicationBase::SlateAppPrimaryPlatformUser,
                                                        PrimaryInputDevice, AnalogValue);
     return false;
-}
+    == == == = bool SInputPanel2D::ForwardGamepadAxis(const FGamepadKeyNames::Type KeyName, float AnalogValue) {
+        if (!KeyName.IsValid())
+            return false;
 
-ESwipeDirection SInputPanel2D::GetSwipeDirection(FVector2D _SwipePosition, FVector2D OriginPosition) const {
-    FVector2D tapVector = _SwipePosition - OriginPosition;
-    float Angle = FMath::Atan2(tapVector.Y, tapVector.X);
-    ESwipeDirection tapDirection;
-    if (bUseDiagonalSwipeInputs)
-        tapDirection = AngleToDiagonalSwipeDirection(Angle);
-    else
-        tapDirection = AngleToSwipeDirection(Angle);
-    return tapDirection;
-}
+        const FInputDeviceId PrimaryInputDevice = IPlatformInputDeviceMapper::Get().GetPrimaryInputDeviceForUser(
+            FSlateApplicationBase::SlateAppPrimaryPlatformUser);
+        return FSlateApplication::Get().OnControllerAnalog(KeyName, FSlateApplicationBase::SlateAppPrimaryPlatformUser,
+                                                           PrimaryInputDevice, AnalogValue);
+        return false;
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+    }
 
-void SInputPanel2D::StateTransition(EInputState NewState) {
-    InputState = NewState;
-    OwningWidget->OnInputStateChange.Broadcast(InputState);
-    GEngine->AddOnScreenDebugMessage(1, 2.0f, FColor::Silver, *UEnum::GetValueAsString(InputState));
-}
+    ESwipeDirection SInputPanel2D::GetSwipeDirection(FVector2D _SwipePosition, FVector2D OriginPosition) const {
+        FVector2D tapVector = _SwipePosition - OriginPosition;
+        float Angle = FMath::Atan2(tapVector.Y, tapVector.X);
+        ESwipeDirection tapDirection;
+        if (bUseDiagonalSwipeInputs)
+            tapDirection = AngleToDiagonalSwipeDirection(Angle);
+        else
+            tapDirection = AngleToSwipeDirection(Angle);
+        return tapDirection;
+    }
 
-void SInputPanel2D::CancelSwipe() {
-    OwningWidget->OnCancelSwipe.Broadcast();
-}
+    void SInputPanel2D::StateTransition(EInputState NewState) {
+        InputState = NewState;
+        OwningWidget->OnInputStateChange.Broadcast(InputState);
+        GEngine->AddOnScreenDebugMessage(1, 2.0f, FColor::Silver, *UEnum::GetValueAsString(InputState));
+    }
 
-bool SInputPanel2D::CheckCurve(FVector2D StartPosition, FVector2D EndPosition, FVector2D OriginPosition,
-                               float Tolerance) {
-    FVector2D StartVector = StartPosition - OriginPosition;
-    FVector2D EndVector = EndPosition - OriginPosition;
-    bool EndVectorResult = EndVector.Normalize();
-    bool StartVectorResult = StartVector.Normalize();
+    void SInputPanel2D::CancelSwipe() {
+        OwningWidget->OnCancelSwipe.Broadcast();
+    }
 
-    float DotProd = EndVector.Dot(StartVector);
-    // GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Orange, FString::Printf(TEXT("DOT PRODUCT :: %s"),
-    // *FString::SanitizeFloat(DotProd)));
-    return DotProd <= Tolerance;
-}
+    bool SInputPanel2D::CheckCurve(FVector2D StartPosition, FVector2D EndPosition, FVector2D OriginPosition,
+                                   float Tolerance) {
+        FVector2D StartVector = StartPosition - OriginPosition;
+        FVector2D EndVector = EndPosition - OriginPosition;
+        bool EndVectorResult = EndVector.Normalize();
+        bool StartVectorResult = StartVector.Normalize();
+
+        float DotProd = EndVector.Dot(StartVector);
+        // GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Orange, FString::Printf(TEXT("DOT PRODUCT :: %s"),
+        // *FString::SanitizeFloat(DotProd)));
+        return DotProd <= Tolerance;
+    }

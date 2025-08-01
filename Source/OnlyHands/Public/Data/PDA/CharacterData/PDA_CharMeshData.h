@@ -5,13 +5,19 @@
 #include "PDA_CharMeshData.generated.h"
 
 UCLASS(BlueprintType)
+<<<<<<< HEAD
 class ONLYHANDS_API UPDA_CharMeshData : public UPrimaryDataAsset {
     GENERATED_BODY()
 
   public:
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    USkeletalMesh* BaseMesh;
+    == == == = class ONLYHANDS_API UPDA_CharMeshData : public UPrimaryDataAsset {
+        GENERATED_BODY()
 
-    UPROPERTY(EditAnywhere, BlueprintReadWrite)
-    TArray<USkeletalMesh*> AttachedMeshes;
-};
+      public:
+>>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+        UPROPERTY(EditAnywhere, BlueprintReadWrite)
+        USkeletalMesh* BaseMesh;
+
+        UPROPERTY(EditAnywhere, BlueprintReadWrite)
+        TArray<USkeletalMesh*> AttachedMeshes;
+    };

@@ -7,9 +7,11 @@
 #include "OHGameStateBase.generated.h"
 
 /**
- *
+ * 
  */
 UCLASS()
-class ONLYHANDS_API AOHGameStateBase : public AGameStateBase {
-    GENERATED_BODY()
+class ONLYHANDS_API AOHGameStateBase : public AGameStateBase
+{
+	GENERATED_BODY()
+	
 };
