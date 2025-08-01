@@ -491,8 +491,8 @@ void UOHAnimInstance_Base::NativeUpdateAnimation(float DeltaSeconds) {
     FootDeltaZ = FMath::Abs(LeftFootIKOffset - RightFootIKOffset);
 
     // Optionally expose stride phase, confidence, ghost lookahead time for debug:
-    LeftStridePhase = (int32)LeftPhase;
-    RightStridePhase = (int32)RightPhase;
+    LeftStridePhase = static_cast<int32>(LeftPhase);
+    RightStridePhase = static_cast<int32>(RightPhase);
     LeftFootStrideConfidence = PhaseConfidenceL;
     LeftFootStrideConfidence = PhaseConfidenceR;
     LeftGhostLookaheadTime = GhostStepLookaheadTimeL;

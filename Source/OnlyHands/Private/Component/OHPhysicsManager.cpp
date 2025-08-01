@@ -640,7 +640,7 @@ void UOHPhysicsManager::PlayPhysicsHitReaction_Internal(FName& BoneName, const F
 
     // Skip if already blending and fully held
     if (FActivePhysicsBlend* Existing = ActiveBlends.Find(BoneName)) {
-        if (Existing->Phase == EOHBlendPhase::Hold && Existing->BlendAlpha >= 0.99f)
+        if (Existing->Phase == EOHBlendPhases::Hold && Existing->BlendAlpha >= 0.99f)
             return;
     }
 
@@ -2060,13 +2060,13 @@ void UOHPhysicsManager::DrawSimBlendDebugOverlay() const {
             // Determine phase color
             FColor PhaseColor;
             switch (Blend.Phase) {
-            case EOHBlendPhase::BlendIn:
+            case EOHBlendPhases::BlendIn:
                 PhaseColor = FColor::Yellow;
                 break;
-            case EOHBlendPhase::Hold:
+            case EOHBlendPhases::Hold:
                 PhaseColor = FColor::Green;
                 break;
-            case EOHBlendPhase::BlendOut:
+            case EOHBlendPhases::BlendOut:
                 PhaseColor = FColor::Red;
                 break;
             default:
@@ -2686,7 +2686,7 @@ FActivePhysicsBlend UOHPhysicsManager::CreatePhysicsBlendState(FName RootBone, f
     Blend.RootBone = RootBone;
     Blend.BlendAlpha = StartAlpha;
     Blend.StartAlpha = StartAlpha; // <-- Set this
-    Blend.Phase = EOHBlendPhase::BlendIn;
+    Blend.Phase = EOHBlendPhases::BlendIn;
     Blend.Elapsed = 0.0f;
     Blend.BlendInDuration = BlendIn;
     Blend.HoldDuration = Hold;
@@ -2702,15 +2702,15 @@ void UOHPhysicsManager::UpdateBlendState(FActivePhysicsBlend& Blend, float Delta
 
     Blend.Elapsed += DeltaTime;
 
-    auto AdvancePhase = [&Blend](EOHBlendPhase NewPhase) {
+    auto AdvancePhase = [&Blend](EOHBlendPhases NewPhase) {
         Blend.Phase = NewPhase;
         Blend.Elapsed = 0.f;
     };
 
     switch (Blend.Phase) {
-    case EOHBlendPhase::BlendIn:
+    case EOHBlendPhases::BlendIn:
         if (Blend.BlendInDuration <= KINDA_SMALL_NUMBER) {
-            AdvancePhase(EOHBlendPhase::Hold);
+            AdvancePhase(EOHBlendPhases::Hold);
             Blend.BlendAlpha = 1.f;
             break;
         }
@@ -2720,25 +2720,25 @@ void UOHPhysicsManager::UpdateBlendState(FActivePhysicsBlend& Blend, float Delta
             Blend.BlendAlpha = FMath::Clamp(Progress, 0.f, 1.f);
 
             if (Progress >= 1.f) {
-                AdvancePhase(EOHBlendPhase::Hold);
+                AdvancePhase(EOHBlendPhases::Hold);
             }
             break;
         }
 
-    case EOHBlendPhase::Hold:
+    case EOHBlendPhases::Hold:
         if (Blend.HoldDuration <= KINDA_SMALL_NUMBER) {
-            AdvancePhase(EOHBlendPhase::BlendOut);
+            AdvancePhase(EOHBlendPhases::BlendOut);
             break;
         }
 
         Blend.BlendAlpha = 1.f;
 
         if (Blend.Elapsed >= Blend.HoldDuration) {
-            AdvancePhase(EOHBlendPhase::BlendOut);
+            AdvancePhase(EOHBlendPhases::BlendOut);
         }
         break;
 
-    case EOHBlendPhase::BlendOut:
+    case EOHBlendPhases::BlendOut:
         if (Blend.BlendOutDuration <= KINDA_SMALL_NUMBER) {
             Blend.BlendAlpha = 0.f;
             break;
@@ -2834,9 +2834,9 @@ bool UOHPhysicsManager::IsBoneBlending(FName BoneName) const {
     return ActiveBlends.Contains(BoneName);
 }
 
-EOHBlendPhase UOHPhysicsManager::GetCurrentBlendPhase(FName BoneName) const {
+EOHBlendPhases UOHPhysicsManager::GetCurrentBlendPhase(FName BoneName) const {
     const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
-    return Blend ? Blend->Phase : EOHBlendPhase::BlendOut; // default = not blending / fallback state
+    return Blend ? Blend->Phase : EOHBlendPhases::BlendOut; // default = not blending / fallback state
 }
 
 float UOHPhysicsManager::GetBlendAlpha(FName BoneName) const {
@@ -2870,11 +2870,11 @@ float UOHPhysicsManager::GetCurrentPhaseProgress(FName BoneName) const {
 
     const float PhaseDuration = [Blend]() -> float {
         switch (Blend->Phase) {
-        case EOHBlendPhase::BlendIn:
+        case EOHBlendPhases::BlendIn:
             return FMath::Max(Blend->BlendInDuration, KINDA_SMALL_NUMBER);
-        case EOHBlendPhase::Hold:
+        case EOHBlendPhases::Hold:
             return FMath::Max(Blend->HoldDuration, KINDA_SMALL_NUMBER);
-        case EOHBlendPhase::BlendOut:
+        case EOHBlendPhases::BlendOut:
             return FMath::Max(Blend->BlendOutDuration, KINDA_SMALL_NUMBER);
         default:
             return 1.f; // fallback duration avoids divide by 0
@@ -2884,17 +2884,17 @@ float UOHPhysicsManager::GetCurrentPhaseProgress(FName BoneName) const {
     return FMath::Clamp(Blend->Elapsed / PhaseDuration, 0.f, 1.f);
 }
 
-float UOHPhysicsManager::GetPhaseDuration(FName BoneName, EOHBlendPhase Phase) const {
+float UOHPhysicsManager::GetPhaseDuration(FName BoneName, EOHBlendPhases Phase) const {
     const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
     if (!Blend)
         return 0.f;
 
     switch (Phase) {
-    case EOHBlendPhase::BlendIn:
+    case EOHBlendPhases::BlendIn:
         return Blend->BlendInDuration;
-    case EOHBlendPhase::Hold:
+    case EOHBlendPhases::Hold:
         return Blend->HoldDuration;
-    case EOHBlendPhase::BlendOut:
+    case EOHBlendPhases::BlendOut:
         return Blend->BlendOutDuration;
     default:
         return 0.f;
@@ -2908,7 +2908,7 @@ void UOHPhysicsManager::ApplyBlendAlphaToBone(FName Bone, float BlendAlpha) {
 }
 
 bool UOHPhysicsManager::IsBlendComplete(const FActivePhysicsBlend& Blend) {
-    return Blend.Phase == EOHBlendPhase::BlendOut && Blend.Elapsed >= Blend.BlendOutDuration;
+    return Blend.Phase == EOHBlendPhases::BlendOut && Blend.Elapsed >= Blend.BlendOutDuration;
 }
 
 void UOHPhysicsManager::FinalizeBlend(FName RootBone) {
@@ -2952,54 +2952,6 @@ void UOHPhysicsManager::FinalizeAllBlends() {
     UE_LOG(LogTemp, Log, TEXT("[OH] Finalized %d active blends"), Roots.Num());
 }
 
-#pragma endregion
-
-#pragma region Experimental
-
-#pragma region BodyPartStatus
-
-void UOHPhysicsManager::ApplyDamageToBone(FName Bone, float Damage) {
-    if (FOHBodyPartStatus* Status = BoneStatusMap.Find(Bone)) {
-        Status->ApplyDamage(Damage);
-        if (Status->IsDestroyed()) {
-            FinalizeBlend(Bone);
-            UE_LOG(LogTemp, Warning, TEXT("[OH] Bone %s destroyed"), *Bone.ToString());
-        }
-    }
-}
-
-bool UOHPhysicsManager::IsBoneDestroyed(FName Bone) const {
-    if (const FOHBodyPartStatus* Status = BoneStatusMap.Find(Bone)) {
-        return Status->IsDestroyed();
-    }
-    return false;
-}
-
-float UOHPhysicsManager::GetBoneHealth(FName Bone) const {
-    if (const FOHBodyPartStatus* Status = BoneStatusMap.Find(Bone)) {
-        return Status->CurrentHealth;
-    }
-    return -1.f;
-}
-
-void UOHPhysicsManager::ResetBoneStatus(FName Bone) {
-    if (FOHBodyPartStatus* Status = BoneStatusMap.Find(Bone)) {
-        Status->Reset();
-    }
-}
-
-TArray<FName> UOHPhysicsManager::GetSkeletalBonesInBodyPart(EOHBodyPart Part) const {
-    return UOHSkeletalPhysicsUtils::GetPrimaryBoneNamesFromBodyPart(Part);
-}
-
-bool UOHPhysicsManager::IsBodyPartFullyDestroyed(EOHBodyPart Part) const {
-    for (const auto& Elem : BoneStatusMap) {
-        if (Elem.Value.BodyPart == Part && !Elem.Value.IsDestroyed()) {
-            return false;
-        }
-    }
-    return true;
-}
 #pragma endregion
 
 #pragma region SkeletalAssetValidation
@@ -3212,6 +3164,4 @@ void UOHPhysicsManager::OnGraphRelevantSettingsChanged() {
     ++PhysicsGraphVersion;
 }
 //////////////////////////////////////////////////
-#pragma endregion
-
 #pragma endregion

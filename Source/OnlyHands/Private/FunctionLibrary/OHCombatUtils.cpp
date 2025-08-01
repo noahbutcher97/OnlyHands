@@ -14,14 +14,187 @@
 #include "Components/CapsuleComponent.h"
 #include "FunctionLibrary/OHCollisionUtils.h"
 // #include "FunctionLibrary/OHGraphUtils.h"
+#include "AIController.h"
 #include "FunctionLibrary/OHAlgoUtils.h"
 #include "FunctionLibrary/OHSkeletalPhysicsUtils.h"
 #include "GameFramework/Character.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Pawn/OHCombatCharacter.h"
 
+#pragma region CharacterState
+void UOHCombatUtils::AddCharacterUpdateState(ACharacter* Character, TArray<ACharacter*>& OverlappingCharacters,
+                                             FVector SourceLocation, ERotationContext CurrentState,
+                                             ERotationContext& NextState, ACharacter*& ClosestCharacter) {
+    // Add character robustly
+    if (IsValid(Character) && !OverlappingCharacters.Contains(Character)) {
+        OverlappingCharacters.Add(Character);
+    }
+
+    // Determine next state atomically
+    int32 NumChars = OverlappingCharacters.Num();
+    if (NumChars == 0) {
+        NextState = ERotationContext::Off;
+    } else if (CurrentState == ERotationContext::Off || CurrentState == ERotationContext::TurnOff) {
+        NextState = ERotationContext::TurnOn;
+    } else if (CurrentState == ERotationContext::TurnOn) {
+        NextState = ERotationContext::Tracking;
+    } else {
+        NextState = CurrentState;
+    }
+
+    ClosestCharacter = GetClosestCharacter(SourceLocation, OverlappingCharacters);
+}
+
+void UOHCombatUtils::RemoveCharacterUpdateState(ACharacter* Character, TArray<ACharacter*>& OverlappingCharacters,
+                                                FVector SourceLocation, ERotationContext CurrentState,
+                                                ERotationContext& NextState, ACharacter*& ClosestCharacter) {
+    // Remove character robustly
+    if (IsValid(Character)) {
+        OverlappingCharacters.Remove(Character);
+    }
+
+    // Determine next state atomically
+    int32 NumChars = OverlappingCharacters.Num();
+    if (NumChars == 0) {
+        if (CurrentState == ERotationContext::Tracking || CurrentState == ERotationContext::TurnOn) {
+            NextState = ERotationContext::TurnOff;
+        } else if (CurrentState == ERotationContext::TurnOff) {
+            NextState = ERotationContext::Off;
+        } else {
+            NextState = CurrentState;
+        }
+    } else {
+        if (CurrentState == ERotationContext::Off || CurrentState == ERotationContext::TurnOff) {
+            NextState = ERotationContext::TurnOn;
+        } else if (CurrentState == ERotationContext::TurnOn) {
+            NextState = ERotationContext::Tracking;
+        } else {
+            NextState = CurrentState;
+        }
+    }
+
+    // Find the closest character
+    ClosestCharacter = GetClosestCharacter(SourceLocation, OverlappingCharacters);
+}
+
+void UOHCombatUtils::InterpComponentRotation(USceneComponent* Component, float DeltaTime, ERotationContext Context,
+                                             const FRotator& OnRotation, const FRotator& OffRotation,
+                                             const FRotator& TrackingRotation, float InterpSpeed) {
+    if (!Component)
+        return;
+
+    FRotator Current = Component->GetRelativeRotation();
+    FRotator Target;
+
+    switch (Context) {
+    case ERotationContext::TurnOn:
+        Target = OnRotation;
+        break;
+    case ERotationContext::TurnOff:
+        Target = OffRotation;
+        break;
+    case ERotationContext::Tracking:
+        Target = TrackingRotation;
+        break;
+    default:
+        return;
+    }
+
+    FRotator NewRotation = FMath::RInterpTo(Current, Target, DeltaTime, InterpSpeed);
+    Component->SetRelativeRotation(NewRotation);
+}
+
+bool UOHCombatUtils::HasReachedRotation(USceneComponent* Pivot, FRotator TargetRotation, float Tolerance) {
+    if (!Pivot)
+        return false;
+
+    FRotator Current = Pivot->GetRelativeRotation();
+    return Current.Equals(TargetRotation, Tolerance);
+}
+
+void UOHCombatUtils::InterpPivotToTarget(USceneComponent* Pivot, FRotator TargetRotation, float DeltaTime,
+                                         float InterpSpeed) {
+    if (!Pivot)
+        return;
+
+    FRotator Current = Pivot->GetRelativeRotation();
+    FRotator NewRot = FMath::RInterpTo(Current, TargetRotation, DeltaTime, InterpSpeed);
+    Pivot->SetRelativeRotation(NewRot);
+}
+
+ACharacter* UOHCombatUtils::GetClosestCharacter(FVector SourceLocation, const TArray<ACharacter*>& Characters) {
+    float ClosestDistSqr = TNumericLimits<float>::Max();
+    ACharacter* Closest = nullptr;
+
+    for (ACharacter* Char : Characters) {
+        if (IsValid(Char)) {
+            float DistSqr = FVector::DistSquared(SourceLocation, Char->GetActorLocation());
+            if (DistSqr < ClosestDistSqr) {
+                ClosestDistSqr = DistSqr;
+                Closest = Char;
+            }
+        }
+    }
+    return Closest;
+}
+
+ACharacter* UOHCombatUtils::GetClosestCharacter(USceneComponent* Pivot, const TArray<ACharacter*>& Characters) {
+    if (!IsValid(Pivot)) {
+        return nullptr;
+    }
+    return GetClosestCharacter(Pivot->GetComponentLocation(), Characters);
+}
+
+FRotator UOHCombatUtils::GetLookAtRotationToCharacter(USceneComponent* Pivot, ACharacter* TargetCharacter) {
+    if (!Pivot || !IsValid(TargetCharacter)) {
+        return FRotator::ZeroRotator;
+    }
+
+    const FVector Start = Pivot->GetComponentLocation();
+    const FVector End = TargetCharacter->GetActorLocation();
+    const FVector Dir = End - Start;
+
+    if (Dir.IsNearlyZero()) {
+        return Pivot->GetComponentRotation();
+    }
+
+    return Dir.Rotation();
+}
+
+ERotationContext UOHCombatUtils::DetermineNextRotationContext(ERotationContext CurrentContext,
+                                                              int32 NumOverlappingCharacters) {
+    // If no character is in bounds
+    if (NumOverlappingCharacters == 0) {
+        if (CurrentContext == ERotationContext::Tracking || CurrentContext == ERotationContext::TurnOn) {
+            return ERotationContext::TurnOff;
+        }
+        if (CurrentContext == ERotationContext::TurnOff) {
+            return ERotationContext::Off;
+        }
+        // Already off, stay
+        return CurrentContext;
+    }
+
+    // At least one character is in bounds
+    if (CurrentContext == ERotationContext::Off || CurrentContext == ERotationContext::TurnOff) {
+        return ERotationContext::TurnOn;
+    }
+    if (CurrentContext == ERotationContext::TurnOn) {
+        return ERotationContext::Tracking;
+    }
+    // Already tracking, stay in this state
+    return CurrentContext;
+}
+
+#pragma endregion
+
 FVector2D UOHCombatUtils::ProjectVectorTo2D(const FVector& Vector) {
     return FVector2D(Vector.X, Vector.Y);
+}
+
+float UOHCombatUtils::ComputeDirectionalAlignment2D(const FVector& A, const FVector& B) {
+    return FMath::Clamp(
+        FVector2D::DotProduct(ProjectVectorTo2D(A.GetSafeNormal()), ProjectVectorTo2D(B.GetSafeNormal())), -1.f, 1.f);
 }
 
 FVector UOHCombatUtils::MirrorVectorOverAxis(const FVector& Input, const FVector& Axis) {
@@ -418,11 +591,12 @@ FRotator UOHCombatUtils::GetActorRotationRelativeToCamera(const AActor* TargetAc
         return FRotator::ZeroRotator;
     }
 
-    FVector CameraLoc;
-    FRotator CameraRot;
-    if (!GetPlayerCameraView(TargetActor, CameraLoc, CameraRot)) {
+    FTransform OutTransform;
+    if (!GetPlayerCameraView(TargetActor, OutTransform)) {
         return FRotator::ZeroRotator;
     }
+
+    const FRotator CameraRot = OutTransform.Rotator();
 
     const FRotator ActorRot = TargetActor->GetActorRotation();
     return UKismetMathLibrary::NormalizedDeltaRotator(ActorRot, CameraRot);
@@ -433,11 +607,11 @@ FVector UOHCombatUtils::GetActorDirectionFromCamera(const AActor* TargetActor) {
         return FVector::ZeroVector;
     }
 
-    FVector CameraLoc;
-    FRotator CameraRot;
-    if (!GetPlayerCameraView(TargetActor, CameraLoc, CameraRot)) {
+    FTransform OutTransform;
+    if (!GetPlayerCameraView(TargetActor, OutTransform)) {
         return FVector::ZeroVector;
     }
+    const FVector CameraLoc = OutTransform.GetLocation();
 
     const FVector ActorLoc = TargetActor->GetActorLocation();
     return (ActorLoc - CameraLoc).GetSafeNormal();
@@ -448,14 +622,14 @@ float UOHCombatUtils::GetActorFacingAngleRelativeToCamera(const AActor* TargetAc
         return 0.f;
     }
 
-    FVector CameraLoc;
-    FRotator CameraRot;
-    if (!GetPlayerCameraView(TargetActor, CameraLoc, CameraRot)) {
+    FTransform OutTransform;
+    if (!GetPlayerCameraView(TargetActor, OutTransform)) {
         return 0.f;
     }
 
-    FVector ActorForward = TargetActor->GetActorForwardVector();
+    const FRotator CameraRot = OutTransform.Rotator();
     FVector CameraForward = CameraRot.Vector();
+    FVector ActorForward = TargetActor->GetActorForwardVector();
 
     ActorForward.Z = 0.f;
     CameraForward.Z = 0.f;
@@ -480,11 +654,11 @@ float UOHCombatUtils::GetActorMovementDirectionRelativeToCamera(const AActor* Ta
         return 0.f;
     }
 
-    FVector CameraLoc;
-    FRotator CameraRot;
-    if (!GetPlayerCameraView(TargetActor, CameraLoc, CameraRot)) {
+    FTransform OutTransform;
+    if (!GetPlayerCameraView(TargetActor, OutTransform)) {
         return 0.f;
     }
+    const FRotator CameraRot = OutTransform.Rotator();
 
     FVector CameraForward = CameraRot.Vector();
     FVector MoveDirection = Velocity;
@@ -502,33 +676,168 @@ float UOHCombatUtils::GetActorMovementDirectionRelativeToCamera(const AActor* Ta
     return Angle;
 }
 
-bool UOHCombatUtils::GetPlayerCameraView(const UObject* ContextObject, FVector& OutCameraLocation,
-                                         FRotator& OutCameraRotation) {
-    OutCameraLocation = FVector::ZeroVector;
-    OutCameraRotation = FRotator::ZeroRotator;
+TArray<ACharacter*> UOHCombatUtils::GetCharactersFromActors(const TArray<AActor*>& Actors) {
+    TArray<ACharacter*> Characters;
 
+    for (AActor* Actor : Actors) {
+        if (ACharacter* Character = Cast<ACharacter>(Actor)) {
+            if (IsValid(Character)) {
+                Characters.Add(Character);
+            }
+        }
+    }
+    return Characters;
+}
+
+bool UOHCombatUtils::GetClosestCharacterToLocationFromActors(const FVector& SourceLocation,
+                                                             const TArray<AActor*>& Actors,
+                                                             ACharacter*& ClosestCharacter) {
+    ClosestCharacter = nullptr;
+    float ClosestDistSqr = TNumericLimits<float>::Max();
+    bool bFoundAnyCharacter = false;
+
+    for (AActor* Actor : Actors) {
+        ACharacter* Character = Cast<ACharacter>(Actor);
+        if (Character && IsValid(Character)) {
+            bFoundAnyCharacter = true;
+            float DistSqr = FVector::DistSquared(SourceLocation, Character->GetActorLocation());
+            if (DistSqr < ClosestDistSqr) {
+                ClosestDistSqr = DistSqr;
+                ClosestCharacter = Character;
+            }
+        }
+    }
+
+    return bFoundAnyCharacter;
+}
+
+bool UOHCombatUtils::GetPlayerCameraView(const UObject* ContextObject, FTransform& OutTransform) {
+
+    return GetActorView_Internal(ContextObject, OutTransform);
+
+#if 0
+	OutCameraLocation = FVector::ZeroVector;
+	OutCameraRotation = FRotator::ZeroRotator;
+
+	if (!ContextObject || !GEngine)
+	{
+		return false;
+	}
+
+	UWorld* World = GEngine->GetWorldFromContextObjectChecked(ContextObject);
+	if (!World || !GEngine->GameViewport)
+	{
+		return false;
+	}
+
+	ULocalPlayer* LocalPlayer = GEngine->GameViewport->GetGameInstance()->FindLocalPlayerFromControllerId(0);
+	if (!LocalPlayer)
+	{
+		return false;
+	}
+
+	APlayerController* PC = LocalPlayer->GetPlayerController(World);
+	if (!PC || !PC->PlayerCameraManager)
+	{
+		return false;
+	}
+
+	OutCameraLocation = PC->PlayerCameraManager->GetCameraLocation();
+	OutCameraRotation = PC->PlayerCameraManager->GetCameraRotation();
+	return true;
+#endif
+}
+
+// ============= Blueprint Facing Version of GetActorView
+bool UOHCombatUtils::GetActorView(const UObject* ContextObject, FTransform& OutTransform) {
+    return GetActorView_Internal(ContextObject, OutTransform);
+}
+
+// ============ Version Returning a transform and a success flag  =============
+FTransform UOHCombatUtils::GetActorView(const UObject* ContextObject, bool& bSuccess) {
+    // Initialize the success flag to false
+    bSuccess = false;
+
+    // Initialize a default FTransform to return (identity transform on failure)
+    FTransform OutTransform = FTransform();
+
+    // Reference the original implementation
+    bSuccess = GetActorView_Internal(ContextObject, OutTransform);
+    if (!bSuccess) {
+        UE_LOG(LogTemp, Warning, TEXT("GetActorView: Failed to retrieve valid transform for ContextObject."));
+    }
+    return OutTransform;
+}
+
+// ============ Simplementified version of GetActorView  =============
+FTransform UOHCombatUtils::GetActorView(const UObject* ContextObject) {
+    FTransform OutTransform = FTransform();
+    bool bSuccess = GetActorView_Internal(ContextObject, OutTransform);
+    if (!bSuccess) {
+        UE_LOG(LogTemp, Warning, TEXT("GetActorView: Returned fallback identity transform for ContextObject."));
+    }
+    return OutTransform;
+}
+
+// ======================================================================
+// Internal implementation
+// ======================================================================
+bool UOHCombatUtils::GetActorView_Internal(const UObject* ContextObject, FTransform& OutTransform) {
+    // Initialize the out parameter to identity (safe fallback)
+    OutTransform = FTransform();
+
+    // Validate the context and GEngine
     if (!ContextObject || !GEngine) {
+        UE_LOG(LogTemp, Warning, TEXT("GetActorView failed: Invalid ContextObject (%s) or GEngine."),
+               ContextObject ? *ContextObject->GetName() : TEXT("NULL"));
         return false;
     }
 
-    UWorld* World = GEngine->GetWorldFromContextObjectChecked(ContextObject);
-    if (!World || !GEngine->GameViewport) {
+    // Safely retrieve the world from the context object
+    UWorld* World = GEngine->GetWorldFromContextObject(ContextObject, EGetWorldErrorMode::LogAndReturnNull);
+    if (!World) {
+        UE_LOG(LogTemp, Warning, TEXT("GetActorView failed: World retrieval failed for ContextObject (%s)."),
+               *ContextObject->GetName());
         return false;
     }
 
-    ULocalPlayer* LocalPlayer = GEngine->GameViewport->GetGameInstance()->FindLocalPlayerFromControllerId(0);
-    if (!LocalPlayer) {
-        return false;
+    // Special case: Handle LocalPlayers using earlier implementation
+    if (GEngine->GameViewport) {
+        if (ULocalPlayer* LocalPlayer = GEngine->GameViewport->GetGameInstance()->FindLocalPlayerFromControllerId(0)) {
+            APlayerController* PC = LocalPlayer->GetPlayerController(World);
+            if (PC && PC->PlayerCameraManager) {
+                OutTransform = FTransform(PC->PlayerCameraManager->GetCameraRotation(),
+                                          PC->PlayerCameraManager->GetCameraLocation());
+                return true; // Success
+            }
+        }
     }
 
-    APlayerController* PC = LocalPlayer->GetPlayerController(World);
-    if (!PC || !PC->PlayerCameraManager) {
-        return false;
+    // Generalized case: Handle pawns, actors, etc.
+    if (const APawn* Pawn = Cast<APawn>(ContextObject)) {
+        if (const AController* Controller = Pawn->GetController()) {
+            // Handle AI controllers and other non-player controllers
+            if (Cast<AAIController>(Controller)) {
+                OutTransform = FTransform(Pawn->GetActorRotation(), Pawn->GetActorLocation());
+                return true;
+            }
+        }
+
+        // If no controller exists, return the pawn's transform
+        OutTransform = FTransform(Pawn->GetActorRotation(), Pawn->GetActorLocation());
+        return true;
     }
 
-    OutCameraLocation = PC->PlayerCameraManager->GetCameraLocation();
-    OutCameraRotation = PC->PlayerCameraManager->GetCameraRotation();
-    return true;
+    // Context is a generic actor
+    if (const AActor* Actor = Cast<AActor>(ContextObject)) {
+        OutTransform = FTransform(Actor->GetActorRotation(), Actor->GetActorLocation());
+        return true;
+    }
+
+    // No valid view could be determined
+    UE_LOG(LogTemp, Warning, TEXT("GetActorView failed: Unsupported context type for (%s)."),
+           *ContextObject->GetName());
+    return false;
 }
 
 void UOHCombatUtils::DebugDrawActorMovementDirection(const AActor* TargetActor, float Duration, FColor Color) {
@@ -1208,6 +1517,58 @@ float UOHCombatUtils::ComputeContactScore(FVector Velocity, FVector ContactNorma
     return (VelocityScore * 0.5f) + (ForceScore * 0.5f);
 }
 
+float UOHCombatUtils::CalculateStrikeFlushness(const FHitResult& Hit) {
+    // Extract velocity from hit using our hierarchy
+    FVector Velocity = FVector::ZeroVector;
+    float Confidence = 0.0f;
+
+    // Try body instance first
+    if (USkeletalMeshComponent* SkelMesh = Cast<USkeletalMeshComponent>(Hit.GetComponent())) {
+        if (Hit.BoneName != NAME_None) {
+            FBodyInstance* Body = SkelMesh->GetBodyInstance(Hit.BoneName);
+            if (Body && Body->IsValidBodyInstance()) {
+                Velocity = Body->GetUnrealWorldVelocity();
+
+                // Add rotational contribution at impact point
+                FVector COM = Body->GetCOMPosition();
+                FVector Radius = Hit.ImpactPoint - COM;
+                FVector AngularVel = Body->GetUnrealWorldAngularVelocityInRadians();
+                Velocity += FVector::CrossProduct(AngularVel, Radius);
+
+                Confidence = 1.0f;
+            } else if (SkelMesh->IsSimulatingPhysics(Hit.BoneName)) {
+                Velocity = SkelMesh->GetPhysicsLinearVelocity(Hit.BoneName);
+                Confidence = 0.8f;
+            }
+        }
+    }
+
+    // Fallback to penetration-based estimate
+    if (Velocity.IsNearlyZero() && Hit.PenetrationDepth > 0) {
+        Velocity = -Hit.ImpactNormal * (Hit.PenetrationDepth / 0.01f);
+        Confidence = 0.5f;
+    }
+
+    // Fallback to actor velocity
+    if (Velocity.IsNearlyZero() && Hit.GetActor()) {
+        Velocity = Hit.GetActor()->GetVelocity();
+        Confidence = 0.3f;
+    }
+
+    if (Velocity.IsNearlyZero())
+        return 0.0f;
+
+    // Calculate alignment with normal (perpendicular = flush)
+    float Alignment = FMath::Abs(FVector::DotProduct(Velocity.GetSafeNormal(), Hit.ImpactNormal));
+
+    // Factor in penetration depth
+    float PenetrationFactor = FMath::Clamp(Hit.PenetrationDepth / 5.0f, 0.0f, 1.0f);
+
+    // Combine with confidence weighting
+    float Flushness = Alignment * (0.7f + 0.3f * PenetrationFactor) * Confidence;
+
+    return FMath::Clamp(Flushness, 0.0f, 1.0f);
+}
 void UOHCombatUtils::SortContactsByImpactScore_Raw(TArray<FVector>& Velocities, TArray<FVector>& Normals,
                                                    TArray<float>& Forces, TArray<int32>& OutSortedIndices) {
     const int32 Count = Velocities.Num();
@@ -4131,6 +4492,116 @@ bool UOHCombatUtils::PredictiveCapsuleGroundTrace(USkeletalMeshComponent* Mesh, 
         }
     }
     return bHit;
+}
+
+float UOHCombatUtils::CalculateMassRatio(AActor* Attacker, AActor* Target, bool bVerbose) {
+    // Defensive defaults
+    float AttackerMass = 1.0f;
+    float TargetMass = 1.0f;
+
+    // --- Retrieve Attacker Mass ---
+    if (Attacker) {
+        // Prioritize finding a skeletal mesh component
+        USkeletalMeshComponent* AttackerMesh = Attacker->FindComponentByClass<USkeletalMeshComponent>();
+        if (AttackerMesh && AttackerMesh->GetBodyInstance()) {
+            AttackerMass = AttackerMesh->GetBodyInstance()->GetBodyMass();
+        } else if (AttackerMesh) {
+            // If no body instance, use estimated mass
+            AttackerMass = AttackerMesh->CalculateMass();
+        } else {
+            // Try static mesh as fallback
+            UPrimitiveComponent* PrimComp = Attacker->FindComponentByClass<UPrimitiveComponent>();
+            if (PrimComp) {
+                AttackerMass = PrimComp->GetMass();
+            }
+        }
+    }
+
+    // --- Retrieve Target Mass ---
+    if (Target) {
+        USkeletalMeshComponent* TargetMesh = Target->FindComponentByClass<USkeletalMeshComponent>();
+        if (TargetMesh && TargetMesh->GetBodyInstance()) {
+            TargetMass = TargetMesh->GetBodyInstance()->GetBodyMass();
+        } else if (TargetMesh) {
+            TargetMass = TargetMesh->CalculateMass();
+        } else {
+            UPrimitiveComponent* PrimComp = Target->FindComponentByClass<UPrimitiveComponent>();
+            if (PrimComp) {
+                TargetMass = PrimComp->GetMass();
+            }
+        }
+    }
+
+    // --- Validate and Clamp Masses ---
+    if (!FMath::IsFinite(AttackerMass) || AttackerMass <= 0.0f) {
+        if (bVerbose) {
+            UE_LOG(LogTemp, Warning,
+                   TEXT("OHCombatUtils::CalculateMassRatio: Invalid Attacker mass (%.2f), using 1.0f"), AttackerMass);
+        }
+        AttackerMass = 1.0f;
+    }
+    if (!FMath::IsFinite(TargetMass) || TargetMass <= 0.0f) {
+        if (bVerbose) {
+            UE_LOG(LogTemp, Warning, TEXT("OHCombatUtils::CalculateMassRatio: Invalid Target mass (%.2f), using 1.0f"),
+                   TargetMass);
+        }
+        TargetMass = 1.0f;
+    }
+
+    // --- Calculate and Clamp Ratio ---
+    float Ratio = AttackerMass / TargetMass;
+    Ratio = FMath::Clamp(Ratio, 0.01f, 100.0f);
+
+    if (bVerbose) {
+        UE_LOG(LogTemp, Log, TEXT("OHCombatUtils::CalculateMassRatio: AttackerMass=%.2f, TargetMass=%.2f, Ratio=%.2f"),
+               AttackerMass, TargetMass, Ratio);
+    }
+
+    return Ratio;
+}
+
+float UOHCombatUtils::CalculateChainMass(AActor* Actor, const TArray<FName>& BoneNames, bool bAverage, bool bVerbose) {
+    if (!Actor) {
+        if (bVerbose) {
+            UE_LOG(LogTemp, Warning, TEXT("CalculateChainMass: Null actor"));
+        }
+        return 0.0f;
+    }
+
+    USkeletalMeshComponent* Mesh = Actor->FindComponentByClass<USkeletalMeshComponent>();
+    if (!Mesh) {
+        if (bVerbose) {
+            UE_LOG(LogTemp, Warning, TEXT("CalculateChainMass: No SkeletalMeshComponent on %s"), *Actor->GetName());
+        }
+        return 0.0f;
+    }
+
+    float TotalMass = 0.0f;
+    int32 ValidCount = 0;
+
+    for (const FName& BoneName : BoneNames) {
+        FBodyInstance* Body = Mesh->GetBodyInstance(BoneName);
+        if (Body && Body->IsValidBodyInstance()) {
+            float BoneMass = Body->GetBodyMass();
+            TotalMass += BoneMass;
+            ValidCount++;
+        } else if (bVerbose) {
+            UE_LOG(LogTemp, Warning, TEXT("CalculateChainMass: Missing or invalid body for bone %s on %s"),
+                   *BoneName.ToString(), *Actor->GetName());
+        }
+    }
+
+    if (ValidCount == 0) {
+        if (bVerbose) {
+            UE_LOG(LogTemp, Warning, TEXT("CalculateChainMass: No valid bones found on %s"), *Actor->GetName());
+        }
+        return 0.0f;
+    }
+
+    if (bAverage) {
+        return TotalMass / float(ValidCount);
+    }
+    return TotalMass;
 }
 
 AActor* UOHCombatUtils::FindMostLikelyOpponent(const AActor* SelfActor, const FString& ContextualHint) {

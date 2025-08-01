@@ -2,28 +2,115 @@
 #include "FunctionLibrary/OHLocomotionUtils.h"
 
 #include "OHPhysicsStructs.h"
+#include "AIController.h"
+#include "Component/OHMovementComponent.h"
 #include "Component/OHPhysicsManager.h"
+#include "Curves/CurveVector.h"
 #include "FunctionLibrary/OHAlgoUtils.h"
+#include "FunctionLibrary/OHCombatUtils.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
-void UOHLocomotionUtils::ApplyJoystickMovementRelativeToActor(ACharacter* Character, const FVector2D& Input,
-                                                              const FRotator& ActorRotation, float Deadzone) {
-    if (!Character || Input.SizeSquared() < Deadzone * Deadzone)
-        return;
+// Lock-On/Strafe
+FVector UOHLocomotionUtils::CalculateLockOnMovementInputVector(const FVector2D& Input, const ACharacter* Character,
+                                                               const AActor* TargetActor) {
+    if (!Character || !TargetActor)
+        return FVector::ZeroVector;
 
-    FVector Forward = FRotationMatrix(ActorRotation).GetUnitAxis(EAxis::X);
-    FVector Right = FRotationMatrix(ActorRotation).GetUnitAxis(EAxis::Y);
+    FVector ForwardToTarget, RightToTarget;
+    GetLockOnMovementBasis(const_cast<ACharacter*>(Character), const_cast<AActor*>(TargetActor), ForwardToTarget,
+                           RightToTarget);
 
-    Forward.Z = 0.f;
-    Right.Z = 0.f;
-    Forward.Normalize();
-    Right.Normalize();
-
-    FVector MoveDirection = Forward * Input.Y + Right * Input.X;
-    Character->AddMovementInput(MoveDirection);
+    FVector2D Clamped = Input.SizeSquared() > 1.f ? Input.GetSafeNormal() : Input;
+    FVector WorldMove = ForwardToTarget * Clamped.Y + RightToTarget * Clamped.X;
+    if (WorldMove.SizeSquared() > 1.f)
+        WorldMove.Normalize();
+    return WorldMove;
 }
 
+// Momentum/Inertia Blend
+FVector UOHLocomotionUtils::CalculateMomentumBlendedMovementInputVector(const FVector2D& Input,
+                                                                        const FRotator& ControlRotation,
+                                                                        const FVector& Velocity,
+                                                                        float MomentumBlendAlpha) {
+    FVector CameraMove = CalculateMovementInputVector(Input, ControlRotation);
+
+    FVector VelocityDir = Velocity.IsNearlyZero() ? CameraMove : Velocity.GetSafeNormal();
+    float Alpha = FMath::Clamp(MomentumBlendAlpha, 0.f, 1.f);
+
+    FVector FinalMove = BlendDirectionalInput(VelocityDir, CameraMove, Alpha);
+    if (FinalMove.SizeSquared() > 1.f)
+        FinalMove.Normalize();
+    return FinalMove;
+}
+
+FRotator UOHLocomotionUtils::CalculateControlRotation(const AActor* Owner) {
+    // Validate the provided actor
+    if (!IsValid(Owner)) {
+        UE_LOG(LogTemp, Warning, TEXT("CalculateControlRotation: Owner is invalid."));
+        return FRotator::ZeroRotator; // Return zero rotation if the Owner is invalid
+    }
+
+    // Default fallback to the actor's rotation (yaw only)
+    const FRotator FallbackRotation(0.0f, Owner->GetActorRotation().Yaw, 0.0f);
+
+    // Retrieve the view transform using UOHCombatUtils
+    FTransform ViewTransform;
+    if (UOHCombatUtils::GetActorView(Owner, ViewTransform)) {
+        // Extract the rotation from the view transform
+        const FRotator ViewRotation = ViewTransform.GetRotation().Rotator();
+
+        // Return the view's yaw rotation only
+        return FRotator(0.0f, ViewRotation.Yaw, 0.0f);
+    }
+
+    // Return the fallback rotation if unable to retrieve the view rotation
+    return FallbackRotation;
+}
+
+FRotator UOHLocomotionUtils::CalculateControlRotation(const AActor* Owner, bool bIncludePitch /*= false*/) {
+    // Validate the provided actor
+    if (!IsValid(Owner)) {
+        UE_LOG(LogTemp, Warning, TEXT("CalculateControlRotation: Owner is invalid."));
+        return FRotator::ZeroRotator;
+    }
+
+    // Set up fallback rotation
+    const FRotator FallbackRotation = bIncludePitch
+                                          ? Owner->GetActorRotation() // Use the actor's full rotation
+                                          : FRotator(0.0f, Owner->GetActorRotation().Yaw, 0.0f); // Yaw-only rotation
+
+    // Retrieve the actor view transform
+    FTransform ViewTransform;
+    if (UOHCombatUtils::GetActorView(Owner, ViewTransform)) {
+        // Extract the rotation from the view transform
+        const FRotator ViewRotation = ViewTransform.GetRotation().Rotator();
+
+        // Return full view rotation if pitch is included, otherwise yaw-only
+        return bIncludePitch ? ViewRotation : FRotator(0.0f, ViewRotation.Yaw, 0.0f);
+    }
+
+    // Use fallback rotation on failure
+    return FallbackRotation;
+}
+
+FVector UOHLocomotionUtils::BlendDirectionalInput(const FVector& LastDir, const FVector& NewDir, float Responsiveness) {
+    if (LastDir.IsNearlyZero())
+        return NewDir.GetSafeNormal();
+    if (NewDir.IsNearlyZero())
+        return LastDir.GetSafeNormal();
+
+    Responsiveness = FMath::Clamp(Responsiveness, 0.f, 1.f);
+    return FMath::Lerp(LastDir.GetSafeNormal(), NewDir.GetSafeNormal(), Responsiveness).GetSafeNormal();
+}
+
+float UOHLocomotionUtils::CalculateRequiredForce(float TargetSpeed, float CurrentSpeed, float Mass, float DeltaTime) {
+    if (DeltaTime <= 0.f || Mass <= 0.f)
+        return 0.f;
+    float DeltaV = TargetSpeed - CurrentSpeed;
+    float Accel = DeltaV / DeltaTime;
+    return Mass * Accel; // Newton's 2nd law
+}
 void UOHLocomotionUtils::GetLockOnMovementBasis(ACharacter* Character, AActor* LockOnTarget, FVector& ForwardVector,
                                                 FVector& RightVector) {
     ForwardVector = FVector::ZeroVector;
@@ -49,6 +136,199 @@ void UOHLocomotionUtils::GetLockOnMovementBasis(ACharacter* Character, AActor* L
     // Basis vectors in world space
     ForwardVector = FRotationMatrix(FacingRotation).GetUnitAxis(EAxis::X);
     RightVector = FRotationMatrix(FacingRotation).GetUnitAxis(EAxis::Y);
+}
+
+float UOHLocomotionUtils::GetDynamicDeadzone(const TArray<FVector2D>& RecentInputHistory, float MinDeadzone,
+                                             float MaxDeadzone) {
+    if (RecentInputHistory.Num() == 0)
+        return MaxDeadzone;
+
+    float Activity = 0.f;
+    for (const FVector2D& Vec : RecentInputHistory)
+        Activity += Vec.Size();
+
+    Activity /= RecentInputHistory.Num(); // Average magnitude
+
+    // High activity = reduce deadzone, low activity = increase
+    float Alpha = FMath::Clamp(Activity / 0.8f, 0.f, 1.f); // 0.8 = "fully active stick"
+    return FMath::Lerp(MaxDeadzone, MinDeadzone, Alpha);
+}
+
+void UOHLocomotionUtils::ApplyWeightedMovementInput(AActor* Owner, const FVector& MoveVector, const FVector& LastDir,
+                                                    float Weight) {
+    if (!Owner)
+        return;
+    ACharacter* Char = Cast<ACharacter>(Owner);
+    if (!Char)
+        return;
+
+    FVector InputVec = MoveVector.SizeSquared() > 1.f ? MoveVector.GetSafeNormal() : MoveVector;
+    float Scale = 1.f;
+    if (!LastDir.IsNearlyZero()) {
+        float DirDot = FVector::DotProduct(InputVec, LastDir);
+        if (DirDot < 0.5f)
+            Scale = FMath::Lerp(1.f, 0.7f, Weight);
+    }
+    Char->AddMovementInput(InputVec, Scale, false);
+}
+
+FVector UOHLocomotionUtils::CalculateMovementInputVector(const FVector2D& LocalInput, const FRotator& ControlRotation) {
+    // 1. Copy input
+    FVector2D Input = LocalInput;
+
+    // 2. Clamp input vector to prevent diagonal speed boost
+    if (Input.SizeSquared() > 1.0f) {
+        Input.Normalize();
+    }
+
+    // 3. Get the control rotation (camera yaw only)
+    // Passed in as parameter
+
+    // 4. Convert input into world space using camera yaw
+    const FVector Forward = FRotationMatrix(ControlRotation).GetUnitAxis(EAxis::X); // Forward from camera yaw
+    const FVector Right = FRotationMatrix(ControlRotation).GetUnitAxis(EAxis::Y);   // Right from camera yaw
+
+    // 5. Compose world-space movement direction
+    FVector WorldMoveVector = (Forward * Input.X) + (Right * Input.Y);
+
+    // 6. Zero out Z to prevent unintended vertical movement
+    WorldMoveVector.Z = 0.f;
+
+    // 7. Normalize if necessary (important for consistent movement speed)
+    if (WorldMoveVector.SizeSquared() > 1.f) {
+        WorldMoveVector.Normalize();
+    }
+
+    return WorldMoveVector;
+}
+
+FVector UOHLocomotionUtils::CalculateSmoothedMovementInputVector(const FVector2D& RawInput,
+                                                                 const FRotator& ControlRotation, float Deadzone,
+                                                                 float InputSmoothingBlendSpeed,
+                                                                 const FVector2D& PreviousInput) {
+    // 1. Deadzone filter
+    FVector2D Input = (RawInput.Size() < Deadzone) ? FVector2D::ZeroVector : RawInput;
+
+    // 2. Input smoothing (if desired)
+    if (InputSmoothingBlendSpeed > 0.f) {
+        // Assumes called every tick, typical Unreal delta time
+        float DeltaTime = FApp::GetDeltaTime();
+        Input = FMath::Vector2DInterpTo(PreviousInput, Input, DeltaTime, InputSmoothingBlendSpeed);
+    }
+
+    // 3. Clamp to unit circle to prevent diagonal speed boost
+    if (Input.SizeSquared() > 1.0f)
+        Input.Normalize();
+
+    // 4. Transform input by control rotation (yaw only)
+    const FRotator YawRotation(0, ControlRotation.Yaw, 0);
+    const FVector Forward = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+    const FVector Right = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+
+    FVector WorldMove = (Forward * Input.X) + (Right * Input.Y);
+    WorldMove.Z = 0.f;
+
+    // 5. Normalize for consistent movement direction (no diagonal boost)
+    if (WorldMove.SizeSquared() > 1.f)
+        WorldMove.Normalize();
+
+    return WorldMove;
+}
+
+FVector UOHLocomotionUtils::CalculateBlendedMovementInputVector(const FVector2D& Input, const FRotator& CameraRotation,
+                                                                const FRotator& FacingRotation, float FacingBlend) {
+    FacingBlend = FMath::Clamp(FacingBlend, 0.f, 1.f);
+
+    // Interpolate between camera and facing rotation
+    const float Yaw = FMath::Lerp(CameraRotation.Yaw, FacingRotation.Yaw, FacingBlend);
+    const FRotator BlendedRot(0.f, Yaw, 0.f);
+
+    // Transform input
+    const FVector Forward = FRotationMatrix(BlendedRot).GetUnitAxis(EAxis::X);
+    const FVector Right = FRotationMatrix(BlendedRot).GetUnitAxis(EAxis::Y);
+
+    FVector Move = Forward * Input.X + Right * Input.Y;
+    Move.Z = 0.f;
+    if (Move.SizeSquared() > 1.f)
+        Move.Normalize();
+
+    return Move;
+}
+
+FRotator UOHLocomotionUtils::CalculateBlendedHybridFacing(const FRotator& CurrentFacing,
+                                                          const FVector& CharacterLocation,
+                                                          const FVector& TargetLocation, float DeadzoneAngle,
+                                                          float MaxOffsetAngle, float PullStrength,
+                                                          float HardSnapStrength, float DeltaTime) {
+    // Get flat direction to target
+    FVector ToTarget = (TargetLocation - CharacterLocation);
+    ToTarget.Z = 0.f;
+    ToTarget.Normalize();
+
+    // Get forward direction from current facing
+    FVector CurrentForward = CurrentFacing.Vector();
+    CurrentForward.Z = 0.f;
+    CurrentForward.Normalize();
+
+    // Calculate the angle difference (signed, for direction)
+    float AngleToTarget = FMath::RadiansToDegrees(FMath::Atan2(ToTarget.Y, ToTarget.X));
+    float AngleCurrent = FMath::RadiansToDegrees(FMath::Atan2(CurrentForward.Y, CurrentForward.X));
+    float Offset = FMath::FindDeltaAngleDegrees(AngleCurrent, AngleToTarget); // [-180, 180]
+
+    float AbsOffset = FMath::Abs(Offset);
+
+    FRotator DesiredFacing = FRotator(0.f, AngleToTarget, 0.f);
+
+    if (AbsOffset < DeadzoneAngle) {
+        // 1. Within deadzone: do nothing, keep current facing
+        return CurrentFacing;
+    } else if (AbsOffset < MaxOffsetAngle) {
+        // 2. In blend zone: interpolate back toward target, strength based on offset
+        float BlendAlpha = (AbsOffset - DeadzoneAngle) / (MaxOffsetAngle - DeadzoneAngle); // 0..1
+        float BlendRate = FMath::Lerp(PullStrength, HardSnapStrength, BlendAlpha);
+
+        // Smooth interpolation
+        return FMath::RInterpTo(CurrentFacing, DesiredFacing, DeltaTime, BlendRate);
+    } else {
+        // 3. Outside max: snap more aggressively toward target
+        return FMath::RInterpTo(CurrentFacing, DesiredFacing, DeltaTime, HardSnapStrength);
+    }
+}
+
+float UOHLocomotionUtils::SampleGaitCurve(UCurveVector* Curve, float Input, EOHGait Gait, float SpeedFactor) {
+    if (!Curve)
+        return 0.f;
+    FVector Val = Curve->GetVectorValue(Input);
+    switch (Gait) {
+    case EOHGait::Walking:
+        return Val.X * SpeedFactor;
+    case EOHGait::Running:
+        return Val.Y * SpeedFactor;
+    case EOHGait::Sprinting:
+        return Val.Z * SpeedFactor;
+    }
+    return 0.f;
+}
+
+float UOHLocomotionUtils::SampleFloatCurve(UCurveFloat* Curve, float Input, float DefaultValue) {
+    return Curve ? Curve->GetFloatValue(Input) : DefaultValue;
+}
+
+void UOHLocomotionUtils::ApplyJoystickMovementRelativeToActor(ACharacter* Character, const FVector2D& Input,
+                                                              const FRotator& ActorRotation, float Deadzone) {
+    if (!Character || Input.SizeSquared() < Deadzone * Deadzone)
+        return;
+
+    FVector Forward = FRotationMatrix(ActorRotation).GetUnitAxis(EAxis::X);
+    FVector Right = FRotationMatrix(ActorRotation).GetUnitAxis(EAxis::Y);
+
+    Forward.Z = 0.f;
+    Right.Z = 0.f;
+    Forward.Normalize();
+    Right.Normalize();
+
+    FVector MoveDirection = Forward * Input.Y + Right * Input.X;
+    Character->AddMovementInput(MoveDirection);
 }
 
 float UOHLocomotionUtils::ComputeSmoothedQuadrantMovementAngle(const FVector& Velocity, const FRotator& FacingRotation,

@@ -10,8 +10,470 @@
 #include "FunctionLibrary/OHAlgoUtils.h"
 #include "Kismet/KismetMathLibrary.h"
 
+// Helper types and static maps are private to this CPP:
+namespace {
+// ---------- Universal History Structs ----------
+struct FBoneSample {
+    FVector Position;
+    float Time;
+};
+
+struct FBoneVelocitySample {
+    FVector Velocity;
+    float Time;
+};
+
+struct FBoneAccelSample {
+    FVector Acceleration;
+    float Time;
+};
+
+// Key for per-bone, per-component history (GC-safe!)
+struct FBoneHistoryKey {
+    TWeakObjectPtr<const USkeletalMeshComponent> SkelComp;
+    FName BoneName;
+    FBoneHistoryKey(const USkeletalMeshComponent* InComp, FName InBone) : SkelComp(InComp), BoneName(InBone) {}
+    bool operator==(const FBoneHistoryKey& Other) const {
+        return SkelComp == Other.SkelComp && BoneName == Other.BoneName;
+    }
+    friend uint32 GetTypeHash(const FBoneHistoryKey& Key) {
+        return HashCombine(GetTypeHash(Key.SkelComp), GetTypeHash(Key.BoneName));
+    }
+};
+
+// ---------- History Maps ----------
+static TMap<FBoneHistoryKey, TArray<FBoneSample>> BoneHistoryMap;                 // Positions (for velocity/accel)
+static TMap<FBoneHistoryKey, TArray<FBoneVelocitySample>> BoneVelocityHistoryMap; // Velocities (for acceleration/jerk)
+static TMap<FBoneHistoryKey, TArray<FBoneAccelSample>> BoneAccelHistoryMap;       // Accelerations (for jerk)
+static TMap<FBoneHistoryKey, FBoneSample> BonePrevSampleMap;                      // Single-frame: position
+static TMap<FBoneHistoryKey, FBoneVelocitySample> BonePrevVelSampleMap;           // Single-frame: velocity
+
+// Helper to update and cull history, returns newest/oldest samples if available
+// --- Inline Helper for History-Aware Version ---
+// ---------- Helper Functions ----------
+
+// Position history helper for velocity (reused for velocity, accel)
+inline bool UpdateBoneHistory(const USkeletalMeshComponent* SkelComp, FName BoneName, float Now, float HistorySeconds,
+                              FVector& OutVelocity) {
+    FBoneHistoryKey Key(SkelComp, BoneName);
+    FVector Pos = SkelComp->GetBoneLocation(BoneName);
+    TArray<FBoneSample>& History = BoneHistoryMap.FindOrAdd(Key);
+    History.Add({Pos, Now});
+
+    for (int32 i = 0; i < History.Num(); ++i)
+        if (Now - History[i].Time > HistorySeconds)
+            History.RemoveAt(i--);
+
+    if (History.Num() < 2) {
+        OutVelocity = FVector::ZeroVector;
+        return false;
+    }
+    const FBoneSample& Oldest = History[0];
+    const FBoneSample& Newest = History.Last();
+    const float DeltaTime = FMath::Max(Newest.Time - Oldest.Time, KINDA_SMALL_NUMBER);
+    OutVelocity = (Newest.Position - Oldest.Position) / DeltaTime;
+    return true;
+}
+
+// Velocity history helper for acceleration (reused for accel, jerk)
+inline bool UpdateBoneVelocityHistory(const USkeletalMeshComponent* SkelComp, FName BoneName, FVector Velocity,
+                                      float Now, float HistorySeconds) {
+    FBoneHistoryKey Key(SkelComp, BoneName);
+    TArray<FBoneVelocitySample>& History = BoneVelocityHistoryMap.FindOrAdd(Key);
+    History.Add({Velocity, Now});
+
+    for (int32 i = 0; i < History.Num(); ++i)
+        if (Now - History[i].Time > HistorySeconds)
+            History.RemoveAt(i--);
+
+    return History.Num() >= 2;
+}
+
+inline bool UpdateBoneAccelHistory(const USkeletalMeshComponent* SkelComp, FName BoneName, FVector Acceleration,
+                                   float Now, float HistorySeconds) {
+    FBoneHistoryKey Key(SkelComp, BoneName);
+    TArray<FBoneAccelSample>& History = BoneAccelHistoryMap.FindOrAdd(Key);
+    History.Add({Acceleration, Now});
+
+    for (int32 i = 0; i < History.Num(); ++i)
+        if (Now - History[i].Time > HistorySeconds)
+            History.RemoveAt(i--);
+
+    return History.Num() >= 2;
+}
+
+// --- Helper: Compute averaged velocity over history window (for acceleration) ---
+inline bool GetAveragedVelocity(const USkeletalMeshComponent* SkelComp, FName BoneName, float Now, float HistorySeconds,
+                                FVector& OutVelocity) {
+    FBoneHistoryKey Key(SkelComp, BoneName);
+    FVector Pos = SkelComp->GetBoneLocation(BoneName);
+    TArray<FBoneSample>& History = BoneHistoryMap.FindOrAdd(Key);
+    History.Add({Pos, Now});
+
+    // Cull old
+    for (int32 i = 0; i < History.Num(); ++i) {
+        if (Now - History[i].Time > HistorySeconds)
+            History.RemoveAt(i--);
+    }
+    if (History.Num() < 2) {
+        OutVelocity = FVector::ZeroVector;
+        return false;
+    }
+    const FBoneSample& Oldest = History[0];
+    const FBoneSample& Newest = History.Last();
+    const float DeltaTime = FMath::Max(Newest.Time - Oldest.Time, KINDA_SMALL_NUMBER);
+    OutVelocity = (Newest.Position - Oldest.Position) / DeltaTime;
+    return true;
+}
+
+inline bool GetSmoothedAcceleration(const USkeletalMeshComponent* SkelComp, FName BoneName, float Now,
+                                    float HistorySeconds, FVector& OutAcceleration) {
+    FBoneHistoryKey Key(SkelComp, BoneName);
+    const TArray<FBoneVelocitySample>* HistoryPtr = BoneVelocityHistoryMap.Find(Key);
+    if (!HistoryPtr || HistoryPtr->Num() < 2) {
+        OutAcceleration = FVector::ZeroVector;
+        return false;
+    }
+
+    const auto& History = *HistoryPtr;
+    const FBoneVelocitySample& Oldest = History[0];
+    const FBoneVelocitySample& Newest = History.Last();
+    const float DeltaTime = FMath::Max(Newest.Time - Oldest.Time, KINDA_SMALL_NUMBER);
+    OutAcceleration = (Newest.Velocity - Oldest.Velocity) / DeltaTime;
+    return true;
+}
+
+inline bool GetSmoothedJerk(const USkeletalMeshComponent* SkelComp, FName BoneName, float Now, float HistorySeconds,
+                            FVector& OutJerk) {
+    FBoneHistoryKey Key(SkelComp, BoneName);
+    const TArray<FBoneAccelSample>* HistoryPtr = BoneAccelHistoryMap.Find(Key);
+    if (!HistoryPtr || HistoryPtr->Num() < 2) {
+        OutJerk = FVector::ZeroVector;
+        return false;
+    }
+
+    const auto& History = *HistoryPtr;
+    const FBoneAccelSample& Oldest = History[0];
+    const FBoneAccelSample& Newest = History.Last();
+    const float DeltaTime = FMath::Max(Newest.Time - Oldest.Time, KINDA_SMALL_NUMBER);
+    OutJerk = (Newest.Acceleration - Oldest.Acceleration) / DeltaTime;
+    return true;
+}
+
+} // namespace
+
+// ------- End of anonymous namespace --------
+
 // OHSkeletalPhysicsUtils.cpp
 #pragma region BoneResolution
+
+bool UOHSkeletalPhysicsUtils::ValidateAndSuggestMannequinSkeletonSetup(const USkeletalMeshComponent* Mesh,
+                                                                       const TArray<FName>& TrackedBones,
+                                                                       const TArray<FName>& ExcludedBones,
+                                                                       bool bAutoLog) {
+    bool bSuccess = true;
+    if (!Mesh || !Mesh->GetSkeletalMeshAsset()) {
+        if (bAutoLog)
+            UE_LOG(LogTemp, Error, TEXT("SkeletalMeshComponent or SkeletalMeshAsset is null!"));
+        return false;
+    }
+
+    const FReferenceSkeleton& RefSkel = Mesh->GetSkeletalMeshAsset()->GetRefSkeleton();
+    TSet<FName> BoneNamesInMesh;
+    for (int32 i = 0; i < RefSkel.GetNum(); ++i)
+        BoneNamesInMesh.Add(RefSkel.GetBoneName(i));
+
+    // Your design: required tracked and excluded bones
+    TArray<FName> MustHaveTracked = {TEXT("pelvis"),     TEXT("spine_01"), TEXT("spine_02"),   TEXT("spine_03"),
+                                     TEXT("neck_01"),    TEXT("head"),     TEXT("clavicle_l"), TEXT("upperarm_l"),
+                                     TEXT("lowerarm_l"), TEXT("hand_l"),   TEXT("clavicle_r"), TEXT("upperarm_r"),
+                                     TEXT("lowerarm_r"), TEXT("hand_r"),   TEXT("thigh_l"),    TEXT("thigh_r"),
+                                     TEXT("calf_l"),     TEXT("calf_r"),   TEXT("foot_l"),     TEXT("foot_r")};
+    TArray<FName> MustHaveExcluded = {TEXT("root"), TEXT("ball_l"), TEXT("ball_r")};
+
+    // Check must-have tracked bones
+    for (const FName& Bone : MustHaveTracked) {
+        if (!BoneNamesInMesh.Contains(Bone)) {
+            if (bAutoLog)
+                UE_LOG(LogTemp, Error, TEXT("Required tracked bone '%s' is missing from skeleton!"), *Bone.ToString());
+            bSuccess = false;
+        }
+        if (!TrackedBones.Contains(Bone)) {
+            if (bAutoLog)
+                UE_LOG(LogTemp, Warning, TEXT("Required tracked bone '%s' is missing from TrackedBones array!"),
+                       *Bone.ToString());
+            bSuccess = false;
+        }
+    }
+
+    // Check must-have excluded bones
+    for (const FName& Bone : MustHaveExcluded) {
+        if (!BoneNamesInMesh.Contains(Bone)) {
+            if (bAutoLog)
+                UE_LOG(LogTemp, Error, TEXT("Required excluded bone '%s' is missing from skeleton!"), *Bone.ToString());
+            bSuccess = false;
+        }
+        if (!ExcludedBones.Contains(Bone)) {
+            if (bAutoLog)
+                UE_LOG(LogTemp, Warning, TEXT("Required excluded bone '%s' is missing from ExcludedBones array!"),
+                       *Bone.ToString());
+            bSuccess = false;
+        }
+    }
+
+    // Duplicates
+    TSet<FName> TrackedSet(TrackedBones);
+    TSet<FName> ExcludedSet(ExcludedBones);
+    for (const FName& Bone : TrackedSet) {
+        if (ExcludedSet.Contains(Bone)) {
+            if (bAutoLog)
+                UE_LOG(LogTemp, Error, TEXT("Bone '%s' is both tracked and excluded!"), *Bone.ToString());
+            bSuccess = false;
+        }
+    }
+
+    // Orphaned tracked bones
+    for (const FName& Bone : TrackedBones) {
+        int32 BoneIdx = RefSkel.FindBoneIndex(Bone);
+        int32 ParentIdx = RefSkel.GetParentIndex(BoneIdx);
+        if (ParentIdx != INDEX_NONE) {
+            FName ParentName = RefSkel.GetBoneName(ParentIdx);
+            if (!TrackedSet.Contains(ParentName) && !ExcludedSet.Contains(ParentName)) {
+                if (bAutoLog)
+                    UE_LOG(LogTemp, Warning, TEXT("Tracked bone '%s' has parent '%s' not tracked or excluded."),
+                           *Bone.ToString(), *ParentName.ToString());
+            }
+        }
+    }
+
+    // Final report
+    if (bSuccess) {
+        if (bAutoLog)
+            UE_LOG(LogTemp, Display, TEXT("Skeleton validation PASSED for %s"), *Mesh->GetName());
+    } else {
+        if (bAutoLog)
+            UE_LOG(LogTemp, Error, TEXT("Skeleton validation FAILED for %s (see above)."), *Mesh->GetName());
+    }
+
+    return bSuccess;
+}
+
+FName UOHSkeletalPhysicsUtils::ResolveBoneNameSmart(const FName& Input, const USkeletalMeshComponent* SkelComp,
+                                                    float ScoreThreshold) {
+    if (!SkelComp || !SkelComp->GetSkeletalMeshAsset())
+        return NAME_None;
+    const FReferenceSkeleton& RefSkel = SkelComp->GetSkeletalMeshAsset()->GetRefSkeleton();
+
+    // Exact match first
+    for (int32 i = 0; i < RefSkel.GetNum(); ++i) {
+        if (RefSkel.GetBoneName(i).IsEqual(Input, ENameCase::IgnoreCase))
+            return RefSkel.GetBoneName(i);
+    }
+
+    // Fuzzy match: use score threshold (very basic - could use Levenshtein, but for now, substring)
+    FString QueryStr = Input.ToString().ToLower();
+    float BestScore = 0.f;
+    FName BestMatch = NAME_None;
+
+    for (int32 i = 0; i < RefSkel.GetNum(); ++i) {
+        FString Candidate = RefSkel.GetBoneName(i).ToString().ToLower();
+        if (Candidate.Contains(QueryStr)) {
+            float Score = static_cast<float>(QueryStr.Len()) / static_cast<float>(Candidate.Len());
+            if (Score > BestScore && Score >= ScoreThreshold) {
+                BestScore = Score;
+                BestMatch = RefSkel.GetBoneName(i);
+            }
+        }
+    }
+    return BestMatch;
+}
+
+FName UOHSkeletalPhysicsUtils::GetBestMatchingBone(const FString& Query, const USkeletalMeshComponent* SkelComp,
+                                                   float& OutScore, FString& OutAlgorithm, float ScoreThreshold) {
+    FName QueryName(*Query); // Convert FString to FName for type-matching
+    FName Result = GetBestMatchingBone(QueryName, SkelComp, OutScore, ScoreThreshold);
+
+    // If you want to expose the algorithm used:
+    if (!SkelComp || !SkelComp->GetSkeletalMeshAsset()) {
+        OutAlgorithm = TEXT("None");
+        return NAME_None;
+    }
+    const FReferenceSkeleton& RefSkel = SkelComp->GetSkeletalMeshAsset()->GetRefSkeleton();
+    TArray<FName> BoneNames;
+    for (int32 i = 0; i < RefSkel.GetNum(); ++i)
+        BoneNames.Add(RefSkel.GetBoneName(i));
+    FOHNameMatchResult Match = UOHAlgoUtils::FindBestNameMatchAutoStrategy(QueryName, BoneNames);
+
+    OutAlgorithm = Match.AlgorithmUsed;
+    return Result;
+}
+
+FName UOHSkeletalPhysicsUtils::GetBestMatchingBone(const FName& Query, const USkeletalMeshComponent* SkelComp,
+                                                   float& OutScore, float ScoreThreshold) {
+    OutScore = 0.f;
+    if (!SkelComp || !SkelComp->GetSkeletalMeshAsset())
+        return NAME_None;
+    const FReferenceSkeleton& RefSkel = SkelComp->GetSkeletalMeshAsset()->GetRefSkeleton();
+
+    TArray<FName> BoneNames;
+    for (int32 i = 0; i < RefSkel.GetNum(); ++i)
+        BoneNames.Add(RefSkel.GetBoneName(i));
+
+    FOHNameMatchResult Match = UOHAlgoUtils::FindBestNameMatchAutoStrategy(Query, BoneNames);
+
+    OutScore = Match.Score;
+    return (Match.Score >= ScoreThreshold) ? FName(Match.Candidate) : NAME_None;
+}
+
+void UOHSkeletalPhysicsUtils::FindAllBonesMatching(const FString& Query, const USkeletalMeshComponent* SkelComp,
+                                                   TArray<FName>& OutBones, TArray<float>& OutScores,
+                                                   TArray<FString>& OutAlgorithms, float ScoreThreshold) {
+    OutBones.Empty();
+    OutScores.Empty();
+    OutAlgorithms.Empty();
+
+    if (!SkelComp || !SkelComp->GetSkeletalMeshAsset())
+        return;
+
+    const FReferenceSkeleton& RefSkel = SkelComp->GetSkeletalMeshAsset()->GetRefSkeleton();
+    TArray<FName> BoneNames;
+    TArray<FString> BoneNameStrings;
+    for (int32 i = 0; i < RefSkel.GetNum(); ++i) {
+        const FName Bone = RefSkel.GetBoneName(i);
+        BoneNames.Add(Bone);
+        BoneNameStrings.Add(Bone.ToString());
+    }
+
+    EOHNameMatchingStrategy Strategy = UOHAlgoUtils::DetermineBestMatchingStrategy(Query, BoneNameStrings);
+    TArray<FOHNameMatchResult> Scored = UOHAlgoUtils::ScoreMatchesAgainstCandidates(Query, BoneNameStrings, Strategy);
+
+    for (int32 i = 0; i < Scored.Num(); ++i) {
+        if (Scored[i].Score >= ScoreThreshold) {
+            for (int32 j = 0; j < BoneNameStrings.Num(); ++j) {
+                if (BoneNameStrings[j].Equals(Scored[i].Candidate, ESearchCase::IgnoreCase)) {
+                    OutBones.Add(BoneNames[j]);
+                    OutScores.Add(Scored[i].Score);
+                    OutAlgorithms.Add(Scored[i].AlgorithmUsed);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+TArray<FName> UOHSkeletalPhysicsUtils::FindAllBonesMatching(const FString& Query,
+                                                            const USkeletalMeshComponent* SkelComp,
+                                                            float ScoreThreshold) {
+    TArray<FName> OutBones;
+    TArray<float> OutScores;
+    TArray<FString> OutAlgorithms;
+    FindAllBonesMatching(Query, SkelComp, OutBones, OutScores, OutAlgorithms, ScoreThreshold);
+    return OutBones;
+}
+
+void UOHSkeletalPhysicsUtils::ResolveImpactBoneRedirect(const USkeletalMeshComponent* SkelComp, const FName& HitBone,
+                                                        FName& OutRedirectedBone, float& OutRedirectFraction,
+                                                        const TMap<FName, TPair<FName, float>>& RedirectMap) {
+    OutRedirectedBone = HitBone;
+    OutRedirectFraction = 0.f;
+
+    // Check for explicit map rule
+    if (const TPair<FName, float>* Redirect = RedirectMap.Find(HitBone)) {
+        OutRedirectedBone = Redirect->Key;
+        OutRedirectFraction = Redirect->Value;
+        return;
+    }
+
+    // Else: climb chain to next 'major' bone (fallback)
+    static const TArray<FName> FallbackMajorBones = {"spine_03",   "spine_02",   "spine_01",   "pelvis",  "clavicle_l",
+                                                     "clavicle_r", "upperarm_l", "upperarm_r", "neck_01", "head"};
+    TArray<FName> Chain = GetBoneChainToRoot(SkelComp, HitBone);
+    for (const FName& BoneInChain : Chain) {
+        if (BoneInChain == HitBone)
+            continue;
+        if (FallbackMajorBones.Contains(BoneInChain)) {
+            OutRedirectedBone = BoneInChain;
+            OutRedirectFraction = 0.7f; // Fallback uses default 70%
+            return;
+        }
+    }
+}
+
+const TMap<FName, TPair<FName, float>>& UOHSkeletalPhysicsUtils::GetDefaultRedirectMap() {
+    static const TMap<FName, TPair<FName, float>> Map = {
+        // Hands: 80% to chest, 20% to hand
+        {"hand_l", TPair<FName, float>("spine_03", 0.8f)},
+        {"hand_r", TPair<FName, float>("spine_03", 0.8f)},
+        // Lower arms: 50% to upperarm
+        {"lowerarm_l", TPair<FName, float>("upperarm_l", 0.5f)},
+        {"lowerarm_r", TPair<FName, float>("upperarm_r", 0.5f)},
+        // Upper arms: 70% to chest
+        {"upperarm_l", TPair<FName, float>("spine_03", 0.7f)},
+        {"upperarm_r", TPair<FName, float>("spine_03", 0.7f)},
+        // Feet: 60% to pelvis, for example
+        {"foot_l", TPair<FName, float>("pelvis", 0.6f)},
+        {"foot_r", TPair<FName, float>("pelvis", 0.6f)}
+        // Extend as needed!
+    };
+    return Map;
+}
+
+TArray<FName> UOHSkeletalPhysicsUtils::GetBoneChainToRoot(const USkeletalMeshComponent* SkelComp, FName StartBone,
+                                                          FName StopAtBone) {
+    TArray<FName> Chain;
+    if (!SkelComp || !SkelComp->GetSkeletalMeshAsset())
+        return Chain;
+    const FReferenceSkeleton& RefSkel = SkelComp->GetSkeletalMeshAsset()->GetRefSkeleton();
+
+    int32 BoneIdx = RefSkel.FindBoneIndex(StartBone);
+    while (BoneIdx != INDEX_NONE) {
+        FName ThisBone = RefSkel.GetBoneName(BoneIdx);
+        Chain.Add(ThisBone);
+
+        if (ThisBone == StopAtBone)
+            break;
+
+        BoneIdx = RefSkel.GetParentIndex(BoneIdx);
+    }
+    return Chain;
+}
+
+FName UOHSkeletalPhysicsUtils::GetPrimaryBoneNameForBodyPart(const FString& BodyPart,
+                                                             const USkeletalMeshComponent* SkelComp) {
+    // Use canonical Mannequin names
+    static TMap<FString, FName> BodyPartToBone = {
+        {TEXT("Chest"), TEXT("spine_03")},      {TEXT("Spine"), TEXT("spine_01")},
+        {TEXT("Pelvis"), TEXT("pelvis")},       {TEXT("Head"), TEXT("neck_01")},
+        {TEXT("Left Arm"), TEXT("clavicle_l")}, {TEXT("RightArm"), TEXT("clavicle_r")},
+        {TEXT("Left Leg"), TEXT("thigh_l")},    {TEXT("Right Leg"), TEXT("thigh_r")},
+        {TEXT("Left Hand"), TEXT("hand_l")},    {TEXT("Right Hand"), TEXT("hand_r")},
+        {TEXT("Left Foot"), TEXT("foot_l")},    {TEXT("Right Foot"), TEXT("foot_r")},
+
+    };
+    if (const FName* Found = BodyPartToBone.Find(BodyPart.ToLower()))
+        return ResolveBoneNameSmart(*Found, SkelComp);
+    return NAME_None;
+}
+
+int32 UOHSkeletalPhysicsUtils::CompareBoneDepth(const USkeletalMeshComponent* SkelComp, FName A, FName B) {
+    auto ChainA = GetBoneChainToRoot(SkelComp, A);
+    auto ChainB = GetBoneChainToRoot(SkelComp, B);
+    if (ChainA.Num() == ChainB.Num())
+        return 0;
+    return ChainA.Num() > ChainB.Num() ? -1 : 1;
+}
+
+FName UOHSkeletalPhysicsUtils::GetParentBone(const USkeletalMeshComponent* SkelComp, FName Bone) {
+    if (!SkelComp || !SkelComp->GetSkeletalMeshAsset())
+        return NAME_None;
+    const FReferenceSkeleton& RefSkel = SkelComp->GetSkeletalMeshAsset()->GetRefSkeleton();
+    int32 BoneIdx = RefSkel.FindBoneIndex(Bone);
+    if (BoneIdx == INDEX_NONE)
+        return NAME_None;
+    int32 ParentIdx = RefSkel.GetParentIndex(BoneIdx);
+    return (ParentIdx != INDEX_NONE) ? RefSkel.GetBoneName(ParentIdx) : NAME_None;
+}
+
 FName UOHSkeletalPhysicsUtils::ResolveBoneNameFromSkeletalBone(EOHSkeletalBone Bone,
                                                                const USkeletalMeshComponent* SkelComp) {
     if (!SkelComp || !SkelComp->GetSkeletalMeshAsset()) {
@@ -211,265 +673,20 @@ FOHResolvedBoneData UOHSkeletalPhysicsUtils::ResolveResolvedDataFromSkeletalBone
     return Result;
 }
 
-#pragma endregion
+TArray<FName> UOHSkeletalPhysicsUtils::GetBonesInChain(EOHSkeletalBone Bone) {
+    TArray<FName> BoneNames;
 
-#pragma region Enums
-
-EOHBodyZone UOHSkeletalPhysicsUtils::GetBodyZoneFromBone(EOHSkeletalBone Bone) {
-    if (const EOHBodyZone* Found = OHSkeletalMappings::BoneToZoneMap.Find(Bone)) {
-        return *Found;
-    }
-    return EOHBodyZone::None;
-}
-
-EOHBodyPart UOHSkeletalPhysicsUtils::GetBodyPartFromBone(EOHSkeletalBone Bone) {
-    if (const EOHBodyPart* Found = OHSkeletalMappings::BoneToBodyPartMap.Find(Bone)) {
-        return *Found;
-    }
-    return EOHBodyPart::None;
-}
-
-EOHFunctionalBoneGroup UOHSkeletalPhysicsUtils::GetFunctionalGroupFromBone(EOHSkeletalBone Bone) {
-    if (const EOHFunctionalBoneGroup* Found = OHSkeletalMappings::BoneToFunctionalGroupMap.Find(Bone)) {
-        return *Found;
-    }
-    return EOHFunctionalBoneGroup::None;
-}
-
-TArray<FName> UOHSkeletalPhysicsUtils::GetPrimaryBoneNamesFromBodyPart(EOHBodyPart BodyPart) {
-    TArray<FName> Result;
-
-    if (const TArray<EOHSkeletalBone>* Bones = OHSkeletalMappings::BodyPartToPrimaryBonesMap.Find(BodyPart)) {
-        for (EOHSkeletalBone Bone : *Bones) {
-            if (const FName* Name = OHSkeletalMappings::PrimaryBoneToFNameMap.Find(Bone)) {
-                Result.Add(*Name);
-            }
+    // Reuse the existing lineage function to walk up to the “None” root.
+    TArray<EOHSkeletalBone> Lineage = GetBoneLineageToRoot(Bone);
+    for (EOHSkeletalBone EnumBone : Lineage) {
+        // Convert the enum to its FName (lowercase, matching your skeleton naming)
+        FName Name = ::GetBoneNameFromEnum(EnumBone);
+        if (Name != NAME_None) {
+            BoneNames.Add(Name);
         }
     }
 
-    return Result;
-}
-
-EOHSkeletalBone UOHSkeletalPhysicsUtils::ResolveSkeletalBoneFromNameSmart(const FName& Input,
-                                                                          const USkeletalMeshComponent* SkelComp,
-                                                                          float ScoreThreshold) {
-    TArray<FName> AllBoneNames;
-    OHSkeletalMappings::SkeletalBoneToFNameMap.GenerateValueArray(AllBoneNames);
-
-    FOHNameMatchResult Match = UOHAlgoUtils::FindBestNameMatchAutoStrategy(Input, AllBoneNames);
-    if (Match.Score >= ScoreThreshold) {
-        const FName MatchedName(*Match.Candidate);
-        for (const TPair<EOHSkeletalBone, FName>& Pair : OHSkeletalMappings::SkeletalBoneToFNameMap) {
-            if (Pair.Value == MatchedName) {
-                return Pair.Key;
-            }
-        }
-    }
-    return EOHSkeletalBone::None;
-}
-#pragma endregion
-
-bool UOHSkeletalPhysicsUtils::GetBoneCollisionShape(UPhysicsAsset* PhysAsset, FName BoneName,
-                                                    FTransform& OutBoneTransform, FCollisionShape& OutShape) {
-    if (!PhysAsset)
-        return false;
-
-    const int32 BodyIndex = PhysAsset->FindBodyIndex(BoneName);
-    if (BodyIndex == INDEX_NONE)
-        return false;
-
-    const USkeletalBodySetup* BodySetup = PhysAsset->SkeletalBodySetups[BodyIndex];
-    if (!BodySetup || BodySetup->AggGeom.GetElementCount() == 0)
-        return false;
-
-    const FKSphylElem* Capsule = BodySetup->AggGeom.SphylElems.Num() > 0 ? &BodySetup->AggGeom.SphylElems[0] : nullptr;
-
-    if (Capsule) {
-        OutBoneTransform = Capsule->GetTransform();
-        OutShape = FCollisionShape::MakeCapsule(Capsule->Radius, Capsule->Length * 0.5f);
-        return true;
-    }
-
-    const FKSphereElem* Sphere =
-        BodySetup->AggGeom.SphereElems.Num() > 0 ? &BodySetup->AggGeom.SphereElems[0] : nullptr;
-
-    if (Sphere) {
-        OutBoneTransform = Sphere->GetTransform();
-        OutShape = FCollisionShape::MakeSphere(Sphere->Radius);
-        return true;
-    }
-
-    return false;
-}
-
-bool TryGetBoneReferenceFromEnum_Internal(EOHSkeletalBone BoneEnum, const FBoneContainer& BoneContainer,
-                                          FBoneReference& OutRef) {
-    if (BoneEnum == EOHSkeletalBone::None) {
-        return false;
-    }
-
-    const FName BoneName = GetBoneNameFromEnum(BoneEnum);
-    const int32 PoseIndex = BoneContainer.GetPoseBoneIndexForBoneName(BoneName);
-    if (PoseIndex == INDEX_NONE) {
-        return false;
-    }
-
-    OutRef.BoneName = BoneName;
-    OutRef.Initialize(BoneContainer);
-    return OutRef.IsValidToEvaluate(BoneContainer);
-}
-
-bool UOHSkeletalPhysicsUtils::TryGetPoseIndex(EOHSkeletalBone Bone,
-                                              const TMap<EOHSkeletalBone, FCompactPoseBoneIndex>& Indices,
-                                              FCompactPoseBoneIndex& OutIndex) {
-    if (const FCompactPoseBoneIndex* Found = Indices.Find(Bone)) {
-        OutIndex = *Found;
-        return true;
-    }
-    OutIndex = FCompactPoseBoneIndex(INDEX_NONE);
-    return false;
-}
-
-TArray<FConstraintInstance*> UOHSkeletalPhysicsUtils::GetAllParentConstraints(USkeletalMeshComponent* SkelMesh,
-                                                                              FName BoneName) {
-    TArray<FConstraintInstance*> Result;
-    if (!SkelMesh)
-        return Result;
-    UPhysicsAsset* PhysAsset = SkelMesh->GetPhysicsAsset();
-    if (!PhysAsset)
-        return Result;
-
-    const FReferenceSkeleton& RefSkel = SkelMesh->GetSkeletalMeshAsset()->GetRefSkeleton();
-    int32 MyIdx = SkelMesh->GetBoneIndex(BoneName);
-
-    while (MyIdx != INDEX_NONE) {
-        int32 ParentIdx = RefSkel.GetParentIndex(MyIdx);
-        if (ParentIdx == INDEX_NONE)
-            break;
-        FName ParentName = RefSkel.GetBoneName(ParentIdx);
-        FName ThisName = RefSkel.GetBoneName(MyIdx);
-
-        for (UPhysicsConstraintTemplate* ConstraintTemplate : PhysAsset->ConstraintSetup) {
-            if (!ConstraintTemplate)
-                continue;
-            FConstraintInstance* CI = const_cast<FConstraintInstance*>(&ConstraintTemplate->DefaultInstance);
-            if ((CI->ConstraintBone1 == ParentName && CI->ConstraintBone2 == ThisName) ||
-                (CI->ConstraintBone1 == ThisName && CI->ConstraintBone2 == ParentName)) {
-                Result.Add(CI);
-                break;
-            }
-        }
-        MyIdx = ParentIdx;
-    }
-    return Result;
-}
-
-TArray<FName> UOHSkeletalPhysicsUtils::GetAllParentBoneNames(USkeletalMeshComponent* SkelMesh, FName BoneName) {
-    TArray<FName> OutNames;
-    if (!SkelMesh)
-        return OutNames;
-    const FReferenceSkeleton& RefSkel = SkelMesh->GetSkeletalMeshAsset()->GetRefSkeleton();
-    int32 MyIdx = SkelMesh->GetBoneIndex(BoneName);
-    while (true) {
-        int32 ParentIdx = RefSkel.GetParentIndex(MyIdx);
-        if (ParentIdx == INDEX_NONE)
-            break;
-        OutNames.Add(RefSkel.GetBoneName(ParentIdx));
-        MyIdx = ParentIdx;
-    }
-    return OutNames;
-}
-
-float UOHSkeletalPhysicsUtils::ComputeBoneLength(const USkeletalMeshComponent* SkeletalMesh, FName BoneA, FName BoneB) {
-    if (!SkeletalMesh || BoneA.IsNone() || BoneB.IsNone()) {
-        return 0.f;
-    }
-
-    using FCacheKey = TTuple<const USkeletalMeshComponent*, FName, FName>;
-    static TMap<FCacheKey, float> LengthCache;
-
-    // Ensure consistent ordering of bone pair
-    const bool bSwap = BoneA.FastLess(BoneB);
-    const FName KeyA = bSwap ? BoneA : BoneB;
-    const FName KeyB = bSwap ? BoneB : BoneA;
-
-    const FCacheKey CacheKey(SkeletalMesh, KeyA, KeyB);
-
-    if (const float* CachedLength = LengthCache.Find(CacheKey)) {
-        return *CachedLength;
-    }
-
-    const FVector PosA = SkeletalMesh->GetBoneLocation(BoneA);
-    const FVector PosB = SkeletalMesh->GetBoneLocation(BoneB);
-    const float Length = FVector::Dist(PosA, PosB);
-
-    LengthCache.Add(CacheKey, Length);
-    return Length;
-}
-
-TArray<EOHSkeletalBone> UOHSkeletalPhysicsUtils::GetChildBonesByDepth(EOHSkeletalBone RootBone, int32 MaxDepth) {
-    TArray<EOHSkeletalBone> Result;
-    if (MaxDepth <= 0) {
-        return Result;
-    }
-
-    TQueue<TPair<EOHSkeletalBone, int32>> Queue;
-    Queue.Enqueue(TPair<EOHSkeletalBone, int32>(RootBone, 0));
-
-    while (!Queue.IsEmpty()) {
-        TPair<EOHSkeletalBone, int32> Current;
-        Queue.Dequeue(Current);
-
-        EOHSkeletalBone Bone = Current.Key;
-        int32 Depth = Current.Value;
-
-        if (Depth >= MaxDepth) {
-            continue;
-        }
-
-        const TArray<EOHSkeletalBone> Children = GetChildBones(Bone);
-        for (EOHSkeletalBone Child : Children) {
-            Result.Add(Child);
-            Queue.Enqueue(TPair<EOHSkeletalBone, int32>(Child, Depth + 1));
-        }
-    }
-
-    return Result;
-}
-
-EOHSkeletalBone UOHSkeletalPhysicsUtils::GetDirectChildBone(EOHSkeletalBone ParentBone) {
-    for (EOHSkeletalBone Bone = EOHSkeletalBone::FirstBone; Bone <= EOHSkeletalBone::LastBone;
-         Bone = static_cast<EOHSkeletalBone>(static_cast<uint8>(Bone) + 1)) {
-        if (GetParentBone(Bone) == ParentBone) {
-            return Bone; // First match only
-        }
-    }
-
-    return EOHSkeletalBone::None;
-}
-
-int32 UOHSkeletalPhysicsUtils::GetBoneDepthRelativeTo(EOHSkeletalBone ParentBone, EOHSkeletalBone TargetBone) {
-    if (ParentBone == EOHSkeletalBone::None || TargetBone == EOHSkeletalBone::None) {
-        return -1;
-    }
-
-    if (ParentBone == TargetBone) {
-        return 0;
-    }
-
-    int32 Depth = 0;
-    EOHSkeletalBone Current = TargetBone;
-
-    while (Current != EOHSkeletalBone::None) {
-        Current = GetParentBone(Current);
-        Depth++;
-
-        if (Current == ParentBone) {
-            return Depth;
-        }
-    }
-
-    return -1; // Not a descendant
+    return BoneNames;
 }
 
 TArray<EOHSkeletalBone> UOHSkeletalPhysicsUtils::GetBoneLineage(EOHSkeletalBone TargetBone,
@@ -513,37 +730,6 @@ int32 UOHSkeletalPhysicsUtils::CompareBoneDepth(EOHSkeletalBone A, EOHSkeletalBo
         return 1; // B is deeper
     }
     return 0; // Same depth
-}
-
-TArray<EOHSkeletalBone> UOHSkeletalPhysicsUtils::GetBoneChainBelow(const EOHSkeletalBone RootBone) {
-    static TMap<EOHSkeletalBone, TArray<EOHSkeletalBone>> BoneHierarchy = {
-        {EOHSkeletalBone::Pelvis,
-         {EOHSkeletalBone::Spine_01, EOHSkeletalBone::Spine_02, EOHSkeletalBone::Spine_03, EOHSkeletalBone::Clavicle_L,
-          EOHSkeletalBone::UpperArm_L, EOHSkeletalBone::LowerArm_L, EOHSkeletalBone::Hand_L,
-          EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R, EOHSkeletalBone::LowerArm_R,
-          EOHSkeletalBone::Hand_R, EOHSkeletalBone::Thigh_L, EOHSkeletalBone::Calf_L, EOHSkeletalBone::Foot_L,
-          EOHSkeletalBone::Thigh_R, EOHSkeletalBone::Calf_R, EOHSkeletalBone::Foot_R}},
-        {EOHSkeletalBone::Clavicle_L,
-         {EOHSkeletalBone::UpperArm_L, EOHSkeletalBone::LowerArm_L, EOHSkeletalBone::Hand_L}},
-        {EOHSkeletalBone::UpperArm_L, {EOHSkeletalBone::LowerArm_L, EOHSkeletalBone::Hand_L}},
-        {EOHSkeletalBone::Clavicle_R,
-         {EOHSkeletalBone::UpperArm_R, EOHSkeletalBone::LowerArm_R, EOHSkeletalBone::Hand_R}},
-        {EOHSkeletalBone::UpperArm_R, {EOHSkeletalBone::LowerArm_R, EOHSkeletalBone::Hand_R}},
-        {EOHSkeletalBone::Thigh_L, {EOHSkeletalBone::Calf_L, EOHSkeletalBone::Foot_L}},
-        {EOHSkeletalBone::Thigh_R, {EOHSkeletalBone::Calf_R, EOHSkeletalBone::Foot_R}},
-        // ... extend as needed
-    };
-
-    TArray<EOHSkeletalBone> OutChain;
-    OutChain.Add(RootBone);
-
-    if (const TArray<EOHSkeletalBone>* Children = BoneHierarchy.Find(RootBone)) {
-        for (EOHSkeletalBone Child : *Children) {
-            OutChain.Append(GetBoneChainBelow(Child)); // recurse
-        }
-    }
-
-    return OutChain;
 }
 
 EOHSkeletalBone UOHSkeletalPhysicsUtils::GetParentBone(EOHSkeletalBone TargetBone) {
@@ -679,265 +865,101 @@ EOHSkeletalBone UOHSkeletalPhysicsUtils::GetParentBone(EOHSkeletalBone TargetBon
     }
 }
 
-TArray<EOHSkeletalBone> UOHSkeletalPhysicsUtils::GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup Group) {
-    using FB = EOHSkeletalBone;
-    TArray<FB> Bones;
+#pragma endregion
 
-    switch (Group) {
-    case EOHFunctionalBoneGroup::Cranial:
-        Bones = {FB::Neck_01, FB::Head};
-        break;
+#pragma region Enums
 
-    case EOHFunctionalBoneGroup::Core:
-        Bones = {FB::Pelvis, FB::Spine_01, FB::Spine_02};
-        break;
-
-    case EOHFunctionalBoneGroup::LeftArm:
-        Bones = {FB::Clavicle_L, FB::UpperArm_L, FB::LowerArm_L, FB::Hand_L};
-        break;
-
-    case EOHFunctionalBoneGroup::RightArm:
-        Bones = {FB::Clavicle_R, FB::UpperArm_R, FB::LowerArm_R, FB::Hand_R};
-        break;
-
-    case EOHFunctionalBoneGroup::LeftLeg:
-        Bones = {FB::Thigh_L, FB::Calf_L};
-        break;
-
-    case EOHFunctionalBoneGroup::RightLeg:
-        Bones = {FB::Thigh_R, FB::Calf_R};
-        break;
-
-    case EOHFunctionalBoneGroup::LeftHand:
-        Bones = {FB::Hand_L};
-        break;
-
-    case EOHFunctionalBoneGroup::RightHand:
-        Bones = {FB::Hand_R};
-        break;
-
-    case EOHFunctionalBoneGroup::LeftFoot:
-        Bones = {FB::Foot_L, FB::Ball_L};
-        break;
-
-    case EOHFunctionalBoneGroup::RightFoot:
-        Bones = {FB::Foot_R, FB::Ball_R};
-        break;
-
-    case EOHFunctionalBoneGroup::Hands:
-        Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::LeftHand);
-        Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::RightHand));
-        break;
-
-    case EOHFunctionalBoneGroup::Feet:
-        Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::LeftFoot);
-        Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::RightFoot));
-        break;
-
-    case EOHFunctionalBoneGroup::Arms:
-        Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::LeftArm);
-        Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::RightArm));
-        break;
-
-    case EOHFunctionalBoneGroup::Legs:
-        Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::LeftLeg);
-        Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::RightLeg));
-        break;
-
-    case EOHFunctionalBoneGroup::LeftLimbs:
-        Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::LeftArm);
-        Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::LeftLeg));
-        break;
-
-    case EOHFunctionalBoneGroup::RightLimbs:
-        Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::RightArm);
-        Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::RightLeg));
-        break;
-
-    case EOHFunctionalBoneGroup::UpperBody:
-        Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::Cranial);
-        Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::Arms));
-        Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::Hands));
-        break;
-
-    case EOHFunctionalBoneGroup::LowerBody:
-        Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::Legs);
-        Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::Feet));
-        Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::Core));
-        break;
-
-    case EOHFunctionalBoneGroup::FullBody:
-        Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::UpperBody);
-        Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::LowerBody));
-        break;
-
-    default:
-        break;
+EOHBodyZone UOHSkeletalPhysicsUtils::GetBodyZoneFromBone(EOHSkeletalBone Bone) {
+    if (const EOHBodyZone* Found = OHSkeletalMappings::BoneToZoneMap.Find(Bone)) {
+        return *Found;
     }
-
-    return Bones;
+    return EOHBodyZone::None;
 }
 
-TArray<EOHSkeletalBone> UOHSkeletalPhysicsUtils::GetChildBones(EOHSkeletalBone ParentBone) {
-    TArray<EOHSkeletalBone> Children;
-
-    for (EOHSkeletalBone Bone = EOHSkeletalBone::FirstBone; Bone <= EOHSkeletalBone::LastBone;
-         Bone = static_cast<EOHSkeletalBone>(static_cast<uint8>(Bone) + 1)) {
-        if (GetParentBone(Bone) == ParentBone) {
-            Children.Add(Bone);
-        }
+EOHBodyPart UOHSkeletalPhysicsUtils::GetBodyPartFromBone(EOHSkeletalBone Bone) {
+    if (const EOHBodyPart* Found = OHSkeletalMappings::BoneToBodyPartMap.Find(Bone)) {
+        return *Found;
     }
-
-    return Children;
+    return EOHBodyPart::None;
 }
 
-TArray<EOHSkeletalBone> UOHSkeletalPhysicsUtils::GetDescendantBones(EOHSkeletalBone RootBone) {
-    TArray<EOHSkeletalBone> Descendants;
-    TQueue<EOHSkeletalBone> BonesToVisit;
-    BonesToVisit.Enqueue(RootBone);
-
-    while (!BonesToVisit.IsEmpty()) {
-        EOHSkeletalBone CurrentBone;
-        BonesToVisit.Dequeue(CurrentBone);
-
-        const TArray<EOHSkeletalBone> Children = GetChildBones(CurrentBone);
-
-        for (EOHSkeletalBone Child : Children) {
-            Descendants.Add(Child);
-            BonesToVisit.Enqueue(Child);
-        }
+EOHFunctionalBoneGroup UOHSkeletalPhysicsUtils::GetFunctionalGroupFromBone(EOHSkeletalBone Bone) {
+    if (const EOHFunctionalBoneGroup* Found = OHSkeletalMappings::BoneToFunctionalGroupMap.Find(Bone)) {
+        return *Found;
     }
-
-    return Descendants;
+    return EOHFunctionalBoneGroup::None;
 }
 
-TArray<EOHSkeletalBone> UOHSkeletalPhysicsUtils::GetBoneInfluenceChain(const EOHSkeletalBone Bone) {
-    TArray<EOHSkeletalBone> InfluenceChain;
+TArray<FName> UOHSkeletalPhysicsUtils::GetPrimaryBoneNamesFromBodyPart(EOHBodyPart BodyPart) {
+    TArray<FName> Result;
 
-    // Start with the target bone
-    InfluenceChain.Add(Bone);
-
-    // Define bone hierarchy and influence paths
-    // This is a simplified implementation - in a real system this would use
-    // a proper skeletal hierarchy definition
-
-    // Hand and finger influence chains
-    if (IsFingerBone(Bone)) {
-        // Add hand
-        if (IsLeftSideBone(Bone)) {
-            InfluenceChain.Add(EOHSkeletalBone::Hand_L);
-            InfluenceChain.Add(EOHSkeletalBone::LowerArm_L);
-            InfluenceChain.Add(EOHSkeletalBone::UpperArm_L);
-            InfluenceChain.Add(EOHSkeletalBone::Clavicle_L);
-            // Connect to spine
-            InfluenceChain.Add(EOHSkeletalBone::Spine_03);
-        } else // Right side
-        {
-            InfluenceChain.Add(EOHSkeletalBone::Hand_R);
-            InfluenceChain.Add(EOHSkeletalBone::LowerArm_R);
-            InfluenceChain.Add(EOHSkeletalBone::UpperArm_R);
-            InfluenceChain.Add(EOHSkeletalBone::Clavicle_R);
-            // Connect to spine
-            InfluenceChain.Add(EOHSkeletalBone::Spine_03);
+    if (const TArray<EOHSkeletalBone>* Bones = OHSkeletalMappings::BodyPartToPrimaryBonesMap.Find(BodyPart)) {
+        for (EOHSkeletalBone Bone : *Bones) {
+            if (const FName* Name = OHSkeletalMappings::PrimaryBoneToFNameMap.Find(Bone)) {
+                Result.Add(*Name);
+            }
         }
     }
-    // Hand influence chains
-    else if (Bone == EOHSkeletalBone::Hand_L) {
-        InfluenceChain.Add(EOHSkeletalBone::LowerArm_L);
-        InfluenceChain.Add(EOHSkeletalBone::UpperArm_L);
-        InfluenceChain.Add(EOHSkeletalBone::Clavicle_L);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_03);
-    } else if (Bone == EOHSkeletalBone::Hand_R) {
-        InfluenceChain.Add(EOHSkeletalBone::LowerArm_R);
-        InfluenceChain.Add(EOHSkeletalBone::UpperArm_R);
-        InfluenceChain.Add(EOHSkeletalBone::Clavicle_R);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_03);
-    }
-    // Arm influence chains
-    else if (Bone == EOHSkeletalBone::LowerArm_L) {
-        InfluenceChain.Add(EOHSkeletalBone::UpperArm_L);
-        InfluenceChain.Add(EOHSkeletalBone::Clavicle_L);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_03);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_02);
-    } else if (Bone == EOHSkeletalBone::LowerArm_R) {
-        InfluenceChain.Add(EOHSkeletalBone::UpperArm_R);
-        InfluenceChain.Add(EOHSkeletalBone::Clavicle_R);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_03);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_02);
-    } else if (Bone == EOHSkeletalBone::UpperArm_L) {
-        InfluenceChain.Add(EOHSkeletalBone::Clavicle_L);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_03);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_02);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_01);
-    } else if (Bone == EOHSkeletalBone::UpperArm_R) {
-        InfluenceChain.Add(EOHSkeletalBone::Clavicle_R);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_03);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_02);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_01);
-    }
-    // Leg influence chains
-    else if (Bone == EOHSkeletalBone::Foot_L || Bone == EOHSkeletalBone::Ball_L) {
-        if (Bone == EOHSkeletalBone::Ball_L) {
-            InfluenceChain.Add(EOHSkeletalBone::Foot_L);
-        }
-        InfluenceChain.Add(EOHSkeletalBone::Calf_L);
-        InfluenceChain.Add(EOHSkeletalBone::Thigh_L);
-        InfluenceChain.Add(EOHSkeletalBone::Pelvis);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_01);
-    } else if (Bone == EOHSkeletalBone::Foot_R || Bone == EOHSkeletalBone::Ball_R) {
-        if (Bone == EOHSkeletalBone::Ball_R) {
-            InfluenceChain.Add(EOHSkeletalBone::Foot_R);
-        }
-        InfluenceChain.Add(EOHSkeletalBone::Calf_R);
-        InfluenceChain.Add(EOHSkeletalBone::Thigh_R);
-        InfluenceChain.Add(EOHSkeletalBone::Pelvis);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_01);
-    } else if (Bone == EOHSkeletalBone::Calf_L) {
-        InfluenceChain.Add(EOHSkeletalBone::Thigh_L);
-        InfluenceChain.Add(EOHSkeletalBone::Pelvis);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_01);
-    } else if (Bone == EOHSkeletalBone::Calf_R) {
-        InfluenceChain.Add(EOHSkeletalBone::Thigh_R);
-        InfluenceChain.Add(EOHSkeletalBone::Pelvis);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_01);
-    } else if (Bone == EOHSkeletalBone::Thigh_L) {
-        InfluenceChain.Add(EOHSkeletalBone::Pelvis);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_01);
-    } else if (Bone == EOHSkeletalBone::Thigh_R) {
-        InfluenceChain.Add(EOHSkeletalBone::Pelvis);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_01);
-    }
-    // Spine and head influence chains
-    else if (Bone == EOHSkeletalBone::Head || Bone == EOHSkeletalBone::Neck_01) {
-        if (Bone == EOHSkeletalBone::Head) {
-            InfluenceChain.Add(EOHSkeletalBone::Neck_01);
-        }
-        InfluenceChain.Add(EOHSkeletalBone::Spine_03);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_02);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_01);
-    } else if (Bone == EOHSkeletalBone::Spine_03) {
-        InfluenceChain.Add(EOHSkeletalBone::Spine_02);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_01);
-        InfluenceChain.Add(EOHSkeletalBone::Pelvis);
-    } else if (Bone == EOHSkeletalBone::Spine_02) {
-        InfluenceChain.Add(EOHSkeletalBone::Spine_01);
-        InfluenceChain.Add(EOHSkeletalBone::Pelvis);
-    } else if (Bone == EOHSkeletalBone::Spine_01) {
-        InfluenceChain.Add(EOHSkeletalBone::Pelvis);
-    }
-    // Clavicle influence chains
-    else if (Bone == EOHSkeletalBone::Clavicle_L) {
-        InfluenceChain.Add(EOHSkeletalBone::Spine_03);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_02);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_01);
-    } else if (Bone == EOHSkeletalBone::Clavicle_R) {
-        InfluenceChain.Add(EOHSkeletalBone::Spine_03);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_02);
-        InfluenceChain.Add(EOHSkeletalBone::Spine_01);
-    }
 
-    return InfluenceChain;
+    return Result;
 }
+
+EOHSkeletalBone UOHSkeletalPhysicsUtils::ResolveSkeletalBoneFromNameSmart(const FName& Input,
+                                                                          const USkeletalMeshComponent* SkelComp,
+                                                                          float ScoreThreshold) {
+    TArray<FName> AllBoneNames;
+    OHSkeletalMappings::SkeletalBoneToFNameMap.GenerateValueArray(AllBoneNames);
+
+    FOHNameMatchResult Match = UOHAlgoUtils::FindBestNameMatchAutoStrategy(Input, AllBoneNames);
+    if (Match.Score >= ScoreThreshold) {
+        const FName MatchedName(*Match.Candidate);
+        for (const TPair<EOHSkeletalBone, FName>& Pair : OHSkeletalMappings::SkeletalBoneToFNameMap) {
+            if (Pair.Value == MatchedName) {
+                return Pair.Key;
+            }
+        }
+    }
+    return EOHSkeletalBone::None;
+}
+
+TArray<FName> UOHSkeletalPhysicsUtils::GetBoneChainBetweenByName(const USkeletalMeshComponent* Mesh,
+                                                                 const FName& ParentBoneName,
+                                                                 const FName& ChildBoneName) {
+    TArray<FName> Chain;
+
+    if (!Mesh || !Mesh->DoesSocketExist(ParentBoneName) || !Mesh->DoesSocketExist(ChildBoneName)) {
+        return Chain;
+    }
+
+    const USkeleton* Skeleton = Mesh->GetSkeletalMeshAsset() ? Mesh->GetSkeletalMeshAsset()->GetSkeleton() : nullptr;
+    if (!Skeleton) {
+        return Chain;
+    }
+
+    const FReferenceSkeleton& RefSkeleton = Skeleton->GetReferenceSkeleton();
+
+    int32 ParentIndex = RefSkeleton.FindBoneIndex(ParentBoneName);
+    int32 ChildIndex = RefSkeleton.FindBoneIndex(ChildBoneName);
+
+    if (ParentIndex == INDEX_NONE || ChildIndex == INDEX_NONE) {
+        return Chain;
+    }
+
+    int32 CurrentIndex = ChildIndex;
+    while (CurrentIndex != INDEX_NONE) {
+        Chain.Insert(RefSkeleton.GetBoneName(CurrentIndex), 0);
+        if (CurrentIndex == ParentIndex) {
+            break;
+        }
+        CurrentIndex = RefSkeleton.GetParentIndex(CurrentIndex);
+    }
+
+    return Chain;
+}
+
+#pragma endregion
+
+#pragma region Solver Utility Functions
 
 // ------------------------------- Physics Solver Functions --------------------------------- //
 
@@ -1317,6 +1339,17 @@ FVector UOHSkeletalPhysicsUtils::ComputeBoneVelocity(USkeletalMeshComponent* Ske
     return Vel;
 }
 
+FVector UOHSkeletalPhysicsUtils::ComputeAngularVelocity(const FRotator& CurrentRotation,
+                                                        const FRotator& PreviousRotation, float DeltaTime) {
+    if (DeltaTime <= 0.0f)
+        return FVector::ZeroVector;
+
+    FQuat Q1 = PreviousRotation.Quaternion();
+    FQuat Q2 = CurrentRotation.Quaternion();
+
+    return ComputeAngularVelocity(Q1, Q2, DeltaTime);
+}
+
 FVector UOHSkeletalPhysicsUtils::ComputeAngularVelocity(FQuat PrevRotation, FQuat CurrRotation, float DeltaTime) {
     if (DeltaTime <= KINDA_SMALL_NUMBER) {
         return FVector::ZeroVector;
@@ -1356,6 +1389,167 @@ float UOHSkeletalPhysicsUtils::PredictBoneTimeToCollision(USkeletalMeshComponent
 FVector UOHSkeletalPhysicsUtils::ComputeReactiveImpulseFromHit(const FHitResult& Hit, float ImpactStrength) {
     // Impulse away from surface normal, scaled
     return Hit.ImpactNormal * ImpactStrength;
+}
+
+void UOHSkeletalPhysicsUtils::ApplyImpulseToBone(USkeletalMeshComponent* SkeletalMesh, FName BoneName,
+                                                 const FVector& Impulse, bool bVelChange) {
+    if (!SkeletalMesh) {
+        UE_LOG(LogTemp, Warning, TEXT("ApplyImpulseToBone: SkeletalMesh is null"));
+        return;
+    }
+
+    if (FBodyInstance* Body = SkeletalMesh->GetBodyInstance(BoneName)) {
+        if (Body->IsInstanceSimulatingPhysics()) {
+            Body->AddImpulse(Impulse, bVelChange);
+        } else {
+            UE_LOG(LogTemp, Verbose, TEXT("ApplyImpulseToBone: Bone %s is not simulating physics"),
+                   *BoneName.ToString());
+        }
+    } else {
+        UE_LOG(LogTemp, Warning, TEXT("ApplyImpulseToBone: Failed to find BodyInstance for bone %s"),
+               *BoneName.ToString());
+    }
+}
+
+void UOHSkeletalPhysicsUtils::ApplyImpulseToBoneChain(USkeletalMeshComponent* SkeletalMesh, FName RootBone,
+                                                      const FVector& Impulse, float Falloff, bool bVelChange,
+                                                      int32 MaxDepth) {
+    if (!SkeletalMesh) {
+        UE_LOG(LogTemp, Warning, TEXT("ApplyImpulseToBoneChain: SkeletalMesh is null"));
+        return;
+    }
+
+    // Generic bone chain (all bones)
+    TArray<FName> ChainBones = GetBoneChain(SkeletalMesh, RootBone, MaxDepth);
+
+    for (int32 i = 0; i < ChainBones.Num(); ++i) {
+        float FalloffMultiplier = FMath::Pow(Falloff, i);
+        FVector ScaledImpulse = Impulse * FalloffMultiplier;
+
+        ApplyImpulseToBone(SkeletalMesh, ChainBones[i], ScaledImpulse, bVelChange);
+    }
+}
+
+void UOHSkeletalPhysicsUtils::ApplyImpulseToBoneChain(USkeletalMeshComponent* SkeletalMesh, FName RootBone,
+                                                      const FVector& Impulse, float Falloff, bool bVelChange,
+                                                      const TArray<FName>& SimulatableBones,
+                                                      const TArray<FName>& TrackedBones, bool bVerboseLogging,
+                                                      int32 MaxDepth) {
+    if (!SkeletalMesh) {
+        UE_LOG(LogTemp, Warning, TEXT("ApplyImpulseToBoneChain (filtered): SkeletalMesh is null"));
+        return;
+    }
+
+    // Filtered bone chain (Simulatable or Tracked bones only)
+    TArray<FName> ChainBones =
+        GetBoneChain(SkeletalMesh, RootBone, MaxDepth, SimulatableBones, TrackedBones, bVerboseLogging);
+
+    for (int32 i = 0; i < ChainBones.Num(); ++i) {
+        float FalloffMultiplier = FMath::Pow(Falloff, i);
+        FVector ScaledImpulse = Impulse * FalloffMultiplier;
+
+        ApplyImpulseToBone(SkeletalMesh, ChainBones[i], ScaledImpulse, bVelChange);
+    }
+}
+
+TArray<FName> UOHSkeletalPhysicsUtils::GetBoneChain(USkeletalMeshComponent* SkeletalMesh, FName RootBone,
+                                                    int32 MaxDepth, bool bUseDFS) {
+    return GetBoneChain_Internal(
+        SkeletalMesh, RootBone, MaxDepth, [](FName) { return true; }, // no filter
+        bUseDFS, false);
+}
+
+TArray<FName> UOHSkeletalPhysicsUtils::GetBoneChain(USkeletalMeshComponent* SkeletalMesh, FName RootBone,
+                                                    int32 MaxDepth, const TArray<FName>& SimulatableBones,
+                                                    const TArray<FName>& TrackedBones, bool bVerboseLogging) {
+    return GetBoneChain_Internal(
+        SkeletalMesh, RootBone, MaxDepth,
+        [&](FName BoneName) { return SimulatableBones.Contains(BoneName) || TrackedBones.Contains(BoneName); },
+        false, // BFS is standard
+        bVerboseLogging);
+}
+
+TArray<FName> UOHSkeletalPhysicsUtils::GetBoneChain(USkeletalMeshComponent* SkeletalMesh, FName RootBone,
+                                                    int32 MaxDepth, const TFunctionRef<bool(FName)>& Filter,
+                                                    bool bUseDFS) {
+    return GetBoneChain_Internal(SkeletalMesh, RootBone, MaxDepth, Filter, bUseDFS, false);
+}
+
+TArray<FName> UOHSkeletalPhysicsUtils::GetBoneChain_Internal(USkeletalMeshComponent* SkeletalMesh, FName RootBone,
+                                                             int32 MaxDepth, const TFunctionRef<bool(FName)>& Filter,
+                                                             bool bUseDFS, bool bVerboseLogging) {
+    TArray<FName> Chain;
+
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshAsset()) {
+        if (bVerboseLogging) {
+            UE_LOG(LogTemp, Warning, TEXT("GetBoneChain: No skeletal mesh available"));
+        }
+        return Chain;
+    }
+
+    const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetSkeletalMeshAsset()->GetRefSkeleton();
+    int32 RootIndex = RefSkeleton.FindBoneIndex(RootBone);
+
+    if (RootIndex == INDEX_NONE) {
+        if (bVerboseLogging) {
+            UE_LOG(LogTemp, Warning, TEXT("GetBoneChain: Bone %s not found in skeleton"), *RootBone.ToString());
+        }
+        return Chain;
+    }
+
+    // --- DFS ---
+    if (bUseDFS) {
+        TFunction<void(int32, int32)> AddBoneAndChildren = [&](int32 BoneIndex, int32 Depth) {
+            if (MaxDepth >= 0 && Depth > MaxDepth)
+                return;
+
+            FName BoneName = RefSkeleton.GetBoneName(BoneIndex);
+            if (Filter(BoneName)) {
+                Chain.Add(BoneName);
+            }
+
+            for (int32 ChildIdx = 0; ChildIdx < RefSkeleton.GetNum(); ++ChildIdx) {
+                if (RefSkeleton.GetParentIndex(ChildIdx) == BoneIndex) {
+                    AddBoneAndChildren(ChildIdx, Depth + 1);
+                }
+            }
+        };
+
+        AddBoneAndChildren(RootIndex, 0);
+    } else {
+        // --- BFS ---
+        TQueue<TPair<int32, int32>> Queue;
+        Queue.Enqueue({RootIndex, 0});
+
+        while (!Queue.IsEmpty()) {
+            TPair<int32, int32> Current;
+            Queue.Dequeue(Current);
+
+            int32 BoneIndex = Current.Key;
+            int32 Depth = Current.Value;
+
+            if (MaxDepth >= 0 && Depth > MaxDepth)
+                continue;
+
+            FName BoneName = RefSkeleton.GetBoneName(BoneIndex);
+            if (Filter(BoneName)) {
+                Chain.Add(BoneName);
+            }
+
+            for (int32 ChildIdx = 0; ChildIdx < RefSkeleton.GetNum(); ++ChildIdx) {
+                if (RefSkeleton.GetParentIndex(ChildIdx) == BoneIndex) {
+                    Queue.Enqueue({ChildIdx, Depth + 1});
+                }
+            }
+        }
+    }
+
+    if (bVerboseLogging) {
+        UE_LOG(LogTemp, Log, TEXT("GetBoneChain_Internal: Found %d bones in chain from %s (MaxDepth=%d)"), Chain.Num(),
+               *RootBone.ToString(), MaxDepth);
+    }
+
+    return Chain;
 }
 
 // 3) Test whether any bone in the chain overlaps any physics body
@@ -1922,22 +2116,6 @@ TArray<FName> UOHSkeletalPhysicsUtils::GetBoneChainReverseByName(const USkeletal
     return Chain;
 }
 
-TArray<FName> UOHSkeletalPhysicsUtils::GetBonesInChain(EOHSkeletalBone Bone) {
-    TArray<FName> BoneNames;
-
-    // Reuse the existing lineage function to walk up to the “None” root.
-    TArray<EOHSkeletalBone> Lineage = GetBoneLineageToRoot(Bone);
-    for (EOHSkeletalBone EnumBone : Lineage) {
-        // Convert the enum to its FName (lowercase, matching your skeleton naming)
-        FName Name = ::GetBoneNameFromEnum(EnumBone);
-        if (Name != NAME_None) {
-            BoneNames.Add(Name);
-        }
-    }
-
-    return BoneNames;
-}
-
 void UOHSkeletalPhysicsUtils::BuildValidatedBoneChain(EOHSkeletalBone EffectorEnum, const FBoneContainer& Bones,
                                                       TArray<FName>& OutValidBoneNames) {
     OutValidBoneNames.Reset();
@@ -1964,46 +2142,1780 @@ void UOHSkeletalPhysicsUtils::BuildValidatedBoneChain(EOHSkeletalBone EffectorEn
         }
     }
 }
+#pragma endregion
 
-TArray<FName> UOHSkeletalPhysicsUtils::GetBoneChainBetweenByName(const USkeletalMeshComponent* Mesh,
-                                                                 const FName& ParentBoneName,
-                                                                 const FName& ChildBoneName) {
-    TArray<FName> Chain;
+#pragma region Utility Helpers
 
-    if (!Mesh || !Mesh->DoesSocketExist(ParentBoneName) || !Mesh->DoesSocketExist(ChildBoneName)) {
-        return Chain;
+int32 UOHSkeletalPhysicsUtils::GetBoneIndexByName(const USkeletalMeshComponent* SkelComp, FName BoneName) {
+    if (!SkelComp || !SkelComp->GetSkeletalMeshAsset()) {
+        return INDEX_NONE;
     }
 
-    const USkeleton* Skeleton = Mesh->GetSkeletalMeshAsset() ? Mesh->GetSkeletalMeshAsset()->GetSkeleton() : nullptr;
-    if (!Skeleton) {
-        return Chain;
+    const FReferenceSkeleton& RefSkel = SkelComp->GetSkeletalMeshAsset()->GetRefSkeleton();
+    return RefSkel.FindBoneIndex(BoneName);
+}
+
+int32 UOHSkeletalPhysicsUtils::GetBoneIndexByName_Static(const USkeletalMesh* SkeletalMesh, FName BoneName) {
+    if (!SkeletalMesh) {
+        return INDEX_NONE;
     }
 
-    const FReferenceSkeleton& RefSkeleton = Skeleton->GetReferenceSkeleton();
+    const FReferenceSkeleton& RefSkel = SkeletalMesh->GetRefSkeleton();
+    return RefSkel.FindBoneIndex(BoneName);
+}
 
-    int32 ParentIndex = RefSkeleton.FindBoneIndex(ParentBoneName);
-    int32 ChildIndex = RefSkeleton.FindBoneIndex(ChildBoneName);
+FName UOHSkeletalPhysicsUtils::GetBoneNameByIndex(const USkeletalMeshComponent* SkelComp, int32 BoneIndex) {
+    if (!SkelComp || !SkelComp->GetSkeletalMeshAsset()) {
+        return NAME_None;
+    }
+    const FReferenceSkeleton& RefSkel = SkelComp->GetSkeletalMeshAsset()->GetRefSkeleton();
+    return RefSkel.IsValidIndex(BoneIndex) ? RefSkel.GetBoneName(BoneIndex) : NAME_None;
+}
 
-    if (ParentIndex == INDEX_NONE || ChildIndex == INDEX_NONE) {
-        return Chain;
+FName UOHSkeletalPhysicsUtils::GetBoneNameByIndex_Static(const USkeletalMesh* SkeletalMesh, int32 BoneIndex) {
+    if (!SkeletalMesh) {
+        return NAME_None;
+    }
+    const FReferenceSkeleton& RefSkel = SkeletalMesh->GetRefSkeleton();
+    return RefSkel.IsValidIndex(BoneIndex) ? RefSkel.GetBoneName(BoneIndex) : NAME_None;
+}
+
+int32 UOHSkeletalPhysicsUtils::GetParentBoneIndex(const USkeletalMeshComponent* SkelComp, int32 BoneIndex) {
+    if (!SkelComp || !SkelComp->GetSkeletalMeshAsset())
+        return INDEX_NONE;
+
+    const FReferenceSkeleton& RefSkel = SkelComp->GetSkeletalMeshAsset()->GetRefSkeleton();
+    return RefSkel.IsValidIndex(BoneIndex) ? RefSkel.GetParentIndex(BoneIndex) : INDEX_NONE;
+}
+
+FName UOHSkeletalPhysicsUtils::GetParentBoneName(const USkeletalMeshComponent* SkelComp, FName BoneName) {
+    if (!SkelComp || !SkelComp->GetSkeletalMeshAsset())
+        return NAME_None;
+
+    const FReferenceSkeleton& RefSkel = SkelComp->GetSkeletalMeshAsset()->GetRefSkeleton();
+    int32 BoneIndex = RefSkel.FindBoneIndex(BoneName);
+    int32 ParentIndex = RefSkel.GetParentIndex(BoneIndex);
+    return RefSkel.IsValidIndex(ParentIndex) ? RefSkel.GetBoneName(ParentIndex) : NAME_None;
+}
+
+TArray<FName> UOHSkeletalPhysicsUtils::GetAllBoneNamesInSkeleton(const USkeletalMeshComponent* SkelComp) {
+    TArray<FName> OutNames;
+    if (!SkelComp || !SkelComp->GetSkeletalMeshAsset())
+        return OutNames;
+
+    const FReferenceSkeleton& RefSkel = SkelComp->GetSkeletalMeshAsset()->GetRefSkeleton();
+    const int32 NumBones = RefSkel.GetNum();
+    OutNames.Reserve(NumBones);
+
+    for (int32 i = 0; i < NumBones; ++i)
+        OutNames.Add(RefSkel.GetBoneName(i));
+
+    return OutNames;
+}
+
+#pragma endregion
+
+#pragma region Motion Helpers
+
+FVector UOHSkeletalPhysicsUtils::GetBoneVelocityInReferenceFrame(const USkeletalMeshComponent* SkelComp, FName BoneName,
+                                                                 FName ReferenceBone, EOHReferenceSpace RefFrame,
+                                                                 float HistorySeconds) {
+    if (!SkelComp)
+        return FVector::ZeroVector;
+
+    const float Now = SkelComp->GetWorld() ? SkelComp->GetWorld()->GetTimeSeconds() : 0.f;
+
+    FVector BoneVelWS = FVector::ZeroVector;
+    UpdateBoneHistory(SkelComp, BoneName, Now, HistorySeconds, BoneVelWS);
+
+    FVector RefVelWS = FVector::ZeroVector;
+    FQuat RefQuatWS = FQuat::Identity;
+    if (ReferenceBone != NAME_None) {
+        UpdateBoneHistory(SkelComp, ReferenceBone, Now, HistorySeconds, RefVelWS);
+        RefQuatWS = SkelComp->GetBoneQuaternion(ReferenceBone);
     }
 
-    int32 CurrentIndex = ChildIndex;
-    while (CurrentIndex != INDEX_NONE) {
-        Chain.Insert(RefSkeleton.GetBoneName(CurrentIndex), 0);
-        if (CurrentIndex == ParentIndex) {
-            break;
+    FVector RelativeVel = (ReferenceBone != NAME_None) ? (BoneVelWS - RefVelWS) : BoneVelWS;
+
+    switch (RefFrame) {
+    case EOHReferenceSpace::WorldSpace:
+        return RelativeVel;
+    case EOHReferenceSpace::ComponentSpace:
+        return SkelComp->GetComponentTransform().InverseTransformVector(RelativeVel);
+    case EOHReferenceSpace::LocalSpace:
+        return RefQuatWS.Inverse().RotateVector(RelativeVel);
+    default:
+        return RelativeVel;
+    }
+}
+
+FVector UOHSkeletalPhysicsUtils::GetBoneVelocitySingleFrame(const USkeletalMeshComponent* SkelComp, FName BoneName,
+                                                            FName ReferenceBone, EOHReferenceSpace RefFrame) {
+    if (!SkelComp)
+        return FVector::ZeroVector;
+
+    const float Now = SkelComp->GetWorld() ? SkelComp->GetWorld()->GetTimeSeconds() : 0.f;
+    FBoneHistoryKey BoneKey(SkelComp, BoneName);
+    FVector CurrentPos = SkelComp->GetBoneLocation(BoneName);
+
+    // Compute current velocity
+    FVector BoneVelWS = FVector::ZeroVector;
+    if (BonePrevSampleMap.Contains(BoneKey)) {
+        const FBoneSample& Prev = BonePrevSampleMap[BoneKey];
+        BoneVelWS = (CurrentPos - Prev.Position) / FMath::Max(Now - Prev.Time, KINDA_SMALL_NUMBER);
+    }
+    BonePrevSampleMap.Add(BoneKey, {CurrentPos, Now});
+
+    FVector RefVelWS = FVector::ZeroVector;
+    FQuat RefQuatWS = FQuat::Identity;
+    if (ReferenceBone != NAME_None) {
+        FBoneHistoryKey RefKey(SkelComp, ReferenceBone);
+        FVector RefCurrentPos = SkelComp->GetBoneLocation(ReferenceBone);
+
+        if (BonePrevSampleMap.Contains(RefKey)) {
+            const FBoneSample& RefPrev = BonePrevSampleMap[RefKey];
+            RefVelWS = (RefCurrentPos - RefPrev.Position) / FMath::Max(Now - RefPrev.Time, KINDA_SMALL_NUMBER);
         }
-        CurrentIndex = RefSkeleton.GetParentIndex(CurrentIndex);
+        BonePrevSampleMap.Add(RefKey, {RefCurrentPos, Now});
+
+        RefQuatWS = SkelComp->GetBoneQuaternion(ReferenceBone);
     }
 
-    return Chain;
+    FVector RelativeVel = (ReferenceBone != NAME_None) ? (BoneVelWS - RefVelWS) : BoneVelWS;
+
+    switch (RefFrame) {
+    case EOHReferenceSpace::WorldSpace:
+        return RelativeVel;
+    case EOHReferenceSpace::ComponentSpace:
+        return SkelComp->GetComponentTransform().InverseTransformVector(RelativeVel);
+    case EOHReferenceSpace::LocalSpace:
+        return RefQuatWS.Inverse().RotateVector(RelativeVel);
+    default:
+        return RelativeVel;
+    }
+}
+
+FVector UOHSkeletalPhysicsUtils::CalculateBoneWorldVelocity(const FVector& CurrentBoneWorldPosition,
+                                                            const FVector& PreviousBoneWorldPosition, float DeltaTime) {
+    if (DeltaTime <= 0.0f)
+        return FVector::ZeroVector;
+
+    return (CurrentBoneWorldPosition - PreviousBoneWorldPosition) / DeltaTime;
+}
+
+FVector UOHSkeletalPhysicsUtils::CalculateBoneVelocityInSpace(USkeletalMeshComponent* Mesh, FName BoneName,
+                                                              const FVector& CurrentWorldPosition,
+                                                              const FVector& PreviousWorldPosition, float DeltaTime,
+                                                              EOHReferenceSpace TargetSpace) {
+    FVector WorldVelocity = CalculateBoneWorldVelocity(CurrentWorldPosition, PreviousWorldPosition, DeltaTime);
+
+    if (!Mesh || TargetSpace == EOHReferenceSpace::WorldSpace)
+        return WorldVelocity;
+
+    // Transform to requested space
+    switch (TargetSpace) {
+    case EOHReferenceSpace::ComponentSpace:
+        return Mesh->GetComponentTransform().InverseTransformVector(WorldVelocity);
+
+    case EOHReferenceSpace::LocalSpace: {
+        int32 BoneIndex = Mesh->GetBoneIndex(BoneName);
+        if (BoneIndex != INDEX_NONE) {
+            FTransform BoneTransform = Mesh->GetBoneTransform(BoneIndex);
+            return BoneTransform.InverseTransformVector(WorldVelocity);
+        }
+    } break;
+    }
+
+    return WorldVelocity;
+}
+
+FVector UOHSkeletalPhysicsUtils::CalculateBoneWorldAcceleration(const FVector& CurrentWorldPosition,
+                                                                const FVector& PreviousWorldPosition,
+                                                                const FVector& TwoFramesAgoWorldPosition,
+                                                                float DeltaTime) {
+    if (DeltaTime <= 0.0f)
+        return FVector::ZeroVector;
+
+    FVector CurrentVelocity = CalculateBoneWorldVelocity(CurrentWorldPosition, PreviousWorldPosition, DeltaTime);
+    FVector PreviousVelocity = CalculateBoneWorldVelocity(PreviousWorldPosition, TwoFramesAgoWorldPosition, DeltaTime);
+
+    return (CurrentVelocity - PreviousVelocity) / DeltaTime;
+}
+
+float UOHSkeletalPhysicsUtils::CalculateBoneImpactForce(const FVector& StrikingBoneWorldVelocity,
+                                                        const FVector& TargetBoneWorldVelocity,
+                                                        const FVector& ContactNormal, float StrikingBoneMass,
+                                                        float TargetBoneMass, float Restitution) {
+    // Relative velocity along contact normal
+    FVector RelativeVelocity = StrikingBoneWorldVelocity - TargetBoneWorldVelocity;
+    float NormalVelocity = FVector::DotProduct(RelativeVelocity, ContactNormal);
+
+    // Only calculate if approaching
+    if (NormalVelocity < 0)
+        return 0.0f;
+
+    // Effective mass for collision
+    float EffectiveMass = (StrikingBoneMass * TargetBoneMass) / (StrikingBoneMass + TargetBoneMass);
+
+    // Impulse magnitude
+    float ImpulseMagnitude = (1.0f + Restitution) * EffectiveMass * NormalVelocity;
+
+    // Convert to force (assume 10ms contact time)
+    return ImpulseMagnitude / 0.01f;
+}
+
+FVector UOHSkeletalPhysicsUtils::CalculateBoneForceVector(const FVector& StrikingBoneWorldVelocity,
+                                                          const FVector& ContactNormal, float StrikingBoneMass,
+                                                          float TargetMass)
+
+{
+    float ForceMagnitude = CalculateBoneImpactForce(StrikingBoneWorldVelocity,
+                                                    FVector::ZeroVector, // Assume stationary target
+                                                    ContactNormal, StrikingBoneMass, TargetMass);
+    return ContactNormal * ForceMagnitude;
+}
+
+FVector UOHSkeletalPhysicsUtils::CalculateBoneImpulse(const FVector& BoneWorldVelocity, const FVector& ContactNormal,
+                                                      float BoneMass, float ImpulseScale) {
+    // Project momentum onto contact normal
+    FVector Momentum = BoneMass * BoneWorldVelocity;
+    float NormalMomentum = FVector::DotProduct(Momentum, -ContactNormal);
+
+    // Return impulse along normal
+    return ContactNormal * FMath::Abs(NormalMomentum) * ImpulseScale;
+}
+
+FVector UOHSkeletalPhysicsUtils::CalculateChainAverageWorldVelocity(const TArray<FVector>& CurrentBoneWorldPositions,
+                                                                    const TArray<FVector>& PreviousBoneWorldPositions,
+                                                                    float DeltaTime) {
+    if (CurrentBoneWorldPositions.Num() != PreviousBoneWorldPositions.Num() || DeltaTime <= 0)
+        return FVector::ZeroVector;
+
+    FVector TotalVelocity = FVector::ZeroVector;
+    int32 ValidCount = 0;
+
+    for (int32 i = 0; i < CurrentBoneWorldPositions.Num(); i++) {
+        FVector Velocity =
+            CalculateBoneWorldVelocity(CurrentBoneWorldPositions[i], PreviousBoneWorldPositions[i], DeltaTime);
+        TotalVelocity += Velocity;
+        ValidCount++;
+    }
+
+    return ValidCount > 0 ? TotalVelocity / ValidCount : FVector::ZeroVector;
+}
+
+FVector UOHSkeletalPhysicsUtils::CalculateChainWorldCenter(const TArray<FVector>& BoneWorldPositions) {
+    if (BoneWorldPositions.Num() == 0)
+        return FVector::ZeroVector;
+
+    FVector Center = FVector::ZeroVector;
+    for (const FVector& Position : BoneWorldPositions) {
+        Center += Position;
+    }
+
+    return Center / BoneWorldPositions.Num();
+}
+
+float UOHSkeletalPhysicsUtils::CalculateChainStrikeRange(const TArray<FVector>& BoneWorldPositions,
+                                                         const FVector& ChainRootWorldPosition) {
+    float MaxDistance = 0.0f;
+
+    for (const FVector& Position : BoneWorldPositions) {
+        float Distance = FVector::Dist(Position, ChainRootWorldPosition);
+        MaxDistance = FMath::Max(MaxDistance, Distance);
+    }
+
+    return MaxDistance;
+}
+
+FConstraintInstance*
+UOHSkeletalPhysicsUtils::GetActiveConstraintBetweenBones(const USkeletalMeshComponent* SkelMeshComp,
+                                                         const FName& BoneName1, const FName& BoneName2) {
+    if (!SkelMeshComp) {
+        return nullptr;
+    }
+
+    // Loop through all active constraint instances
+    const TArray<FConstraintInstance*>& Constraints = SkelMeshComp->Constraints;
+
+    for (FConstraintInstance* ConstraintInst : Constraints) {
+        if (!ConstraintInst)
+            continue;
+
+        // The names may not match the order, so check both
+        if ((ConstraintInst->JointName == BoneName1 && ConstraintInst->ConstraintBone2 == BoneName2) ||
+            (ConstraintInst->JointName == BoneName2 && ConstraintInst->ConstraintBone2 == BoneName1)) {
+            return ConstraintInst;
+        }
+    }
+    return nullptr;
+}
+
+FName UOHSkeletalPhysicsUtils::GetConstraintNameBetweenBones(USkeletalMeshComponent* SkelMeshComp,
+                                                             const FName& BoneName1, const FName& BoneName2) {
+    if (!SkelMeshComp) {
+        return NAME_None;
+    }
+
+    const TArray<FConstraintInstance*>& Constraints = SkelMeshComp->Constraints;
+
+    for (const FConstraintInstance* ConstraintInst : Constraints) {
+        if (!ConstraintInst)
+            continue;
+
+        if ((ConstraintInst->JointName == BoneName1 && ConstraintInst->ConstraintBone2 == BoneName2) ||
+            (ConstraintInst->JointName == BoneName2 && ConstraintInst->ConstraintBone2 == BoneName1)) {
+            return ConstraintInst->JointName;
+        }
+    }
+    return NAME_None;
+}
+
+bool UOHSkeletalPhysicsUtils::GetBonesFromConstraintName(USkeletalMeshComponent* SkelMeshComp,
+                                                         const FName& ConstraintInstanceName, FName& OutBoneA,
+                                                         FName& OutBoneB) {
+    if (!SkelMeshComp) {
+        return false;
+    }
+
+    const FConstraintInstance* ConstraintInst = SkelMeshComp->FindConstraintInstance(ConstraintInstanceName);
+
+    if (ConstraintInst) {
+        OutBoneA = ConstraintInst->JointName;       // Typically parent bone
+        OutBoneB = ConstraintInst->ConstraintBone2; // Typically child bone
+        return true;
+    }
+
+    OutBoneA = NAME_None;
+    OutBoneB = NAME_None;
+    return false;
+}
+
+void UOHSkeletalPhysicsUtils::GetBoneNamesFromConstraintInstance(const FConstraintInstance& Constraint, FName& OutBoneA,
+                                                                 FName& OutBoneB) {
+    OutBoneA = Constraint.JointName;       // Typically the parent bone
+    OutBoneB = Constraint.ConstraintBone2; // Typically the child bone
+}
+
+FVector UOHSkeletalPhysicsUtils::EstimateVelocityFromHit(const FHitResult& Hit, UPrimitiveComponent* Component,
+                                                         bool bIsStriker, float DeltaTime) {
+    FVector EstimatedVelocity = FVector::ZeroVector;
+
+    // Try to get from component physics
+    UPrimitiveComponent* TargetComp = Component ? Component : Hit.GetComponent();
+
+    if (TargetComp && TargetComp->IsSimulatingPhysics()) {
+        // Direct physics velocity
+        EstimatedVelocity = TargetComp->GetPhysicsLinearVelocity();
+
+        // Add bone-specific velocity if skeletal mesh
+        if (USkeletalMeshComponent* SkelMesh = Cast<USkeletalMeshComponent>(TargetComp)) {
+            if (Hit.BoneName != NAME_None) {
+                FVector BoneVel = SkelMesh->GetPhysicsLinearVelocity(Hit.BoneName);
+                if (!BoneVel.IsZero()) {
+                    EstimatedVelocity = BoneVel;
+                }
+            }
+        }
+    } else if (bIsStriker) {
+        // Estimate from penetration for striker
+        if (Hit.PenetrationDepth > 0) {
+            // Velocity proportional to penetration depth
+            // Assume penetration happened over contact time
+            float ContactTime = 0.01f; // 10ms typical
+            float EstimatedSpeed = Hit.PenetrationDepth / ContactTime;
+
+            // Direction opposite to normal (into surface)
+            EstimatedVelocity = -Hit.ImpactNormal * EstimatedSpeed;
+        }
+    }
+
+    // If still no velocity, try actor velocity
+    if (EstimatedVelocity.IsZero()) {
+        if (AActor* Actor = Hit.GetActor()) {
+            EstimatedVelocity = Actor->GetVelocity();
+        }
+    }
+
+    return EstimatedVelocity;
+}
+
+FVector UOHSkeletalPhysicsUtils::GetBoneAccelerationInReferenceFrame(const USkeletalMeshComponent* SkelComp,
+                                                                     FName BoneName, FName ReferenceBone,
+                                                                     EOHReferenceSpace RefFrame, float HistorySeconds) {
+    if (!SkelComp)
+        return FVector::ZeroVector;
+
+    const float Now = SkelComp->GetWorld() ? SkelComp->GetWorld()->GetTimeSeconds() : 0.f;
+
+    // -- Compute velocities at start and end of window for target bone
+    FVector VelStart = FVector::ZeroVector, VelEnd = FVector::ZeroVector;
+    FBoneHistoryKey Key(SkelComp, BoneName);
+    TArray<FBoneSample>& History = BoneHistoryMap.FindOrAdd(Key);
+
+    // Update with latest sample
+    FVector CurrentPos = SkelComp->GetBoneLocation(BoneName);
+    History.Add({CurrentPos, Now});
+
+    // Cull old
+    for (int32 i = 0; i < History.Num(); ++i) {
+        if (Now - History[i].Time > HistorySeconds)
+            History.RemoveAt(i--);
+    }
+    if (History.Num() < 3) // Need at least 3 for 2 velocity deltas
+        return FVector::ZeroVector;
+
+    const FBoneSample& Oldest = History[0];
+    const FBoneSample& Middle = History[1];
+    const FBoneSample& Newest = History.Last();
+
+    const float DeltaT1 = FMath::Max(Middle.Time - Oldest.Time, KINDA_SMALL_NUMBER);
+    const float DeltaT2 = FMath::Max(Newest.Time - Middle.Time, KINDA_SMALL_NUMBER);
+
+    VelStart = (Middle.Position - Oldest.Position) / DeltaT1;
+    VelEnd = (Newest.Position - Middle.Position) / DeltaT2;
+
+    FVector AccelWS = (VelEnd - VelStart) / FMath::Max(Newest.Time - Oldest.Time, KINDA_SMALL_NUMBER);
+
+    // -- Reference bone acceleration (optional)
+    FVector RefAccelWS = FVector::ZeroVector;
+    FQuat RefQuatWS = FQuat::Identity;
+    if (ReferenceBone != NAME_None) {
+        FBoneHistoryKey RefKey(SkelComp, ReferenceBone);
+        TArray<FBoneSample>& RefHistory = BoneHistoryMap.FindOrAdd(RefKey);
+        FVector RefCurrentPos = SkelComp->GetBoneLocation(ReferenceBone);
+        RefHistory.Add({RefCurrentPos, Now});
+
+        for (int32 i = 0; i < RefHistory.Num(); ++i) {
+            if (Now - RefHistory[i].Time > HistorySeconds)
+                RefHistory.RemoveAt(i--);
+        }
+        if (RefHistory.Num() >= 3) {
+            const FBoneSample& RefOldest = RefHistory[0];
+            const FBoneSample& RefMiddle = RefHistory[1];
+            const FBoneSample& RefNewest = RefHistory.Last();
+
+            const float RefDeltaT1 = FMath::Max(RefMiddle.Time - RefOldest.Time, KINDA_SMALL_NUMBER);
+            const float RefDeltaT2 = FMath::Max(RefNewest.Time - RefMiddle.Time, KINDA_SMALL_NUMBER);
+
+            const FVector RefVelStart = (RefMiddle.Position - RefOldest.Position) / RefDeltaT1;
+            const FVector RefVelEnd = (RefNewest.Position - RefMiddle.Position) / RefDeltaT2;
+
+            RefAccelWS = (RefVelEnd - RefVelStart) / FMath::Max(RefNewest.Time - RefOldest.Time, KINDA_SMALL_NUMBER);
+        }
+
+        RefQuatWS = SkelComp->GetBoneQuaternion(ReferenceBone);
+    }
+
+    FVector RelativeAccel = (ReferenceBone != NAME_None) ? (AccelWS - RefAccelWS) : AccelWS;
+
+    switch (RefFrame) {
+    case EOHReferenceSpace::WorldSpace:
+        return RelativeAccel;
+    case EOHReferenceSpace::ComponentSpace:
+        return SkelComp->GetComponentTransform().InverseTransformVector(RelativeAccel);
+    case EOHReferenceSpace::LocalSpace:
+        return RefQuatWS.Inverse().RotateVector(RelativeAccel);
+    default:
+        return RelativeAccel;
+    }
+}
+
+FVector UOHSkeletalPhysicsUtils::GetBoneAccelerationSingleFrame(const USkeletalMeshComponent* SkelComp, FName BoneName,
+                                                                FName ReferenceBone, EOHReferenceSpace RefFrame) {
+    if (!SkelComp)
+        return FVector::ZeroVector;
+
+    const float Now = SkelComp->GetWorld() ? SkelComp->GetWorld()->GetTimeSeconds() : 0.f;
+    FBoneHistoryKey BoneKey(SkelComp, BoneName);
+    FVector CurrentPos = SkelComp->GetBoneLocation(BoneName);
+
+    // Calculate current velocity
+    FVector BoneVel = FVector::ZeroVector;
+    static TMap<FBoneHistoryKey, FBoneSample> PrevPosMap;
+    if (PrevPosMap.Contains(BoneKey)) {
+        const FBoneSample& PrevSample = PrevPosMap[BoneKey];
+        BoneVel = (CurrentPos - PrevSample.Position) / FMath::Max(Now - PrevSample.Time, KINDA_SMALL_NUMBER);
+    }
+    PrevPosMap.Add(BoneKey, {CurrentPos, Now});
+
+    // Calculate current acceleration
+    FVector BoneAccel = FVector::ZeroVector;
+    static TMap<FBoneHistoryKey, FBoneVelocitySample> PrevVelMap;
+    if (PrevVelMap.Contains(BoneKey)) {
+        const FBoneVelocitySample& PrevVelSample = PrevVelMap[BoneKey];
+        BoneAccel = (BoneVel - PrevVelSample.Velocity) / FMath::Max(Now - PrevVelSample.Time, KINDA_SMALL_NUMBER);
+    }
+    PrevVelMap.Add(BoneKey, {BoneVel, Now});
+
+    // Reference bone
+    FVector RefAccel = FVector::ZeroVector;
+    FQuat RefQuatWS = FQuat::Identity;
+    if (ReferenceBone != NAME_None) {
+        FBoneHistoryKey RefKey(SkelComp, ReferenceBone);
+        FVector RefCurrentPos = SkelComp->GetBoneLocation(ReferenceBone);
+
+        FVector RefVel = FVector::ZeroVector;
+        static TMap<FBoneHistoryKey, FBoneSample> PrevRefPosMap;
+        if (PrevRefPosMap.Contains(RefKey)) {
+            const FBoneSample& RefPrevSample = PrevRefPosMap[RefKey];
+            RefVel =
+                (RefCurrentPos - RefPrevSample.Position) / FMath::Max(Now - RefPrevSample.Time, KINDA_SMALL_NUMBER);
+        }
+        PrevRefPosMap.Add(RefKey, {RefCurrentPos, Now});
+
+        if (PrevVelMap.Contains(RefKey)) {
+            const FBoneVelocitySample& RefPrevVelSample = PrevVelMap[RefKey];
+            RefAccel =
+                (RefVel - RefPrevVelSample.Velocity) / FMath::Max(Now - RefPrevVelSample.Time, KINDA_SMALL_NUMBER);
+        }
+        PrevVelMap.Add(RefKey, {RefVel, Now});
+
+        RefQuatWS = SkelComp->GetBoneQuaternion(ReferenceBone);
+    }
+
+    FVector RelativeAccel = (ReferenceBone != NAME_None) ? (BoneAccel - RefAccel) : BoneAccel;
+
+    switch (RefFrame) {
+    case EOHReferenceSpace::WorldSpace:
+        return RelativeAccel;
+    case EOHReferenceSpace::ComponentSpace:
+        return SkelComp->GetComponentTransform().InverseTransformVector(RelativeAccel);
+    case EOHReferenceSpace::LocalSpace:
+        return RefQuatWS.Inverse().RotateVector(RelativeAccel);
+    default:
+        return RelativeAccel;
+    }
+}
+
+// ==========================
+// JERK FUNCTIONS (with smoothing and unsafe)
+// ==========================
+
+FVector UOHSkeletalPhysicsUtils::GetBoneJerkSmoothed(const USkeletalMeshComponent* SkelComp, FName BoneName,
+                                                     float HistorySeconds) {
+    if (!SkelComp)
+        return FVector::ZeroVector;
+
+    const float Now = SkelComp->GetWorld() ? SkelComp->GetWorld()->GetTimeSeconds() : 0.f;
+
+    // --- Update position and velocity histories as above ---
+    FVector BoneVelWS = FVector::ZeroVector;
+    UpdateBoneHistory(SkelComp, BoneName, Now, HistorySeconds, BoneVelWS);
+    UpdateBoneVelocityHistory(SkelComp, BoneName, BoneVelWS, Now, HistorySeconds);
+
+    FVector BoneAccelWS = FVector::ZeroVector;
+    GetSmoothedAcceleration(SkelComp, BoneName, Now, HistorySeconds, BoneAccelWS);
+    UpdateBoneAccelHistory(SkelComp, BoneName, BoneAccelWS, Now, HistorySeconds);
+
+    FVector BoneJerkWS = FVector::ZeroVector;
+    GetSmoothedJerk(SkelComp, BoneName, Now, HistorySeconds, BoneJerkWS);
+
+    return BoneJerkWS;
+}
+
+void UOHSkeletalPhysicsUtils::ComputePhysicsTweaksForBone(USkeletalMeshComponent* SkeletalMeshComponent, FName Bone,
+                                                          float& OutPACMultiplier, float& OutLinearDamping,
+                                                          float& OutAngularDamping) {
+    OutPACMultiplier = 1.f;
+    OutLinearDamping = 5.f;
+    OutAngularDamping = 3.f;
+
+    if (!SkeletalMeshComponent || !SkeletalMeshComponent->GetSkeletalMeshAsset())
+        return;
+
+    const FReferenceSkeleton& RefSkeleton = SkeletalMeshComponent->GetSkeletalMeshAsset()->GetRefSkeleton();
+    const int32 BoneIndex = RefSkeleton.FindBoneIndex(Bone);
+    if (BoneIndex == INDEX_NONE)
+        return;
+
+    const int32 ParentIndex = RefSkeleton.GetParentIndex(BoneIndex);
+    float Length = 10.f;
+
+    if (ParentIndex != INDEX_NONE) {
+        const FVector BoneLoc = SkeletalMeshComponent->GetBoneLocation(Bone, EBoneSpaces::ComponentSpace);
+        const FName ParentBoneName = RefSkeleton.GetBoneName(ParentIndex);
+        const FVector ParentLoc = SkeletalMeshComponent->GetBoneLocation(ParentBoneName, EBoneSpaces::ComponentSpace);
+        Length = FVector::Dist(BoneLoc, ParentLoc);
+    }
+
+    FBodyInstance* Body = SkeletalMeshComponent->GetBodyInstance(Bone);
+    if (!Body)
+        return;
+
+    const float Mass = Body->GetBodyMass();
+
+    // Compute bone depth (distance from root)
+    int32 Depth = 0;
+    int32 Current = BoneIndex;
+    while (RefSkeleton.GetParentIndex(Current) != INDEX_NONE) {
+        Current = RefSkeleton.GetParentIndex(Current);
+        ++Depth;
+    }
+
+    // Combined responsiveness: longer + heavier + deeper = stronger
+    const float Responsiveness = (Length * 0.3f + Mass * 1.0f) * (1.0f + Depth * 0.05f);
+
+    OutPACMultiplier = FMath::Clamp(Responsiveness / 10.f, 0.5f, 2.0f);
+
+    // Base damping
+    float DampingBase = Responsiveness * 0.5f;
+
+    // Boost damping for high-jitter small bones
+    const FString BoneStr = Bone.ToString().ToLower();
+    if (BoneStr.Contains("hand") || BoneStr.Contains("foot") || BoneStr.Contains("head")) {
+        DampingBase *= 1.5f;
+    }
+
+    // Clamp final damping values
+    OutLinearDamping = FMath::Clamp(DampingBase, 2.0f, 14.0f);
+    OutAngularDamping = FMath::Clamp(DampingBase * 0.8f, 1.0f, 10.0f);
+}
+
+FSimpleConstraintProfile
+UOHSkeletalPhysicsUtils::ComputeOptimalConstraintSettings(USkeletalMeshComponent* SkeletalMeshComponent,
+                                                          FName BoneName) {
+    FSimpleConstraintProfile Profile;
+
+    if (!SkeletalMeshComponent)
+        return Profile;
+
+    USkeletalMesh* MeshAsset = SkeletalMeshComponent->GetSkeletalMeshAsset();
+    if (!MeshAsset)
+        return Profile;
+
+    const FReferenceSkeleton& RefSkel = MeshAsset->GetRefSkeleton();
+    const int32 BoneIndex = RefSkel.FindBoneIndex(BoneName);
+    if (BoneIndex == INDEX_NONE)
+        return Profile;
+
+    const int32 ParentIndex = RefSkel.GetParentIndex(BoneIndex);
+    if (ParentIndex == INDEX_NONE)
+        return Profile;
+
+    const FName ParentBone = RefSkel.GetBoneName(ParentIndex);
+
+    // --- Mass ---
+    float Mass = 0.f;
+    if (FBodyInstance* Body = SkeletalMeshComponent->GetBodyInstance(BoneName)) {
+        Mass = Body->GetBodyMass();
+    }
+    if (Mass <= 0.f) {
+        Mass = SkeletalMeshComponent->GetBoneMass(BoneName);
+    }
+
+    float ParentMass = 0.f;
+    if (FBodyInstance* ParentBody = SkeletalMeshComponent->GetBodyInstance(ParentBone)) {
+        ParentMass = ParentBody->GetBodyMass();
+    }
+    if (ParentMass <= 0.f) {
+        ParentMass = SkeletalMeshComponent->GetBoneMass(ParentBone);
+    }
+
+    const float MassRatio = (ParentMass > SMALL_NUMBER) ? Mass / ParentMass : 1.f;
+
+    // --- Length ---
+    const FVector BonePos = SkeletalMeshComponent->GetBoneLocation(BoneName);
+    const FVector ParentPos = SkeletalMeshComponent->GetBoneLocation(ParentBone);
+    float Length = FVector::Dist(BonePos, ParentPos);
+
+    // --- Classification ---
+    const FString BoneStr = BoneName.ToString().ToLower();
+    const bool bIsDistal = BoneStr.Contains("hand") || BoneStr.Contains("foot");
+    const bool bIsSpine = BoneStr.Contains("spine");
+    const bool bIsClavicle = BoneStr.Contains("clavicle");
+
+    // ----- Angular limits -----
+    float SwingLimit = FMath::Clamp(Length * 1.2f, 20.f, bIsDistal ? 60.f : 40.f);
+    float TwistLimit = FMath::Clamp(Length * 0.8f, 10.f, 35.f);
+    if (bIsSpine || bIsClavicle) {
+        SwingLimit *= 1.4f;
+        TwistLimit *= 1.2f;
+    }
+
+    Profile.Swing1Motion = EOHAngularConstraintMotion::ACM_Limited;
+    Profile.Swing2Motion = EOHAngularConstraintMotion::ACM_Limited;
+    Profile.TwistMotion = EOHAngularConstraintMotion::ACM_Limited;
+
+    Profile.Swing1LimitDegrees = SwingLimit;
+    Profile.Swing2LimitDegrees = SwingLimit;
+    Profile.TwistLimitDegrees = TwistLimit;
+
+    // --- Angular stiffness/damping/softness ---
+    float SwingDampingBase = bIsDistal ? 4.f : 2.f;
+    float SwingStiffnessBase = bIsDistal ? 35.f : 25.f;
+    float TwistDampingBase = bIsDistal ? 4.f : 2.f;
+    float TwistStiffnessBase = bIsDistal ? 35.f : 25.f;
+
+    if (bIsSpine || bIsClavicle) {
+        SwingStiffnessBase *= 0.8f;
+        SwingDampingBase *= 1.5f;
+        TwistStiffnessBase *= 0.8f;
+        TwistDampingBase *= 1.5f;
+    }
+
+    Profile.SwingStiffness = SwingStiffnessBase * MassRatio;
+    Profile.SwingDamping = SwingDampingBase * MassRatio;
+    Profile.TwistStiffness = TwistStiffnessBase * MassRatio;
+    Profile.TwistDamping = TwistDampingBase * MassRatio;
+
+    Profile.bSwingSoftConstraint = false; // Default, override as needed
+    Profile.SwingRestitution = 0.f;
+    Profile.SwingContactDistance = 0.f;
+
+    Profile.bTwistSoftConstraint = false;
+    Profile.TwistRestitution = 0.f;
+    Profile.TwistContactDistance = 0.f;
+
+    // --- Linear limits ---
+    if (bIsDistal) {
+        Profile.LinearXMotion = EOHLinearConstraintMotion::LCM_Limited;
+        Profile.LinearYMotion = EOHLinearConstraintMotion::LCM_Limited;
+        Profile.LinearZMotion = EOHLinearConstraintMotion::LCM_Limited;
+        Profile.LinearLimit = FMath::Clamp(Length * 0.3f, 2.0f, 6.0f);
+        Profile.LinearStiffness = 1000.f;
+        Profile.LinearDamping = 50.f;
+        Profile.bLinearSoftConstraint = false; // Default, override as needed
+    } else {
+        Profile.LinearXMotion = EOHLinearConstraintMotion::LCM_Locked;
+        Profile.LinearYMotion = EOHLinearConstraintMotion::LCM_Locked;
+        Profile.LinearZMotion = EOHLinearConstraintMotion::LCM_Locked;
+        Profile.LinearLimit = 0.f;
+        Profile.LinearStiffness = 0.f;
+        Profile.LinearDamping = 0.f;
+        Profile.bLinearSoftConstraint = false;
+    }
+    Profile.LinearRestitution = 0.f;
+    Profile.LinearContactDistance = 0.f;
+
+    // --- Projection ---
+    Profile.bEnableProjection = false;
+    Profile.ProjectionLinearTolerance = 1.f;
+    Profile.ProjectionAngularTolerance = 10.f;
+
+    // --- Collision ---
+    Profile.bDisableCollision = false;
+
+    // --- Breakable constraints ---
+    Profile.bLinearBreakable = false;
+    Profile.LinearBreakThreshold = 300.f;
+    Profile.bAngularBreakable = false;
+    Profile.AngularBreakThreshold = 300.f;
+
+    // (Optional) Debug log:
+    UE_LOG(LogTemp, Log,
+           TEXT("[OHSkeletalPhysicsUtils][BP] [%s] ConstraintProfile | Swing=%.1f Twist=%.1f | MassRatio=%.2f | "
+                "Length=%.1f"),
+           *BoneName.ToString(), SwingLimit, TwistLimit, MassRatio, Length);
+
+    return Profile;
+}
+
+void UOHSkeletalPhysicsUtils::ComputeOptimalConstraintSettings(USkeletalMeshComponent* SkeletalMeshComponent,
+                                                               const FConstraintInstance* ConstraintInstance,
+                                                               FConstraintProfileProperties& OutProfile,
+                                                               FName BoneName) {
+    if (!SkeletalMeshComponent || !ConstraintInstance)
+        return;
+
+    USkeletalMesh* MeshAsset = SkeletalMeshComponent->GetSkeletalMeshAsset();
+    if (!MeshAsset)
+        return;
+
+    const FReferenceSkeleton& RefSkel = MeshAsset->GetRefSkeleton();
+    const int32 BoneIndex = RefSkel.FindBoneIndex(BoneName);
+    if (BoneIndex == INDEX_NONE)
+        return;
+
+    const int32 ParentIndex = RefSkel.GetParentIndex(BoneIndex);
+    if (ParentIndex == INDEX_NONE)
+        return;
+
+    const FName ParentBone = RefSkel.GetBoneName(ParentIndex);
+
+    // --- Mass ---
+    float Mass = 0.f;
+    if (FBodyInstance* Body = SkeletalMeshComponent->GetBodyInstance(BoneName)) {
+        Mass = Body->GetBodyMass();
+    }
+    if (Mass <= 0.f) {
+        Mass = SkeletalMeshComponent->GetBoneMass(BoneName);
+    }
+
+    float ParentMass = 0.f;
+    if (FBodyInstance* ParentBody = SkeletalMeshComponent->GetBodyInstance(ParentBone)) {
+        ParentMass = ParentBody->GetBodyMass();
+    }
+    if (ParentMass <= 0.f) {
+        ParentMass = SkeletalMeshComponent->GetBoneMass(ParentBone);
+    }
+
+    const float MassRatio = (ParentMass > SMALL_NUMBER) ? Mass / ParentMass : 1.f;
+
+    // --- Length ---
+    const FVector BonePos = SkeletalMeshComponent->GetBoneLocation(BoneName);
+    const FVector ParentPos = SkeletalMeshComponent->GetBoneLocation(ParentBone);
+    float Length = FVector::Dist(BonePos, ParentPos);
+
+    // --- Classification ---
+    const FString BoneStr = BoneName.ToString().ToLower();
+    const bool bIsDistal = BoneStr.Contains("hand") || BoneStr.Contains("foot");
+    const bool bIsSpine = BoneStr.Contains("spine");
+    const bool bIsClavicle = BoneStr.Contains("clavicle");
+
+    // --- Angular limits ---
+    float SwingLimit = FMath::Clamp(Length * 1.2f, 20.f, bIsDistal ? 60.f : 40.f);
+    float TwistLimit = FMath::Clamp(Length * 0.8f, 10.f, 35.f);
+    if (bIsSpine || bIsClavicle) {
+        SwingLimit *= 1.4f;
+        TwistLimit *= 1.2f;
+    }
+
+    OutProfile.ConeLimit.Swing1Motion = EAngularConstraintMotion::ACM_Limited;
+    OutProfile.ConeLimit.Swing2Motion = EAngularConstraintMotion::ACM_Limited;
+    OutProfile.TwistLimit.TwistMotion = EAngularConstraintMotion::ACM_Limited;
+
+    OutProfile.ConeLimit.Swing1LimitDegrees = SwingLimit;
+    OutProfile.ConeLimit.Swing2LimitDegrees = SwingLimit;
+    OutProfile.TwistLimit.TwistLimitDegrees = TwistLimit;
+
+    // --- Angular stiffness/damping ---
+    float DampingBase = bIsDistal ? 4.f : 2.f;
+    float StiffnessBase = bIsDistal ? 35.f : 25.f;
+
+    if (bIsSpine || bIsClavicle) {
+        StiffnessBase *= 0.8f;
+        DampingBase *= 1.5f;
+    }
+
+    OutProfile.ConeLimit.Stiffness = StiffnessBase * MassRatio;
+    OutProfile.ConeLimit.Damping = DampingBase * MassRatio;
+    OutProfile.TwistLimit.Stiffness = StiffnessBase * MassRatio;
+    OutProfile.TwistLimit.Damping = DampingBase * MassRatio;
+
+    // --- Linear limits ---
+    if (bIsDistal) {
+        OutProfile.LinearLimit.XMotion = ELinearConstraintMotion::LCM_Limited;
+        OutProfile.LinearLimit.YMotion = ELinearConstraintMotion::LCM_Limited;
+        OutProfile.LinearLimit.ZMotion = ELinearConstraintMotion::LCM_Limited;
+
+        OutProfile.LinearLimit.Limit = FMath::Clamp(Length * 0.3f, 2.0f, 6.0f);
+        OutProfile.LinearLimit.Stiffness = 1000.f;
+        OutProfile.LinearLimit.Damping = 50.f;
+    } else {
+        OutProfile.LinearLimit.XMotion = ELinearConstraintMotion::LCM_Locked;
+        OutProfile.LinearLimit.YMotion = ELinearConstraintMotion::LCM_Locked;
+        OutProfile.LinearLimit.ZMotion = ELinearConstraintMotion::LCM_Locked;
+    }
+
+    // --- Projection ---
+    OutProfile.bEnableProjection = false;
+
+    // --- Optional: debug log ---
+    UE_LOG(
+        LogTemp, Log,
+        TEXT("[OHSkeletalPhysicsUtils] [%s] Constraint Profile | Swing=%.1f Twist=%.1f | MassRatio=%.2f | Length=%.1f"),
+        *BoneName.ToString(), SwingLimit, TwistLimit, MassRatio, Length);
+}
+
+FSimpleConstraintProfile
+UOHSkeletalPhysicsUtils::ConstraintProfileToSimple(const FConstraintProfileProperties& Profile) {
+    FSimpleConstraintProfile Simple;
+
+    // Angular Motions
+    auto ConvertAngularMotion = [](EAngularConstraintMotion In) {
+        switch (In) {
+        case EAngularConstraintMotion::ACM_Locked:
+            return EOHAngularConstraintMotion::ACM_Locked;
+        case EAngularConstraintMotion::ACM_Limited:
+            return EOHAngularConstraintMotion::ACM_Limited;
+        case EAngularConstraintMotion::ACM_Free:
+            return EOHAngularConstraintMotion::ACM_Free;
+        default:
+            return EOHAngularConstraintMotion::ACM_Locked;
+        }
+    };
+
+    // Linear Motions
+    auto ConvertLinearMotion = [](ELinearConstraintMotion In) {
+        switch (In) {
+        case ELinearConstraintMotion::LCM_Locked:
+            return EOHLinearConstraintMotion::LCM_Locked;
+        case ELinearConstraintMotion::LCM_Limited:
+            return EOHLinearConstraintMotion::LCM_Limited;
+        case ELinearConstraintMotion::LCM_Free:
+            return EOHLinearConstraintMotion::LCM_Free;
+        default:
+            return EOHLinearConstraintMotion::LCM_Locked;
+        }
+    };
+
+    // --------- Angular (Cone) Limit -----------
+    Simple.Swing1Motion = ConvertAngularMotion(Profile.ConeLimit.Swing1Motion);
+    Simple.Swing2Motion = ConvertAngularMotion(Profile.ConeLimit.Swing2Motion);
+    Simple.Swing1LimitDegrees = Profile.ConeLimit.Swing1LimitDegrees;
+    Simple.Swing2LimitDegrees = Profile.ConeLimit.Swing2LimitDegrees;
+    Simple.SwingStiffness = Profile.ConeLimit.Stiffness;
+    Simple.SwingDamping = Profile.ConeLimit.Damping;
+    Simple.bSwingSoftConstraint = Profile.ConeLimit.bSoftConstraint;
+    Simple.SwingRestitution = Profile.ConeLimit.Restitution;
+    Simple.SwingContactDistance = Profile.ConeLimit.ContactDistance;
+
+    // --------- Angular (Twist) Limit ----------
+    Simple.TwistMotion = ConvertAngularMotion(Profile.TwistLimit.TwistMotion);
+    Simple.TwistLimitDegrees = Profile.TwistLimit.TwistLimitDegrees;
+    Simple.TwistStiffness = Profile.TwistLimit.Stiffness;
+    Simple.TwistDamping = Profile.TwistLimit.Damping;
+    Simple.bTwistSoftConstraint = Profile.TwistLimit.bSoftConstraint;
+    Simple.TwistRestitution = Profile.TwistLimit.Restitution;
+    Simple.TwistContactDistance = Profile.TwistLimit.ContactDistance;
+
+    // --------- Linear Limit ------------------
+    Simple.LinearXMotion = ConvertLinearMotion(Profile.LinearLimit.XMotion);
+    Simple.LinearYMotion = ConvertLinearMotion(Profile.LinearLimit.YMotion);
+    Simple.LinearZMotion = ConvertLinearMotion(Profile.LinearLimit.ZMotion);
+    Simple.LinearLimit = Profile.LinearLimit.Limit;
+    Simple.LinearStiffness = Profile.LinearLimit.Stiffness;
+    Simple.LinearDamping = Profile.LinearLimit.Damping;
+    Simple.bLinearSoftConstraint = Profile.LinearLimit.bSoftConstraint;
+    Simple.LinearRestitution = Profile.LinearLimit.Restitution;
+    Simple.LinearContactDistance = Profile.LinearLimit.ContactDistance;
+
+    // --------- Projection --------------------
+    Simple.bEnableProjection = Profile.bEnableProjection;
+    Simple.ProjectionLinearTolerance = Profile.ProjectionLinearTolerance;
+    Simple.ProjectionAngularTolerance = Profile.ProjectionAngularTolerance;
+
+    // --------- Collision ---------------------
+    Simple.bDisableCollision = Profile.bDisableCollision;
+
+    // --------- Breakable Constraints ---------
+    Simple.bLinearBreakable = Profile.bLinearBreakable;
+    Simple.LinearBreakThreshold = Profile.LinearBreakThreshold;
+    Simple.bAngularBreakable = Profile.bAngularBreakable;
+    Simple.AngularBreakThreshold = Profile.AngularBreakThreshold;
+
+    return Simple;
+}
+
+FConstraintProfileProperties
+UOHSkeletalPhysicsUtils::SimpleToConstraintProfile(const FSimpleConstraintProfile& Simple) {
+    FConstraintProfileProperties Profile;
+
+    // Angular Motions
+    auto ConvertAngularMotion = [](EOHAngularConstraintMotion In) {
+        switch (In) {
+        case EOHAngularConstraintMotion::ACM_Locked:
+            return EAngularConstraintMotion::ACM_Locked;
+        case EOHAngularConstraintMotion::ACM_Limited:
+            return EAngularConstraintMotion::ACM_Limited;
+        case EOHAngularConstraintMotion::ACM_Free:
+            return EAngularConstraintMotion::ACM_Free;
+        default:
+            return EAngularConstraintMotion::ACM_Locked;
+        }
+    };
+
+    // Linear Motions
+    auto ConvertLinearMotion = [](EOHLinearConstraintMotion In) {
+        switch (In) {
+        case EOHLinearConstraintMotion::LCM_Locked:
+            return ELinearConstraintMotion::LCM_Locked;
+        case EOHLinearConstraintMotion::LCM_Limited:
+            return ELinearConstraintMotion::LCM_Limited;
+        case EOHLinearConstraintMotion::LCM_Free:
+            return ELinearConstraintMotion::LCM_Free;
+        default:
+            return ELinearConstraintMotion::LCM_Locked;
+        }
+    };
+
+    // --------- Angular (Cone) Limit -----------
+    Profile.ConeLimit.Swing1Motion = ConvertAngularMotion(Simple.Swing1Motion);
+    Profile.ConeLimit.Swing2Motion = ConvertAngularMotion(Simple.Swing2Motion);
+    Profile.ConeLimit.Swing1LimitDegrees = Simple.Swing1LimitDegrees;
+    Profile.ConeLimit.Swing2LimitDegrees = Simple.Swing2LimitDegrees;
+    Profile.ConeLimit.Stiffness = Simple.SwingStiffness;
+    Profile.ConeLimit.Damping = Simple.SwingDamping;
+    Profile.ConeLimit.bSoftConstraint = Simple.bSwingSoftConstraint;
+    Profile.ConeLimit.Restitution = Simple.SwingRestitution;
+    Profile.ConeLimit.ContactDistance = Simple.SwingContactDistance;
+
+    // --------- Angular (Twist) Limit ----------
+    Profile.TwistLimit.TwistMotion = ConvertAngularMotion(Simple.TwistMotion);
+    Profile.TwistLimit.TwistLimitDegrees = Simple.TwistLimitDegrees;
+    Profile.TwistLimit.Stiffness = Simple.TwistStiffness;
+    Profile.TwistLimit.Damping = Simple.TwistDamping;
+    Profile.TwistLimit.bSoftConstraint = Simple.bTwistSoftConstraint;
+    Profile.TwistLimit.Restitution = Simple.TwistRestitution;
+    Profile.TwistLimit.ContactDistance = Simple.TwistContactDistance;
+
+    // --------- Linear Limit ------------------
+    Profile.LinearLimit.XMotion = ConvertLinearMotion(Simple.LinearXMotion);
+    Profile.LinearLimit.YMotion = ConvertLinearMotion(Simple.LinearYMotion);
+    Profile.LinearLimit.ZMotion = ConvertLinearMotion(Simple.LinearZMotion);
+    Profile.LinearLimit.Limit = Simple.LinearLimit;
+    Profile.LinearLimit.Stiffness = Simple.LinearStiffness;
+    Profile.LinearLimit.Damping = Simple.LinearDamping;
+    Profile.LinearLimit.bSoftConstraint = Simple.bLinearSoftConstraint;
+    Profile.LinearLimit.Restitution = Simple.LinearRestitution;
+    Profile.LinearLimit.ContactDistance = Simple.LinearContactDistance;
+
+    // --------- Projection --------------------
+    Profile.bEnableProjection = Simple.bEnableProjection;
+    Profile.ProjectionLinearTolerance = Simple.ProjectionLinearTolerance;
+    Profile.ProjectionAngularTolerance = Simple.ProjectionAngularTolerance;
+
+    // --------- Collision ---------------------
+    Profile.bDisableCollision = Simple.bDisableCollision;
+
+    // --------- Breakable Constraints ---------
+    Profile.bLinearBreakable = Simple.bLinearBreakable;
+    Profile.LinearBreakThreshold = Simple.LinearBreakThreshold;
+    Profile.bAngularBreakable = Simple.bAngularBreakable;
+    Profile.AngularBreakThreshold = Simple.AngularBreakThreshold;
+
+    return Profile;
+}
+
+FSimpleConstraintProfile
+UOHSkeletalPhysicsUtils::GetConstraintProfileForBoneRelationship(USkeletalMeshComponent* SkeletalMeshComponent,
+                                                                 FName ChildBone, FName ParentBone) {
+    FSimpleConstraintProfile OutProfile;
+
+    if (!SkeletalMeshComponent)
+        return OutProfile;
+
+    // 1. Search live constraint instances first (runtime, most accurate)
+    const TArray<FConstraintInstance*>& ConstraintInstances = SkeletalMeshComponent->Constraints;
+
+    for (const FConstraintInstance* Instance : ConstraintInstances) {
+        if (!Instance)
+            continue;
+
+        const FName JointNameA = Instance->ConstraintBone1; // Usually "child"
+        const FName JointNameB = Instance->ConstraintBone2; // Usually "parent"
+
+        if ((JointNameA == ChildBone && JointNameB == ParentBone) ||
+            (JointNameA == ParentBone && JointNameB == ChildBone)) {
+            // Use live instance's current profile
+            FConstraintProfileProperties CurrentProfile;
+            Instance->ProfileInstance;
+            return ConstraintProfileToSimple(CurrentProfile); // C++-only static mapper
+        }
+    }
+
+    // 2. Fallback: Search asset PhysicsAsset for a constraint between these bones
+    USkeletalMesh* MeshAsset = SkeletalMeshComponent->GetSkeletalMeshAsset();
+    if (MeshAsset && MeshAsset->GetPhysicsAsset()) {
+        UPhysicsAsset* PhysicsAsset = MeshAsset->GetPhysicsAsset();
+
+        for (const UPhysicsConstraintTemplate* ConstraintTemplate : PhysicsAsset->ConstraintSetup) {
+            if (!ConstraintTemplate)
+                continue;
+
+            const FConstraintInstance& Instance = ConstraintTemplate->DefaultInstance;
+            const FName JointNameA = Instance.ConstraintBone1;
+            const FName JointNameB = Instance.ConstraintBone2;
+
+            if ((JointNameA == ChildBone && JointNameB == ParentBone) ||
+                (JointNameA == ParentBone && JointNameB == ChildBone)) {
+                // Use the ProfileInstance from the default instance (public)
+                return ConstraintProfileToSimple(Instance.ProfileInstance);
+            }
+        }
+    }
+
+    // 3. Nothing found: return default (zeroed) profile
+    return OutProfile;
+}
+
+int32 UOHSkeletalPhysicsUtils::GetBoneHierarchyDistance(USkeletalMeshComponent* SkelMesh, FName BoneA, FName BoneB) {
+    // Simple implementation - counts steps in hierarchy
+    int32 IndexA = SkelMesh->GetBoneIndex(BoneA);
+    int32 IndexB = SkelMesh->GetBoneIndex(BoneB);
+
+    if (IndexA == INDEX_NONE || IndexB == INDEX_NONE)
+        return -1;
+
+    // Find common ancestor
+    TArray<int32> PathA, PathB;
+
+    // Build path to root for A
+    int32 Current = IndexA;
+    while (Current != INDEX_NONE) {
+        PathA.Add(Current);
+        Current = GetParentBoneIndex(SkelMesh, Current);
+    }
+
+    // Build path to root for B
+    Current = IndexB;
+    while (Current != INDEX_NONE) {
+        PathB.Add(Current);
+        Current = GetParentBoneIndex(SkelMesh, Current);
+    }
+
+    // Find common ancestor
+    for (int32 i = 0; i < PathA.Num(); i++) {
+        for (int32 j = 0; j < PathB.Num(); j++) {
+            if (PathA[i] == PathB[j]) {
+                return i + j; // Total distance
+            }
+        }
+    }
+
+    return PathA.Num() + PathB.Num();
+}
+
+int32 UOHSkeletalPhysicsUtils::GetBoneHierarchyDepth(const USkeletalMeshComponent* Mesh, FName Bone) {
+    if (!Mesh || Bone.IsNone())
+        return 0;
+
+    const int32 Index = Mesh->GetBoneIndex(Bone);
+    if (Index == INDEX_NONE)
+        return 0;
+
+    const FReferenceSkeleton& Ref = Mesh->GetSkeletalMeshAsset()->GetRefSkeleton();
+    int32 Depth = 0;
+    int32 Parent = Ref.GetParentIndex(Index);
+
+    while (Parent != INDEX_NONE) {
+        ++Depth;
+        Parent = Ref.GetParentIndex(Parent);
+    }
+    return Depth;
+}
+
+#pragma endregion
+
+#if 0
+
+bool UOHSkeletalPhysicsUtils::GetBoneCollisionShape(
+	UPhysicsAsset* PhysAsset,
+	FName BoneName,
+	FTransform& OutBoneTransform,
+	FCollisionShape& OutShape)
+{
+	if (!PhysAsset)
+		return false;
+
+	const int32 BodyIndex = PhysAsset->FindBodyIndex(BoneName);
+	if (BodyIndex == INDEX_NONE)
+		return false;
+
+	const USkeletalBodySetup* BodySetup = PhysAsset->SkeletalBodySetups[BodyIndex];
+	if (!BodySetup || BodySetup->AggGeom.GetElementCount() == 0)
+		return false;
+
+	const FKSphylElem* Capsule = BodySetup->AggGeom.SphylElems.Num() > 0
+		? &BodySetup->AggGeom.SphylElems[0]
+		: nullptr;
+
+	if (Capsule)
+	{
+		OutBoneTransform = Capsule->GetTransform();
+		OutShape = FCollisionShape::MakeCapsule(Capsule->Radius, Capsule->Length * 0.5f);
+		return true;
+	}
+
+	const FKSphereElem* Sphere = BodySetup->AggGeom.SphereElems.Num() > 0
+		? &BodySetup->AggGeom.SphereElems[0]
+		: nullptr;
+
+	if (Sphere)
+	{
+		OutBoneTransform = Sphere->GetTransform();
+		OutShape = FCollisionShape::MakeSphere(Sphere->Radius);
+		return true;
+	}
+
+	return false;
+}
+
+
+
+bool TryGetBoneReferenceFromEnum_Internal(
+	EOHSkeletalBone BoneEnum,
+	const FBoneContainer& BoneContainer,
+	FBoneReference& OutRef)
+{
+	if (BoneEnum == EOHSkeletalBone::None)
+	{
+		return false;
+	}
+	
+	const FName BoneName = GetBoneNameFromEnum(BoneEnum);
+	const int32 PoseIndex = BoneContainer.GetPoseBoneIndexForBoneName(BoneName);
+	if (PoseIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	OutRef.BoneName = BoneName;
+	OutRef.Initialize(BoneContainer);
+	return OutRef.IsValidToEvaluate(BoneContainer);
+}
+
+
+
+
+
+bool UOHSkeletalPhysicsUtils::TryGetPoseIndex(
+	EOHSkeletalBone Bone,
+	const TMap<EOHSkeletalBone, FCompactPoseBoneIndex>& Indices,
+	FCompactPoseBoneIndex& OutIndex)
+{
+	if (const FCompactPoseBoneIndex* Found = Indices.Find(Bone))
+	{
+		OutIndex = *Found;
+		return true;
+	}
+	OutIndex = FCompactPoseBoneIndex(INDEX_NONE);
+	return false;
+}
+
+
+TArray<FConstraintInstance*> UOHSkeletalPhysicsUtils::GetAllParentConstraints(USkeletalMeshComponent* SkelMesh,
+	FName BoneName)
+{
+	TArray<FConstraintInstance*> Result;
+	if (!SkelMesh) return Result;
+	UPhysicsAsset* PhysAsset = SkelMesh->GetPhysicsAsset();
+	if (!PhysAsset) return Result;
+
+	const FReferenceSkeleton& RefSkel = SkelMesh->GetSkeletalMeshAsset()->GetRefSkeleton();
+	int32 MyIdx = SkelMesh->GetBoneIndex(BoneName);
+
+	while (MyIdx != INDEX_NONE)
+	{
+		int32 ParentIdx = RefSkel.GetParentIndex(MyIdx);
+		if (ParentIdx == INDEX_NONE) break;
+		FName ParentName = RefSkel.GetBoneName(ParentIdx);
+		FName ThisName = RefSkel.GetBoneName(MyIdx);
+
+		for (UPhysicsConstraintTemplate* ConstraintTemplate : PhysAsset->ConstraintSetup)
+		{
+			if (!ConstraintTemplate) continue;
+			FConstraintInstance* CI = const_cast<FConstraintInstance*>(&ConstraintTemplate->DefaultInstance);
+			if ((CI->ConstraintBone1 == ParentName && CI->ConstraintBone2 == ThisName) ||
+				(CI->ConstraintBone1 == ThisName && CI->ConstraintBone2 == ParentName))
+			{
+				Result.Add(CI);
+				break;
+			}
+		}
+		MyIdx = ParentIdx;
+	}
+	return Result;
+}
+
+TArray<FName> UOHSkeletalPhysicsUtils::GetAllParentBoneNames(USkeletalMeshComponent* SkelMesh, FName BoneName)
+{
+	TArray<FName> OutNames;
+	if (!SkelMesh) return OutNames;
+	const FReferenceSkeleton& RefSkel = SkelMesh->GetSkeletalMeshAsset()->GetRefSkeleton();
+	int32 MyIdx = SkelMesh->GetBoneIndex(BoneName);
+	while (true)
+	{
+		int32 ParentIdx = RefSkel.GetParentIndex(MyIdx);
+		if (ParentIdx == INDEX_NONE) break;
+		OutNames.Add(RefSkel.GetBoneName(ParentIdx));
+		MyIdx = ParentIdx;
+	}
+	return OutNames;
+}
+
+float UOHSkeletalPhysicsUtils::ComputeBoneLength(const USkeletalMeshComponent* SkeletalMesh, FName BoneA, FName BoneB)
+{
+	if (!SkeletalMesh || BoneA.IsNone() || BoneB.IsNone())
+	{
+		return 0.f;
+	}
+
+	using FCacheKey = TTuple<const USkeletalMeshComponent*, FName, FName>;
+	static TMap<FCacheKey, float> LengthCache;
+
+	// Ensure consistent ordering of bone pair
+	const bool bSwap = BoneA.FastLess(BoneB);
+	const FName KeyA = bSwap ? BoneA : BoneB;
+	const FName KeyB = bSwap ? BoneB : BoneA;
+
+	const FCacheKey CacheKey(SkeletalMesh, KeyA, KeyB);
+
+	if (const float* CachedLength = LengthCache.Find(CacheKey))
+	{
+		return *CachedLength;
+	}
+
+	const FVector PosA = SkeletalMesh->GetBoneLocation(BoneA);
+	const FVector PosB = SkeletalMesh->GetBoneLocation(BoneB);
+	const float Length = FVector::Dist(PosA, PosB);
+
+	LengthCache.Add(CacheKey, Length);
+	return Length;
+}
+
+
+
+TArray<EOHSkeletalBone> UOHSkeletalPhysicsUtils::GetChildBonesByDepth(EOHSkeletalBone RootBone, int32 MaxDepth)
+{
+	TArray<EOHSkeletalBone> Result;
+	if (MaxDepth <= 0)
+	{
+		return Result;
+	}
+
+	TQueue<TPair<EOHSkeletalBone, int32>> Queue;
+	Queue.Enqueue(TPair<EOHSkeletalBone, int32>(RootBone, 0));
+
+	while (!Queue.IsEmpty())
+	{
+		TPair<EOHSkeletalBone, int32> Current;
+		Queue.Dequeue(Current);
+
+		EOHSkeletalBone Bone = Current.Key;
+		int32 Depth = Current.Value;
+
+		if (Depth >= MaxDepth)
+		{
+			continue;
+		}
+
+		const TArray<EOHSkeletalBone> Children = GetChildBones(Bone);
+		for (EOHSkeletalBone Child : Children)
+		{
+			Result.Add(Child);
+			Queue.Enqueue(TPair<EOHSkeletalBone, int32>(Child, Depth + 1));
+		}
+	}
+
+	return Result;
+}
+
+
+EOHSkeletalBone UOHSkeletalPhysicsUtils::GetDirectChildBone(EOHSkeletalBone ParentBone)
+{
+	for (EOHSkeletalBone Bone = EOHSkeletalBone::FirstBone; Bone <= EOHSkeletalBone::LastBone;
+	     Bone = static_cast<EOHSkeletalBone>(static_cast<uint8>(Bone) + 1))
+	{
+		if (GetParentBone(Bone) == ParentBone)
+		{
+			return Bone; // First match only
+		}
+	}
+
+	return EOHSkeletalBone::None;
+}
+
+int32 UOHSkeletalPhysicsUtils::GetBoneDepthRelativeTo(EOHSkeletalBone ParentBone, EOHSkeletalBone TargetBone)
+{
+	if (ParentBone == EOHSkeletalBone::None || TargetBone == EOHSkeletalBone::None)
+	{
+		return -1;
+	}
+
+	if (ParentBone == TargetBone)
+	{
+		return 0;
+	}
+
+	int32 Depth = 0;
+	EOHSkeletalBone Current = TargetBone;
+
+	while (Current != EOHSkeletalBone::None)
+	{
+		Current = GetParentBone(Current);
+		Depth++;
+
+		if (Current == ParentBone)
+		{
+			return Depth;
+		}
+	}
+
+	return -1; // Not a descendant
+}
+
+
+
+
+
+TArray<EOHSkeletalBone> UOHSkeletalPhysicsUtils::GetBoneChainBelow(const EOHSkeletalBone RootBone)
+{
+	static TMap<EOHSkeletalBone, TArray<EOHSkeletalBone>> BoneHierarchy = {
+		{
+			EOHSkeletalBone::Pelvis, {
+				EOHSkeletalBone::Spine_01, EOHSkeletalBone::Spine_02, EOHSkeletalBone::Spine_03,
+				EOHSkeletalBone::Clavicle_L, EOHSkeletalBone::UpperArm_L, EOHSkeletalBone::LowerArm_L,
+				EOHSkeletalBone::Hand_L, EOHSkeletalBone::Clavicle_R, EOHSkeletalBone::UpperArm_R,
+				EOHSkeletalBone::LowerArm_R, EOHSkeletalBone::Hand_R,
+				EOHSkeletalBone::Thigh_L, EOHSkeletalBone::Calf_L, EOHSkeletalBone::Foot_L,
+				EOHSkeletalBone::Thigh_R, EOHSkeletalBone::Calf_R, EOHSkeletalBone::Foot_R
+			}
+		},
+		{
+			EOHSkeletalBone::Clavicle_L, {
+				EOHSkeletalBone::UpperArm_L, EOHSkeletalBone::LowerArm_L, EOHSkeletalBone::Hand_L
+			}
+		},
+		{
+			EOHSkeletalBone::UpperArm_L, {
+				EOHSkeletalBone::LowerArm_L, EOHSkeletalBone::Hand_L
+			}
+		},
+		{
+			EOHSkeletalBone::Clavicle_R, {
+				EOHSkeletalBone::UpperArm_R, EOHSkeletalBone::LowerArm_R, EOHSkeletalBone::Hand_R
+			}
+		},
+		{
+			EOHSkeletalBone::UpperArm_R, {
+				EOHSkeletalBone::LowerArm_R, EOHSkeletalBone::Hand_R
+			}
+		},
+		{
+			EOHSkeletalBone::Thigh_L, {
+				EOHSkeletalBone::Calf_L, EOHSkeletalBone::Foot_L
+			}
+		},
+		{
+			EOHSkeletalBone::Thigh_R, {
+				EOHSkeletalBone::Calf_R, EOHSkeletalBone::Foot_R
+			}
+		},
+		// ... extend as needed
+	};
+
+	TArray<EOHSkeletalBone> OutChain;
+	OutChain.Add(RootBone);
+
+	if (const TArray<EOHSkeletalBone>* Children = BoneHierarchy.Find(RootBone))
+	{
+		for (EOHSkeletalBone Child : *Children)
+		{
+			OutChain.Append(GetBoneChainBelow(Child)); // recurse
+		}
+	}
+
+	return OutChain;
+}
+
+
+
+TArray<EOHSkeletalBone> UOHSkeletalPhysicsUtils::GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup Group)
+{
+	using FB = EOHSkeletalBone;
+	TArray<FB> Bones;
+
+	switch (Group)
+	{
+	case EOHFunctionalBoneGroup::Cranial:
+		Bones = { FB::Neck_01, FB::Head };
+		break;
+
+	case EOHFunctionalBoneGroup::Core:
+		Bones = { FB::Pelvis, FB::Spine_01, FB::Spine_02 };
+		break;
+
+	case EOHFunctionalBoneGroup::LeftArm:
+		Bones = { FB::Clavicle_L, FB::UpperArm_L, FB::LowerArm_L, FB::Hand_L };
+		break;
+
+	case EOHFunctionalBoneGroup::RightArm:
+		Bones = { FB::Clavicle_R, FB::UpperArm_R, FB::LowerArm_R, FB::Hand_R };
+		break;
+
+	case EOHFunctionalBoneGroup::LeftLeg:
+		Bones = { FB::Thigh_L, FB::Calf_L };
+		break;
+
+	case EOHFunctionalBoneGroup::RightLeg:
+		Bones = { FB::Thigh_R, FB::Calf_R };
+		break;
+
+	case EOHFunctionalBoneGroup::LeftHand:
+		Bones = { FB::Hand_L };
+		break;
+
+	case EOHFunctionalBoneGroup::RightHand:
+		Bones = { FB::Hand_R };
+		break;
+
+	case EOHFunctionalBoneGroup::LeftFoot:
+		Bones = { FB::Foot_L, FB::Ball_L };
+		break;
+
+	case EOHFunctionalBoneGroup::RightFoot:
+		Bones = { FB::Foot_R, FB::Ball_R };
+		break;
+
+	case EOHFunctionalBoneGroup::Hands:
+		Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::LeftHand);
+		Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::RightHand));
+		break;
+
+	case EOHFunctionalBoneGroup::Feet:
+		Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::LeftFoot);
+		Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::RightFoot));
+		break;
+
+	case EOHFunctionalBoneGroup::Arms:
+		Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::LeftArm);
+		Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::RightArm));
+		break;
+
+	case EOHFunctionalBoneGroup::Legs:
+		Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::LeftLeg);
+		Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::RightLeg));
+		break;
+
+	case EOHFunctionalBoneGroup::LeftLimbs:
+		Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::LeftArm);
+		Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::LeftLeg));
+		break;
+
+	case EOHFunctionalBoneGroup::RightLimbs:
+		Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::RightArm);
+		Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::RightLeg));
+		break;
+
+	case EOHFunctionalBoneGroup::UpperBody:
+		Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::Cranial);
+		Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::Arms));
+		Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::Hands));
+		break;
+
+	case EOHFunctionalBoneGroup::LowerBody:
+		Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::Legs);
+		Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::Feet));
+		Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::Core));
+		break;
+
+	case EOHFunctionalBoneGroup::FullBody:
+		Bones = GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::UpperBody);
+		Bones.Append(GetBonesInFunctionalBoneGroup(EOHFunctionalBoneGroup::LowerBody));
+		break;
+
+	default:
+		break;
+	}
+
+	return Bones;
+}
+
+TArray<EOHSkeletalBone> UOHSkeletalPhysicsUtils::GetChildBones(EOHSkeletalBone ParentBone)
+{
+	TArray<EOHSkeletalBone> Children;
+
+	for (EOHSkeletalBone Bone = EOHSkeletalBone::FirstBone; Bone <= EOHSkeletalBone::LastBone;
+	     Bone = static_cast<EOHSkeletalBone>(static_cast<uint8>(Bone) + 1))
+	{
+		if (GetParentBone(Bone) == ParentBone)
+		{
+			Children.Add(Bone);
+		}
+	}
+
+	return Children;
+}
+
+TArray<EOHSkeletalBone> UOHSkeletalPhysicsUtils::GetDescendantBones(EOHSkeletalBone RootBone)
+{
+	TArray<EOHSkeletalBone> Descendants;
+	TQueue<EOHSkeletalBone> BonesToVisit;
+	BonesToVisit.Enqueue(RootBone);
+
+	while (!BonesToVisit.IsEmpty())
+	{
+		EOHSkeletalBone CurrentBone;
+		BonesToVisit.Dequeue(CurrentBone);
+
+		const TArray<EOHSkeletalBone> Children = GetChildBones(CurrentBone);
+
+		for (EOHSkeletalBone Child : Children)
+		{
+			Descendants.Add(Child);
+			BonesToVisit.Enqueue(Child);
+		}
+	}
+	
+	return Descendants;
+}
+
+
+TArray<EOHSkeletalBone> UOHSkeletalPhysicsUtils::GetBoneInfluenceChain(const EOHSkeletalBone Bone)
+{
+	TArray<EOHSkeletalBone> InfluenceChain;
+
+	// Start with the target bone
+	InfluenceChain.Add(Bone);
+
+	// Define bone hierarchy and influence paths
+	// This is a simplified implementation - in a real system this would use
+	// a proper skeletal hierarchy definition
+
+	// Hand and finger influence chains
+	if (IsFingerBone(Bone))
+	{
+		// Add hand
+		if (IsLeftSideBone(Bone))
+		{
+			InfluenceChain.Add(EOHSkeletalBone::Hand_L);
+			InfluenceChain.Add(EOHSkeletalBone::LowerArm_L);
+			InfluenceChain.Add(EOHSkeletalBone::UpperArm_L);
+			InfluenceChain.Add(EOHSkeletalBone::Clavicle_L);
+			// Connect to spine
+			InfluenceChain.Add(EOHSkeletalBone::Spine_03);
+		}
+		else // Right side
+		{
+			InfluenceChain.Add(EOHSkeletalBone::Hand_R);
+			InfluenceChain.Add(EOHSkeletalBone::LowerArm_R);
+			InfluenceChain.Add(EOHSkeletalBone::UpperArm_R);
+			InfluenceChain.Add(EOHSkeletalBone::Clavicle_R);
+			// Connect to spine
+			InfluenceChain.Add(EOHSkeletalBone::Spine_03);
+		}
+	}
+	// Hand influence chains
+	else if (Bone == EOHSkeletalBone::Hand_L)
+	{
+		InfluenceChain.Add(EOHSkeletalBone::LowerArm_L);
+		InfluenceChain.Add(EOHSkeletalBone::UpperArm_L);
+		InfluenceChain.Add(EOHSkeletalBone::Clavicle_L);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_03);
+	}
+	else if (Bone == EOHSkeletalBone::Hand_R)
+	{
+		InfluenceChain.Add(EOHSkeletalBone::LowerArm_R);
+		InfluenceChain.Add(EOHSkeletalBone::UpperArm_R);
+		InfluenceChain.Add(EOHSkeletalBone::Clavicle_R);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_03);
+	}
+	// Arm influence chains
+	else if (Bone == EOHSkeletalBone::LowerArm_L)
+	{
+		InfluenceChain.Add(EOHSkeletalBone::UpperArm_L);
+		InfluenceChain.Add(EOHSkeletalBone::Clavicle_L);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_03);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_02);
+	}
+	else if (Bone == EOHSkeletalBone::LowerArm_R)
+	{
+		InfluenceChain.Add(EOHSkeletalBone::UpperArm_R);
+		InfluenceChain.Add(EOHSkeletalBone::Clavicle_R);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_03);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_02);
+	}
+	else if (Bone == EOHSkeletalBone::UpperArm_L)
+	{
+		InfluenceChain.Add(EOHSkeletalBone::Clavicle_L);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_03);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_02);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_01);
+	}
+	else if (Bone == EOHSkeletalBone::UpperArm_R)
+	{
+		InfluenceChain.Add(EOHSkeletalBone::Clavicle_R);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_03);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_02);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_01);
+	}
+	// Leg influence chains
+	else if (Bone == EOHSkeletalBone::Foot_L || Bone == EOHSkeletalBone::Ball_L)
+	{
+		if (Bone == EOHSkeletalBone::Ball_L)
+		{
+			InfluenceChain.Add(EOHSkeletalBone::Foot_L);
+		}
+		InfluenceChain.Add(EOHSkeletalBone::Calf_L);
+		InfluenceChain.Add(EOHSkeletalBone::Thigh_L);
+		InfluenceChain.Add(EOHSkeletalBone::Pelvis);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_01);
+	}
+	else if (Bone == EOHSkeletalBone::Foot_R || Bone == EOHSkeletalBone::Ball_R)
+	{
+		if (Bone == EOHSkeletalBone::Ball_R)
+		{
+			InfluenceChain.Add(EOHSkeletalBone::Foot_R);
+		}
+		InfluenceChain.Add(EOHSkeletalBone::Calf_R);
+		InfluenceChain.Add(EOHSkeletalBone::Thigh_R);
+		InfluenceChain.Add(EOHSkeletalBone::Pelvis);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_01);
+	}
+	else if (Bone == EOHSkeletalBone::Calf_L)
+	{
+		InfluenceChain.Add(EOHSkeletalBone::Thigh_L);
+		InfluenceChain.Add(EOHSkeletalBone::Pelvis);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_01);
+	}
+	else if (Bone == EOHSkeletalBone::Calf_R)
+	{
+		InfluenceChain.Add(EOHSkeletalBone::Thigh_R);
+		InfluenceChain.Add(EOHSkeletalBone::Pelvis);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_01);
+	}
+	else if (Bone == EOHSkeletalBone::Thigh_L)
+	{
+		InfluenceChain.Add(EOHSkeletalBone::Pelvis);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_01);
+	}
+	else if (Bone == EOHSkeletalBone::Thigh_R)
+	{
+		InfluenceChain.Add(EOHSkeletalBone::Pelvis);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_01);
+	}
+	// Spine and head influence chains
+	else if (Bone == EOHSkeletalBone::Head || Bone == EOHSkeletalBone::Neck_01)
+	{
+		if (Bone == EOHSkeletalBone::Head)
+		{
+			InfluenceChain.Add(EOHSkeletalBone::Neck_01);
+		}
+		InfluenceChain.Add(EOHSkeletalBone::Spine_03);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_02);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_01);
+	}
+	else if (Bone == EOHSkeletalBone::Spine_03)
+	{
+		InfluenceChain.Add(EOHSkeletalBone::Spine_02);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_01);
+		InfluenceChain.Add(EOHSkeletalBone::Pelvis);
+	}
+	else if (Bone == EOHSkeletalBone::Spine_02)
+	{
+		InfluenceChain.Add(EOHSkeletalBone::Spine_01);
+		InfluenceChain.Add(EOHSkeletalBone::Pelvis);
+	}
+	else if (Bone == EOHSkeletalBone::Spine_01)
+	{
+		InfluenceChain.Add(EOHSkeletalBone::Pelvis);
+	}
+	// Clavicle influence chains
+	else if (Bone == EOHSkeletalBone::Clavicle_L)
+	{
+		InfluenceChain.Add(EOHSkeletalBone::Spine_03);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_02);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_01);
+	}
+	else if (Bone == EOHSkeletalBone::Clavicle_R)
+	{
+		InfluenceChain.Add(EOHSkeletalBone::Spine_03);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_02);
+		InfluenceChain.Add(EOHSkeletalBone::Spine_01);
+	}
+
+	return InfluenceChain;
 }
 
 #pragma region PhysicsSimulation
 
-bool UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBone(USkeletalMeshComponent* Mesh, FName BoneName,
-                                                           float BlendWeight) {
+bool UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBone(
+    USkeletalMeshComponent* Mesh,
+    FName BoneName,
+    float BlendWeight)
+{
     if (!Mesh)
         return false;
     if (BoneName.IsNone())
@@ -2020,13 +3932,17 @@ bool UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBone(USkeletalMeshComponen
     return true;
 }
 
-void UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBones(USkeletalMeshComponent* Mesh,
-                                                            const TArray<FName>& BoneNames, float BlendWeight) {
+void UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBones(
+    USkeletalMeshComponent* Mesh,
+    const TArray<FName>& BoneNames,
+    float BlendWeight)
+{
     if (!Mesh || BoneNames.Num() == 0)
         return;
 
     float Clamped = FMath::Clamp(BlendWeight, 0.f, 1.f);
-    for (const FName& BoneName : BoneNames) {
+    for (const FName& BoneName : BoneNames)
+    {
         if (BoneName.IsNone())
             continue;
         if (FBodyInstance* BodyInst = Mesh->GetBodyInstance(BoneName))
@@ -2035,8 +3951,12 @@ void UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBones(USkeletalMeshCompone
     Mesh->RefreshBoneTransforms();
 }
 
-void UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBoneChain(USkeletalMeshComponent* Mesh, FName StartBone,
-                                                                FName EndBone, float BlendWeight) {
+void UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBoneChain(
+    USkeletalMeshComponent* Mesh,
+    FName StartBone,
+    FName EndBone,
+    float BlendWeight)
+{
     if (!Mesh || !Mesh->GetSkeletalMeshAsset())
         return;
     if (StartBone.IsNone() || EndBone.IsNone())
@@ -2051,7 +3971,8 @@ void UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBoneChain(USkeletalMeshCom
     // Walk up from EndBone to StartBone
     TArray<int32> BoneIndices;
     int32 CurrIdx = EndIdx;
-    while (CurrIdx != INDEX_NONE) {
+    while (CurrIdx != INDEX_NONE)
+    {
         BoneIndices.Insert(CurrIdx, 0);
         if (CurrIdx == StartIdx)
             break;
@@ -2066,9 +3987,12 @@ void UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBoneChain(USkeletalMeshCom
     SetPhysicsBlendWeightForBones(Mesh, ChainNames, BlendWeight);
 }
 
-bool UOHSkeletalPhysicsUtils::EnablePhysicalAnimationForBone(USkeletalMeshComponent* Mesh,
-                                                             UPhysicalAnimationComponent* PAC, FName BoneName,
-                                                             const FPhysicalAnimationData& Profile) {
+bool UOHSkeletalPhysicsUtils::EnablePhysicalAnimationForBone(
+    USkeletalMeshComponent* Mesh,
+    UPhysicalAnimationComponent* PAC,
+    FName BoneName,
+    const FPhysicalAnimationData& Profile)
+{
     if (!Mesh || !PAC)
         return false;
     if (BoneName.IsNone())
@@ -2092,8 +4016,11 @@ bool UOHSkeletalPhysicsUtils::EnablePhysicalAnimationForBone(USkeletalMeshCompon
     return true;
 }
 
-bool UOHSkeletalPhysicsUtils::DisablePhysicalAnimationForBone(USkeletalMeshComponent* Mesh,
-                                                              UPhysicalAnimationComponent* PAC, FName BoneName) {
+bool UOHSkeletalPhysicsUtils::DisablePhysicalAnimationForBone(
+    USkeletalMeshComponent* Mesh,
+    UPhysicalAnimationComponent* PAC,
+    FName BoneName)
+{
     if (!Mesh || !PAC)
         return false;
     if (BoneName.IsNone())
@@ -2116,39 +4043,48 @@ bool UOHSkeletalPhysicsUtils::DisablePhysicalAnimationForBone(USkeletalMeshCompo
     return true;
 }
 
-bool UOHSkeletalPhysicsUtils::EnablePhysicalAnimationForBones(USkeletalMeshComponent* Mesh,
-                                                              UPhysicalAnimationComponent* PAC,
-                                                              const TArray<FName>& BoneNames,
-                                                              const FPhysicalAnimationData& Profile) {
+bool UOHSkeletalPhysicsUtils::EnablePhysicalAnimationForBones(
+    USkeletalMeshComponent* Mesh,
+    UPhysicalAnimationComponent* PAC,
+    const TArray<FName>& BoneNames,
+    const FPhysicalAnimationData& Profile)
+{
     if (!Mesh || !PAC || BoneNames.Num() == 0)
         return false;
 
     bool bAnySucceeded = false;
-    for (const FName& BoneName : BoneNames) {
+    for (const FName& BoneName : BoneNames)
+    {
         if (EnablePhysicalAnimationForBone(Mesh, PAC, BoneName, Profile))
             bAnySucceeded = true;
     }
     return bAnySucceeded;
 }
 
-bool UOHSkeletalPhysicsUtils::DisablePhysicalAnimationForBones(USkeletalMeshComponent* Mesh,
-                                                               UPhysicalAnimationComponent* PAC,
-                                                               const TArray<FName>& BoneNames) {
+bool UOHSkeletalPhysicsUtils::DisablePhysicalAnimationForBones(
+    USkeletalMeshComponent* Mesh,
+    UPhysicalAnimationComponent* PAC,
+    const TArray<FName>& BoneNames)
+{
     if (!Mesh || !PAC || BoneNames.Num() == 0)
         return false;
 
     bool bAnySucceeded = false;
-    for (const FName& BoneName : BoneNames) {
+    for (const FName& BoneName : BoneNames)
+    {
         if (DisablePhysicalAnimationForBone(Mesh, PAC, BoneName))
             bAnySucceeded = true;
     }
     return bAnySucceeded;
 }
 
-bool UOHSkeletalPhysicsUtils::EnablePhysicalAnimationForBoneChain(USkeletalMeshComponent* Mesh,
-                                                                  UPhysicalAnimationComponent* PAC, FName StartBone,
-                                                                  FName EndBone,
-                                                                  const FPhysicalAnimationData& Profile) {
+bool UOHSkeletalPhysicsUtils::EnablePhysicalAnimationForBoneChain(
+    USkeletalMeshComponent* Mesh,
+    UPhysicalAnimationComponent* PAC,
+    FName StartBone,
+    FName EndBone,
+    const FPhysicalAnimationData& Profile)
+{
     if (!Mesh || !Mesh->GetSkeletalMeshAsset() || !PAC)
         return false;
     if (StartBone.IsNone() || EndBone.IsNone())
@@ -2163,7 +4099,8 @@ bool UOHSkeletalPhysicsUtils::EnablePhysicalAnimationForBoneChain(USkeletalMeshC
     // Walk up from EndBone to StartBone
     TArray<int32> BoneIndices;
     int32 CurrIdx = EndIdx;
-    while (CurrIdx != INDEX_NONE) {
+    while (CurrIdx != INDEX_NONE)
+    {
         BoneIndices.Insert(CurrIdx, 0);
         if (CurrIdx == StartIdx)
             break;
@@ -2178,9 +4115,12 @@ bool UOHSkeletalPhysicsUtils::EnablePhysicalAnimationForBoneChain(USkeletalMeshC
     return EnablePhysicalAnimationForBones(Mesh, PAC, ChainNames, Profile);
 }
 
-bool UOHSkeletalPhysicsUtils::DisablePhysicalAnimationForBoneChain(USkeletalMeshComponent* Mesh,
-                                                                   UPhysicalAnimationComponent* PAC, FName StartBone,
-                                                                   FName EndBone) {
+bool UOHSkeletalPhysicsUtils::DisablePhysicalAnimationForBoneChain(
+    USkeletalMeshComponent* Mesh,
+    UPhysicalAnimationComponent* PAC,
+    FName StartBone,
+    FName EndBone)
+{
     if (!Mesh || !Mesh->GetSkeletalMeshAsset() || !PAC)
         return false;
     if (StartBone.IsNone() || EndBone.IsNone())
@@ -2195,7 +4135,8 @@ bool UOHSkeletalPhysicsUtils::DisablePhysicalAnimationForBoneChain(USkeletalMesh
     // Walk up from EndBone to StartBone
     TArray<int32> BoneIndices;
     int32 CurrIdx = EndIdx;
-    while (CurrIdx != INDEX_NONE) {
+    while (CurrIdx != INDEX_NONE)
+    {
         BoneIndices.Insert(CurrIdx, 0);
         if (CurrIdx == StartIdx)
             break;
@@ -2210,7 +4151,10 @@ bool UOHSkeletalPhysicsUtils::DisablePhysicalAnimationForBoneChain(USkeletalMesh
     return DisablePhysicalAnimationForBones(Mesh, PAC, ChainNames);
 }
 
-bool UOHSkeletalPhysicsUtils::EnablePhysicsSimulationForBone(USkeletalMeshComponent* Mesh, FName BoneName) {
+bool UOHSkeletalPhysicsUtils::EnablePhysicsSimulationForBone(
+    USkeletalMeshComponent* Mesh,
+    FName BoneName)
+{
     if (!Mesh)
         return false;
     if (BoneName.IsNone())
@@ -2234,7 +4178,10 @@ bool UOHSkeletalPhysicsUtils::EnablePhysicsSimulationForBone(USkeletalMeshCompon
     return true;
 }
 
-bool UOHSkeletalPhysicsUtils::DisablePhysicsSimulationForBone(USkeletalMeshComponent* Mesh, FName BoneName) {
+bool UOHSkeletalPhysicsUtils::DisablePhysicsSimulationForBone(
+    USkeletalMeshComponent* Mesh,
+    FName BoneName)
+{
     if (!Mesh)
         return false;
     if (BoneName.IsNone())
@@ -2257,188 +4204,211 @@ bool UOHSkeletalPhysicsUtils::DisablePhysicsSimulationForBone(USkeletalMeshCompo
     return true;
 }
 
-void UOHSkeletalPhysicsUtils::BlendInPhysicalAnimationForBone(USkeletalMeshComponent* Mesh,
-                                                              UPhysicalAnimationComponent* PAC, FName BoneName,
-                                                              const FPhysicalAnimationData& Profile,
-                                                              float BlendDuration, UCurveFloat* BlendCurve,
-                                                              UObject* WorldContextObject) {
-    if (!Mesh || !PAC || BoneName.IsNone())
-        return;
+void UOHSkeletalPhysicsUtils::BlendInPhysicalAnimationForBone(
+    USkeletalMeshComponent* Mesh,
+    UPhysicalAnimationComponent* PAC,
+    FName BoneName,
+    const FPhysicalAnimationData& Profile,
+    float BlendDuration,
+    UCurveFloat* BlendCurve,
+    UObject* WorldContextObject)
+{
+    if (!Mesh || !PAC || BoneName.IsNone()) return;
 
     PAC->ApplyPhysicalAnimationSettings(BoneName, Profile);
 
     FBodyInstance* BodyInst = Mesh->GetBodyInstance(BoneName);
-    if (BodyInst) {
+    if (BodyInst)
+    {
         BodyInst->SetInstanceSimulatePhysics(true);
         BodyInst->SetInstanceNotifyRBCollision(true);
         BodyInst->WakeInstance();
     }
 
-    UWorld* World =
-        (WorldContextObject && WorldContextObject->GetWorld()) ? WorldContextObject->GetWorld() : (Mesh->GetWorld());
+    UWorld* World = (WorldContextObject && WorldContextObject->GetWorld())
+        ? WorldContextObject->GetWorld()
+        : (Mesh->GetWorld());
 
-    if (!World)
-        return;
+    if (!World) return;
 
     float Elapsed = 0.f;
     FTimerHandle Handle;
     const float Step = 0.01f;
 
-    World->GetTimerManager().SetTimer(
-        Handle,
-        [=, &Elapsed]() mutable {
-            Elapsed += Step;
-            float Alpha = FMath::Clamp(Elapsed / BlendDuration, 0.f, 1.f);
-            float Blend = BlendCurve ? BlendCurve->GetFloatValue(Alpha) : Alpha;
+    World->GetTimerManager().SetTimer(Handle, [=, &Elapsed]() mutable
+    {
+        Elapsed += Step;
+        float Alpha = FMath::Clamp(Elapsed / BlendDuration, 0.f, 1.f);
+        float Blend = BlendCurve ? BlendCurve->GetFloatValue(Alpha) : Alpha;
 
-            UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBone(Mesh, BoneName, Blend);
+        UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBone(Mesh, BoneName, Blend);
 
-            if (Alpha >= 1.f) {
-                UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBone(Mesh, BoneName, 1.0f);
-                World->GetTimerManager().ClearTimer(Handle);
-            }
-        },
-        Step, true);
+        if (Alpha >= 1.f)
+        {
+            UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBone(Mesh, BoneName, 1.0f);
+            World->GetTimerManager().ClearTimer(Handle);
+        }
+    }, Step, true);
 }
 
-void UOHSkeletalPhysicsUtils::BlendOutPhysicalAnimationForBone(USkeletalMeshComponent* Mesh,
-                                                               UPhysicalAnimationComponent* PAC, FName BoneName,
-                                                               float BlendDuration, UCurveFloat* BlendCurve,
-                                                               UObject* WorldContextObject) {
-    if (!Mesh || !PAC || BoneName.IsNone())
-        return;
+void UOHSkeletalPhysicsUtils::BlendOutPhysicalAnimationForBone(
+    USkeletalMeshComponent* Mesh,
+    UPhysicalAnimationComponent* PAC,
+    FName BoneName,
+    float BlendDuration,
+    UCurveFloat* BlendCurve,
+    UObject* WorldContextObject)
+{
+    if (!Mesh || !PAC || BoneName.IsNone()) return;
 
-    UWorld* World =
-        (WorldContextObject && WorldContextObject->GetWorld()) ? WorldContextObject->GetWorld() : (Mesh->GetWorld());
+    UWorld* World = (WorldContextObject && WorldContextObject->GetWorld())
+        ? WorldContextObject->GetWorld()
+        : (Mesh->GetWorld());
 
-    if (!World)
-        return;
+    if (!World) return;
 
     float Elapsed = 0.f;
     FTimerHandle Handle;
     const float Step = 0.01f;
 
-    World->GetTimerManager().SetTimer(
-        Handle,
-        [=, &Elapsed]() mutable {
-            Elapsed += Step;
-            float Alpha = FMath::Clamp(Elapsed / BlendDuration, 0.f, 1.f);
-            float Blend = BlendCurve ? (1.0f - BlendCurve->GetFloatValue(Alpha)) : (1.0f - Alpha);
+    World->GetTimerManager().SetTimer(Handle, [=, &Elapsed]() mutable
+    {
+        Elapsed += Step;
+        float Alpha = FMath::Clamp(Elapsed / BlendDuration, 0.f, 1.f);
+        float Blend = BlendCurve ? (1.0f - BlendCurve->GetFloatValue(Alpha)) : (1.0f - Alpha);
 
-            UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBone(Mesh, BoneName, Blend);
+        UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBone(Mesh, BoneName, Blend);
 
-            if (Alpha >= 1.f) {
-                UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBone(Mesh, BoneName, 0.0f);
-                // Optional: remove physical animation profile and disable sim
-                PAC->ApplyPhysicalAnimationSettings(BoneName, FPhysicalAnimationData());
-                FBodyInstance* BodyInst = Mesh->GetBodyInstance(BoneName);
-                if (BodyInst) {
-                    BodyInst->SetInstanceSimulatePhysics(false);
-                    BodyInst->SetInstanceNotifyRBCollision(false);
-                    BodyInst->SetLinearVelocity(FVector::ZeroVector, false);
-                    BodyInst->SetAngularVelocityInRadians(FVector::ZeroVector, false);
-                }
-                World->GetTimerManager().ClearTimer(Handle);
+        if (Alpha >= 1.f)
+        {
+            UOHSkeletalPhysicsUtils::SetPhysicsBlendWeightForBone(Mesh, BoneName, 0.0f);
+            // Optional: remove physical animation profile and disable sim
+            PAC->ApplyPhysicalAnimationSettings(BoneName, FPhysicalAnimationData());
+            FBodyInstance* BodyInst = Mesh->GetBodyInstance(BoneName);
+            if (BodyInst)
+            {
+                BodyInst->SetInstanceSimulatePhysics(false);
+                BodyInst->SetInstanceNotifyRBCollision(false);
+                BodyInst->SetLinearVelocity(FVector::ZeroVector, false);
+                BodyInst->SetAngularVelocityInRadians(FVector::ZeroVector, false);
             }
-        },
-        Step, true);
+            World->GetTimerManager().ClearTimer(Handle);
+        }
+    }, Step, true);
 }
 
 void UOHSkeletalPhysicsUtils::BlendInPhysicalAnimationForBodyPart(
-    USkeletalMeshComponent* Mesh, UPhysicalAnimationComponent* PAC, EOHBodyPart BodyPart,
-    const FPhysicalAnimationData& Profile, float BlendDuration, UCurveFloat* BlendCurve, UObject* WorldContextObject) {
-    TArray<EOHSkeletalBone> PartBones = GetBonesInBodyPart(BodyPart);
-    for (EOHSkeletalBone BoneEnum : PartBones) {
-        FName BoneName = GetBoneNameFromEnum(BoneEnum);
-        if (BoneName != NAME_None)
-            BlendInPhysicalAnimationForBone(Mesh, PAC, BoneName, Profile, BlendDuration, BlendCurve,
-                                            WorldContextObject);
-    }
+	USkeletalMeshComponent* Mesh,
+	UPhysicalAnimationComponent* PAC,
+	EOHBodyPart BodyPart,
+	const FPhysicalAnimationData& Profile,
+	float BlendDuration,
+	UCurveFloat* BlendCurve,
+	UObject* WorldContextObject)
+{
+	TArray<EOHSkeletalBone> PartBones = GetBonesInBodyPart(BodyPart);
+	for (EOHSkeletalBone BoneEnum : PartBones)
+	{
+		FName BoneName = GetBoneNameFromEnum(BoneEnum);
+		if (BoneName != NAME_None)
+			BlendInPhysicalAnimationForBone(Mesh, PAC, BoneName, Profile, BlendDuration, BlendCurve, WorldContextObject);
+	}
 }
 
-void UOHSkeletalPhysicsUtils::BlendOutPhysicalAnimationForBodyPart(USkeletalMeshComponent* Mesh,
-                                                                   UPhysicalAnimationComponent* PAC,
-                                                                   EOHBodyPart BodyPart, float BlendDuration,
-                                                                   UCurveFloat* BlendCurve,
-                                                                   UObject* WorldContextObject) {
-    TArray<EOHSkeletalBone> PartBones = GetBonesInBodyPart(BodyPart);
-    for (EOHSkeletalBone BoneEnum : PartBones) {
-        FName BoneName = GetBoneNameFromEnum(BoneEnum);
-        if (BoneName != NAME_None)
-            BlendOutPhysicalAnimationForBone(Mesh, PAC, BoneName, BlendDuration, BlendCurve, WorldContextObject);
-    }
+void UOHSkeletalPhysicsUtils::BlendOutPhysicalAnimationForBodyPart(
+	USkeletalMeshComponent* Mesh,
+	UPhysicalAnimationComponent* PAC,
+	EOHBodyPart BodyPart,
+	float BlendDuration,
+	UCurveFloat* BlendCurve,
+	UObject* WorldContextObject)
+{
+	TArray<EOHSkeletalBone> PartBones = GetBonesInBodyPart(BodyPart);
+	for (EOHSkeletalBone BoneEnum : PartBones)
+	{
+		FName BoneName = GetBoneNameFromEnum(BoneEnum);
+		if (BoneName != NAME_None)
+			BlendOutPhysicalAnimationForBone(Mesh, PAC, BoneName, BlendDuration, BlendCurve, WorldContextObject);
+	}
 }
 
 void UOHSkeletalPhysicsUtils::ApplyPhysicalAnimationToBone(UPhysicalAnimationComponent* PhysicalAnimationComponent,
-                                                           FName BoneName, const FPhysicalAnimationData& Profile) {
-    if (!PhysicalAnimationComponent || !PhysicalAnimationComponent->GetSkeletalMesh()) {
-        UE_LOG(LogTemp, Warning, TEXT("PhysicalAnimationComponent invalid"));
-        return;
-    }
+	FName BoneName, const FPhysicalAnimationData& Profile)
+{
+	if (!PhysicalAnimationComponent || !PhysicalAnimationComponent->GetSkeletalMesh())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("PhysicalAnimationComponent invalid"));
+		return;
+	}
 
-    USkeletalMeshComponent* SkelMesh = PhysicalAnimationComponent->GetSkeletalMesh();
+	USkeletalMeshComponent* SkelMesh = PhysicalAnimationComponent->GetSkeletalMesh();
 
-    // Enable physics on the bone
-    SkelMesh->SetAllBodiesBelowSimulatePhysics(BoneName, true, false);
+	// Enable physics on the bone
+	SkelMesh->SetAllBodiesBelowSimulatePhysics(BoneName, true, false);
 
-    // Enable collision if needed
-    SkelMesh->SetEnableBodyGravity(true, BoneName);
-    SkelMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-    // Apply the physical animation profile to the single bone
-    PhysicalAnimationComponent->ApplyPhysicalAnimationSettings(BoneName, Profile);
+	// Enable collision if needed
+	SkelMesh->SetEnableBodyGravity(true, BoneName);
+	SkelMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	// Apply the physical animation profile to the single bone
+	PhysicalAnimationComponent->ApplyPhysicalAnimationSettings(BoneName, Profile);
 
-    // Ensure physical animation is active
-    PhysicalAnimationComponent->SetSkeletalMeshComponent(SkelMesh);
+	// Ensure physical animation is active
+	PhysicalAnimationComponent->SetSkeletalMeshComponent(SkelMesh);
 }
 
 void UOHSkeletalPhysicsUtils::ApplyPhysicalAnimationToBoneChain(UPhysicalAnimationComponent* PhysicalAnimationComponent,
-                                                                FName RootBoneName,
-                                                                const FPhysicalAnimationData& Profile) {
-    if (!PhysicalAnimationComponent || !PhysicalAnimationComponent->GetSkeletalMesh()) {
-        UE_LOG(LogTemp, Warning, TEXT("PhysicalAnimationComponent invalid"));
-        return;
-    }
+	FName RootBoneName, const FPhysicalAnimationData& Profile)
+{
+	if (!PhysicalAnimationComponent || !PhysicalAnimationComponent->GetSkeletalMesh())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("PhysicalAnimationComponent invalid"));
+		return;
+	}
 
-    USkeletalMeshComponent* SkelMesh = PhysicalAnimationComponent->GetSkeletalMesh();
+	USkeletalMeshComponent* SkelMesh = PhysicalAnimationComponent->GetSkeletalMesh();
 
-    // Enable physics on all bones below RootBoneName
-    SkelMesh->SetAllBodiesBelowSimulatePhysics(RootBoneName, true, false);
+	// Enable physics on all bones below RootBoneName
+	SkelMesh->SetAllBodiesBelowSimulatePhysics(RootBoneName, true, false);
 
-    // Enable collision if needed
-    SkelMesh->SetEnableGravity(true);
-    SkelMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	// Enable collision if needed
+	SkelMesh->SetEnableGravity(true);
+	SkelMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 
-    // Apply the physical animation profile to all bones below the root
-    PhysicalAnimationComponent->ApplyPhysicalAnimationSettingsBelow(RootBoneName, Profile, true);
+	// Apply the physical animation profile to all bones below the root
+	PhysicalAnimationComponent->ApplyPhysicalAnimationSettingsBelow(RootBoneName, Profile, true);
 
-    // Ensure physical animation is active
-    PhysicalAnimationComponent->SetSkeletalMeshComponent(SkelMesh);
+	// Ensure physical animation is active
+	PhysicalAnimationComponent->SetSkeletalMeshComponent(SkelMesh);
 }
 
 void UOHSkeletalPhysicsUtils::ApplyPhysicalAnimationProfileToBoneChain(
-    UPhysicalAnimationComponent* PhysicalAnimationComponent, FName RootBoneName, FName ProfileName) {
-    if (!PhysicalAnimationComponent || !PhysicalAnimationComponent->GetSkeletalMesh()) {
-        UE_LOG(LogTemp, Warning, TEXT("PhysicalAnimationComponent invalid"));
-        return;
-    }
+	UPhysicalAnimationComponent* PhysicalAnimationComponent, FName RootBoneName, FName ProfileName)
+{
+	if (!PhysicalAnimationComponent || !PhysicalAnimationComponent->GetSkeletalMesh())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("PhysicalAnimationComponent invalid"));
+		return;
+	}
 
-    USkeletalMeshComponent* SkelMesh = PhysicalAnimationComponent->GetSkeletalMesh();
+	USkeletalMeshComponent* SkelMesh = PhysicalAnimationComponent->GetSkeletalMesh();
 
-    // Enable physics on all bones below RootBoneName
-    SkelMesh->SetAllBodiesBelowSimulatePhysics(RootBoneName, true, false);
+	// Enable physics on all bones below RootBoneName
+	SkelMesh->SetAllBodiesBelowSimulatePhysics(RootBoneName, true, false);
 
-    // Enable collision if needed
-    SkelMesh->SetEnableGravity(true);
-    SkelMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	// Enable collision if needed
+	SkelMesh->SetEnableGravity(true);
+	SkelMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 
-    // Apply the physical animation profile to all bones below the root
-    PhysicalAnimationComponent->ApplyPhysicalAnimationProfileBelow(RootBoneName, ProfileName, true, true);
+	// Apply the physical animation profile to all bones below the root
+	PhysicalAnimationComponent->ApplyPhysicalAnimationProfileBelow(RootBoneName, ProfileName, true, true);
 
-    // Ensure physical animation is active
-    PhysicalAnimationComponent->SetSkeletalMeshComponent(SkelMesh);
+	// Ensure physical animation is active
+	PhysicalAnimationComponent->SetSkeletalMeshComponent(SkelMesh);
 }
 
 #pragma endregion
+
+#endif
 
 #if 0
 

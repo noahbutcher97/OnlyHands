@@ -6,7 +6,6 @@
 #include "AnimationRuntime.h"
 #include "FunctionLibrary/OHAlgoUtils.h"
 #include "Utilities/OHSafeMapUtils.h"
-
 // ===================== BoneName Resolver ===================== //
 
 #pragma region BoneNameResolver
@@ -367,7 +366,7 @@ TSet<FName> FOHPhysicsGraphNode::CaptureConstraintSnapshot() const {
 }
 
 void FOHPhysicsGraphNode::DiffBoneSnapshots(const TSet<FName>& OldSnap, const TSet<FName>& NewSnap,
-                                            TSet<FName>& OutRemoved, TSet<FName>& OutAdded) const {
+                                            TSet<FName>& OutRemoved, TSet<FName>& OutAdded) {
     OHSafeMapUtils::DiffGraphStates(OldSnap, NewSnap, OutRemoved, OutAdded);
 }
 

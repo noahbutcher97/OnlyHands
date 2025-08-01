@@ -515,13 +515,13 @@ class ONLYHANDS_API UOHPhysicsManager : public UActorComponent {
     bool IsBoneBlending(FName BoneName) const;
 
     UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics")
-    EOHBlendPhase GetCurrentBlendPhase(FName BoneName) const;
+    EOHBlendPhases GetCurrentBlendPhase(FName BoneName) const;
 
     UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics")
     float GetBlendAlpha(FName BoneName) const;
 
     UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics")
-    float GetPhaseDuration(FName BoneName, EOHBlendPhase Phase) const;
+    float GetPhaseDuration(FName BoneName, EOHBlendPhases Phase) const;
 
     UFUNCTION(BlueprintPure, Category = "OnlyHands|Physics")
     FName GetActiveReactionTag(FName BoneName) const;
@@ -618,29 +618,6 @@ class ONLYHANDS_API UOHPhysicsManager : public UActorComponent {
 
 #pragma endregion
 
-#pragma region BodyPartStatus
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "OH|BodyParts")
-    TMap<FName, FOHBodyPartStatus> BoneStatusMap;
-
-    UFUNCTION(BlueprintCallable, Category = "OH|BodyParts")
-    void ApplyDamageToBone(FName Bone, float Damage);
-
-    UFUNCTION(BlueprintCallable, Category = "OH|BodyParts")
-    bool IsBoneDestroyed(FName Bone) const;
-
-    UFUNCTION(BlueprintCallable, Category = "OH|BodyParts")
-    float GetBoneHealth(FName Bone) const;
-
-    UFUNCTION(BlueprintCallable, Category = "OH|BodyParts")
-    void ResetBoneStatus(FName Bone);
-
-    UFUNCTION(BlueprintCallable, Category = "OH|BodyParts")
-    TArray<FName> GetSkeletalBonesInBodyPart(EOHBodyPart Part) const;
-
-    UFUNCTION(BlueprintCallable, Category = "OH|BodyParts")
-    bool IsBodyPartFullyDestroyed(EOHBodyPart Part) const;
-
-#pragma endregion
     // === Skeletal Asset Validation ===
 #pragma region SkeletalAssetValidation
     UFUNCTION(BlueprintCallable, Category = "OnlyHands|Physics|Validation")

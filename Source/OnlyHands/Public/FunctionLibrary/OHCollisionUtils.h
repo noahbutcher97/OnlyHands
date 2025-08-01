@@ -487,4 +487,14 @@ class ONLYHANDS_API UOHCollisionUtils : public UBlueprintFunctionLibrary {
                                           bool bDrawDebug = false, float DeltaTime = 0.016f);
 
 #pragma endregion
+
+#pragma region MovementPush
+    UFUNCTION(BlueprintCallable, Category = "OnlyHands|Collision|Movement")
+    static FVector CalculateElasticCollisionResponse(const FVector& Velocity1, const FVector& Velocity2, float Mass1,
+                                                     float Mass2, const FVector& CollisionNormal,
+                                                     float Restitution = 0.5f);
+
+    UFUNCTION(BlueprintCallable, Category = "OnlyHands|Collision|Movement")
+    static void ResolveCharacterCollision(ACharacter* Character1, ACharacter* Character2, float PushStrength = 1.0f);
+#pragma endregion
 };

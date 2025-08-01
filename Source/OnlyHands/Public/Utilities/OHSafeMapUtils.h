@@ -14,7 +14,151 @@ DECLARE_LOG_CATEGORY_EXTERN(LogSafeMapUtils, Log, All);
  * Type-agnostic template utilities to prevent data desync, dangling keys, invalid values,
  * and maintain structural integrity across maps, arrays, and key references.
  */
-namespace OHSafeMapUtils {
+namespace OHSafeMapUtils
+
+{
+template <typename T, int32 Capacity> struct TRollingBuffer {
+    T Data[Capacity];
+    int32 Start = 0;
+    int32 Num = 0;
+
+    void Add(const T& Value) {
+        if (Num < Capacity) {
+            Data[Num++] = Value;
+        } else {
+            Data[Start] = Value;
+            Start = (Start + 1) % Capacity;
+        }
+    }
+
+    int32 NumFrames() const {
+        return Num;
+    }
+    static int32 CapacityFrames() {
+        return Capacity;
+    }
+
+    // Access as Data[GetIndex(i)], where i=0 is oldest, i=Num-1 is newest
+    int32 GetIndex(int32 i) const {
+        return (Start + i) % Capacity;
+    }
+
+    // Get Nth latest (0 = newest, 1 = 2nd newest, ...)
+    const T* GetLatest(int32 N = 0) const {
+        if (N >= Num)
+            return nullptr;
+        int32 Index = (Start + Num - 1 - N + Capacity) % Capacity;
+        return &Data[Index];
+    }
+
+    // Iteration (from oldest to newest)
+    template <typename Func> void ForEach(Func&& Fn) const {
+        for (int32 i = 0; i < Num; ++i)
+            Fn(Data[GetIndex(i)]);
+    }
+};
+
+/**
+ * Safely gets a value from a TMap, returning a default value if the key doesn't exist
+ * @param Map The map to search in
+ * @param Key The key to look for
+ * @param DefaultValue The value to return if the key is not found
+ * @return The value associated with the key, or DefaultValue if not found
+ */
+template <typename KeyType, typename ValueType>
+static FORCEINLINE ValueType SafeGet(const TMap<KeyType, ValueType>& Map, const KeyType& Key,
+                                     const ValueType& DefaultValue) {
+    const ValueType* FoundValue = Map.Find(Key);
+    return FoundValue ? *FoundValue : DefaultValue;
+}
+
+/**
+ * Safely gets a value from a TMap by reference, returning a default value if the key doesn't exist
+ * Useful when you want to avoid copying large value types
+ * @param Map The map to search in
+ * @param Key The key to look for
+ * @param DefaultValue The value to return if the key is not found
+ * @return A const reference to the value or the default value
+ */
+template <typename KeyType, typename ValueType>
+static FORCEINLINE const ValueType& SafeGetRef(const TMap<KeyType, ValueType>& Map, const KeyType& Key,
+                                               const ValueType& DefaultValue) {
+    const ValueType* FoundValue = Map.Find(Key);
+    return FoundValue ? *FoundValue : DefaultValue;
+}
+
+/**
+ * Safely gets a pointer to a value in a TMap, returning nullptr if the key doesn't exist
+ * @param Map The map to search in
+ * @param Key The key to look for
+ * @return A pointer to the value, or nullptr if not found
+ */
+template <typename KeyType, typename ValueType>
+static FORCEINLINE const ValueType* SafeGetPtr(const TMap<KeyType, ValueType>& Map, const KeyType& Key) {
+    return Map.Find(Key);
+}
+
+/**
+ * Safely gets a value from a TMap, or adds it with the default value if it doesn't exist
+ * @param Map The map to search in and potentially modify
+ * @param Key The key to look for
+ * @param DefaultValue The value to insert if the key is not found
+ * @return A reference to the value (either existing or newly added)
+ */
+template <typename KeyType, typename ValueType>
+static FORCEINLINE ValueType& SafeGetOrAdd(TMap<KeyType, ValueType>& Map, const KeyType& Key,
+                                           const ValueType& DefaultValue) {
+    ValueType& Value = Map.FindOrAdd(Key);
+    if (!Map.Contains(Key)) {
+        Value = DefaultValue;
+    }
+    return Value;
+}
+
+/**
+ * Checks if a key exists and gets its value in one call
+ * @param Map The map to search in
+ * @param Key The key to look for
+ * @param OutValue Will be set to the found value if the key exists
+ * @return True if the key was found, false otherwise
+ */
+template <typename KeyType, typename ValueType>
+static FORCEINLINE bool SafeTryGet(const TMap<KeyType, ValueType>& Map, const KeyType& Key, ValueType& OutValue) {
+    const ValueType* FoundValue = Map.Find(Key);
+    if (FoundValue) {
+        OutValue = *FoundValue;
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Safely removes a key from a TMap if it exists
+ * @param Map The map to modify
+ * @param Key The key to remove
+ * @return True if the key was found and removed, false otherwise
+ */
+template <typename KeyType, typename ValueType>
+static FORCEINLINE bool SafeRemove(TMap<KeyType, ValueType>& Map, const KeyType& Key) {
+    return Map.Remove(Key) > 0;
+}
+
+/**
+ * Safely updates a value in a TMap only if the key exists
+ * @param Map The map to modify
+ * @param Key The key to update
+ * @param NewValue The new value to set
+ * @return True if the key was found and updated, false otherwise
+ */
+template <typename KeyType, typename ValueType>
+static FORCEINLINE bool SafeUpdate(TMap<KeyType, ValueType>& Map, const KeyType& Key, const ValueType& NewValue) {
+    ValueType* FoundValue = Map.Find(Key);
+    if (FoundValue) {
+        *FoundValue = NewValue;
+        return true;
+    }
+    return false;
+}
 
 template <typename KeyType, typename ValueType>
 FORCEINLINE const ValueType* GetReference(const TMap<KeyType, ValueType>& Map, const KeyType& Key) {
