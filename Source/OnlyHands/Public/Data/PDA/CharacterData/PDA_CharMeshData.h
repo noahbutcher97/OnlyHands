@@ -4,20 +4,35 @@
 #include "Engine/DataAsset.h"
 #include "PDA_CharMeshData.generated.h"
 
+USTRUCT(BlueprintType)
+struct F_SelectScreen : public FTableRowBase {
+    GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 SelectIndex;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    int32 SkinIndex;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FName CharacterName;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    FName Describy;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TSoftObjectPtr<UTexture2D> SkinImage;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TSoftObjectPtr<USkeletalMesh> SelectScreen;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TSoftObjectPtr<UAnimSequenceBase> Anm_Idle;
+};
+
 UCLASS(BlueprintType)
-<<<<<<< HEAD
 class ONLYHANDS_API UPDA_CharMeshData : public UPrimaryDataAsset {
     GENERATED_BODY()
 
   public:
-    == == == = class ONLYHANDS_API UPDA_CharMeshData : public UPrimaryDataAsset {
-        GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    USkeletalMesh* BaseMesh;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    F_SelectScreen SelectScreen;
 
-      public:
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-        UPROPERTY(EditAnywhere, BlueprintReadWrite)
-        USkeletalMesh* BaseMesh;
-
-        UPROPERTY(EditAnywhere, BlueprintReadWrite)
-        TArray<USkeletalMesh*> AttachedMeshes;
-    };
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    TArray<USkeletalMesh*> AttachedMeshes;
+};

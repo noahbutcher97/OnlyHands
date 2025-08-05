@@ -15,7 +15,6 @@ DECLARE_LOG_CATEGORY_EXTERN(LogSafeMapUtils, Log, All);
  * and maintain structural integrity across maps, arrays, and key references.
  */
 namespace OHSafeMapUtils
-<<<<<<< HEAD
 
 {
 template <typename T, int32 Capacity> struct TRollingBuffer {
@@ -35,6 +34,7 @@ template <typename T, int32 Capacity> struct TRollingBuffer {
     int32 NumFrames() const {
         return Num;
     }
+
     static int32 CapacityFrames() {
         return Capacity;
     }
@@ -52,155 +52,274 @@ template <typename T, int32 Capacity> struct TRollingBuffer {
         return &Data[Index];
     }
 
+    // Get Nth latest (0 = newest, 1 = 2nd newest, ...)
+    T* GetLatestMutable(int32 N = 0) {
+        if (N >= Num)
+            return nullptr;
+        int32 Index = (Start + Num - 1 - N + Capacity) % Capacity;
+        return &Data[Index];
+    }
+
+    // Get Nth oldest (0 = oldest, 1 = 2nd oldest, ...)
+    const T* GetOldest(int32 N = 0) const {
+        if (N >= Num)
+            return nullptr;
+        int32 Index = (Start + N) % Capacity;
+        return &Data[Index];
+    }
+    T* GetOldestMutable(int32 N = 0) {
+        if (N >= Num)
+            return nullptr;
+        int32 Index = (Start + N) % Capacity;
+        return &Data[Index];
+    }
+
+    // Get const reference to element at logical index (0 = oldest, Num-1 = newest)
+    FORCEINLINE const T& Get(int32 Index) const {
+        check(Index >= 0 && Index < Num);
+        return Data[GetIndex(Index)];
+    }
+
+    // Non-const version (if you need to modify elements)
+    FORCEINLINE T& Get(int32 Index) {
+        check(Index >= 0 && Index < Num);
+        return Data[GetIndex(Index)];
+    }
+
+    // Get const reference to element at logical index (0 = oldest, Num-1 = newest)
+    FORCEINLINE const T& operator[](int32 Index) const {
+        return Get(Index);
+    }
+
+    // Non-const version (if you need to modify elements)
+    FORCEINLINE T& operator[](int32 Index) {
+        return Get(Index);
+    }
+
+    FORCEINLINE const T& Head() const {
+        return Get(0);
+    }
+
+    FORCEINLINE T& Head() {
+        return Get(0);
+    }
+
+    FORCEINLINE const T& Tail() const {
+        return Get(Num - 1);
+    }
+
+    FORCEINLINE T& Tail() {
+        return Get(Num - 1);
+    }
+
+    FORCEINLINE void PopHead() {
+        if (Num > 0) {
+            Start = (Start + 1) % Capacity;
+            --Num;
+        }
+    }
+
+    FORCEINLINE void PopTail() {
+        if (Num > 0) {
+            --Num;
+        }
+    }
+
+    FORCEINLINE void Clear() {
+        Start = 0;
+        Num = 0;
+    }
+
+    FORCEINLINE bool IsFull() const {
+        return Num == Capacity;
+    }
+
+    FORCEINLINE bool IsEmpty() const {
+        return Num == 0;
+    }
+
     // Iteration (from oldest to newest)
     template <typename Func> void ForEach(Func&& Fn) const {
         for (int32 i = 0; i < Num; ++i)
             Fn(Data[GetIndex(i)]);
     }
+
+    template <typename Func> void ForEachReverse(Func&& Fn) const {
+        for (int32 i = Num - 1; i >= 0; --i)
+            Fn(Get(i));
+    }
+
+    template <typename Pred> int32 IndexOf(Pred&& Predicate) const {
+        for (int32 i = 0; i < Num; ++i) {
+            if (Predicate(Get(i)))
+                return i;
+        }
+        return INDEX_NONE;
+    }
+
+    TArray<T> ToArray() const {
+        TArray<T> Out;
+        Out.Reserve(Num);
+        for (int32 i = 0; i < Num; ++i)
+            Out.Add(Get(i));
+        return Out;
+    }
 };
 
-/**
- * Safely gets a value from a TMap, returning a default value if the key doesn't exist
- * @param Map The map to search in
- * @param Key The key to look for
- * @param DefaultValue The value to return if the key is not found
- * @return The value associated with the key, or DefaultValue if not found
- */
-template <typename KeyType, typename ValueType>
-static FORCEINLINE ValueType SafeGet(const TMap<KeyType, ValueType>& Map, const KeyType& Key,
-                                     const ValueType& DefaultValue) {
-    const ValueType* FoundValue = Map.Find(Key);
-    return FoundValue ? *FoundValue : DefaultValue;
-}
+// If you want timestamps, define an entry struct:
+template <typename T> struct TStampedValue {
+    float TimeStamp = 0.f;
+    T Value;
 
-/**
- * Safely gets a value from a TMap by reference, returning a default value if the key doesn't exist
- * Useful when you want to avoid copying large value types
- * @param Map The map to search in
- * @param Key The key to look for
- * @param DefaultValue The value to return if the key is not found
- * @return A const reference to the value or the default value
- */
-template <typename KeyType, typename ValueType>
-static FORCEINLINE const ValueType& SafeGetRef(const TMap<KeyType, ValueType>& Map, const KeyType& Key,
-                                               const ValueType& DefaultValue) {
-    const ValueType* FoundValue = Map.Find(Key);
-    return FoundValue ? *FoundValue : DefaultValue;
-}
+    TStampedValue() = default;
+    TStampedValue(float InTS, const T& InVal) : TimeStamp(InTS), Value(InVal) {}
 
-/**
- * Safely gets a pointer to a value in a TMap, returning nullptr if the key doesn't exist
- * @param Map The map to search in
- * @param Key The key to look for
- * @return A pointer to the value, or nullptr if not found
- */
-template <typename KeyType, typename ValueType>
-static FORCEINLINE const ValueType* SafeGetPtr(const TMap<KeyType, ValueType>& Map, const KeyType& Key) {
-    return Map.Find(Key);
-}
-
-/**
- * Safely gets a value from a TMap, or adds it with the default value if it doesn't exist
- * @param Map The map to search in and potentially modify
- * @param Key The key to look for
- * @param DefaultValue The value to insert if the key is not found
- * @return A reference to the value (either existing or newly added)
- */
-template <typename KeyType, typename ValueType>
-static FORCEINLINE ValueType& SafeGetOrAdd(TMap<KeyType, ValueType>& Map, const KeyType& Key,
-                                           const ValueType& DefaultValue) {
-    ValueType& Value = Map.FindOrAdd(Key);
-    if (!Map.Contains(Key)) {
-        Value = DefaultValue;
+    // Arithmetic and comparison (for analytics)
+    FORCEINLINE bool operator<(const TStampedValue& Other) const {
+        return Value < Other.Value;
     }
-    return Value;
-}
-
-/**
- * Checks if a key exists and gets its value in one call
- * @param Map The map to search in
- * @param Key The key to look for
- * @param OutValue Will be set to the found value if the key exists
- * @return True if the key was found, false otherwise
- */
-template <typename KeyType, typename ValueType>
-static FORCEINLINE bool SafeTryGet(const TMap<KeyType, ValueType>& Map, const KeyType& Key, ValueType& OutValue) {
-    const ValueType* FoundValue = Map.Find(Key);
-    if (FoundValue) {
-        OutValue = *FoundValue;
-        return true;
+    FORCEINLINE bool operator>(const TStampedValue& Other) const {
+        return Value > Other.Value;
     }
-    return false;
-}
-
-/**
- * Safely removes a key from a TMap if it exists
- * @param Map The map to modify
- * @param Key The key to remove
- * @return True if the key was found and removed, false otherwise
- */
-template <typename KeyType, typename ValueType>
-static FORCEINLINE bool SafeRemove(TMap<KeyType, ValueType>& Map, const KeyType& Key) {
-    return Map.Remove(Key) > 0;
-}
-
-/**
- * Safely updates a value in a TMap only if the key exists
- * @param Map The map to modify
- * @param Key The key to update
- * @param NewValue The new value to set
- * @return True if the key was found and updated, false otherwise
- */
-template <typename KeyType, typename ValueType>
-static FORCEINLINE bool SafeUpdate(TMap<KeyType, ValueType>& Map, const KeyType& Key, const ValueType& NewValue) {
-    ValueType* FoundValue = Map.Find(Key);
-    if (FoundValue) {
-        *FoundValue = NewValue;
-        return true;
+    FORCEINLINE T operator+(const TStampedValue& Other) const {
+        return Value + Other.Value;
     }
-    return false;
-}
-== == == =
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+    FORCEINLINE operator T() const {
+        return Value;
+    } // Allow implicit conversion for analytics
+};
 
-             {template <typename T, int32 Capacity> struct TRollingBuffer{T Data[Capacity];
-int32 Start = 0;
-int32 Num = 0;
+// Main buffer
+template <typename T, int32 WindowSize> struct TSlidingWindowBuffer {
+    T Buffer[WindowSize];
+    int32 Start = 0;
+    int32 Count = 0;
 
-void Add(const T& Value) {
-    if (Num < Capacity) {
-        Data[Num++] = Value;
-    } else {
-        Data[Start] = Value;
-        Start = (Start + 1) % Capacity;
+    // Add new sample (overwrites oldest if full)
+    FORCEINLINE void Add(const T& Value) {
+        if (Count < WindowSize) {
+            Buffer[Count++] = Value;
+        } else {
+            Buffer[Start] = Value;
+            Start = (Start + 1) % WindowSize;
+        }
     }
-}
 
-int32 NumFrames() const {
-    return Num;
-}
-static int32 CapacityFrames() {
-    return Capacity;
-}
+    FORCEINLINE int32 Num() const {
+        return Count;
+    }
+    static constexpr int32 Capacity() {
+        return WindowSize;
+    }
 
-// Access as Data[GetIndex(i)], where i=0 is oldest, i=Num-1 is newest
-int32 GetIndex(int32 i) const {
-    return (Start + i) % Capacity;
-}
+    FORCEINLINE const T& Get(int32 Index) const {
+        check(Index >= 0 && Index < Count);
+        return Buffer[(Start + Index) % WindowSize];
+    }
+    FORCEINLINE T& Get(int32 Index) {
+        check(Index >= 0 && Index < Count);
+        return Buffer[(Start + Index) % WindowSize];
+    }
 
-// Get Nth latest (0 = newest, 1 = 2nd newest, ...)
-const T* GetLatest(int32 N = 0) const {
-    if (N >= Num)
+    FORCEINLINE const T& operator[](int32 Index) const {
+        return Get(Index);
+    }
+    FORCEINLINE T& operator[](int32 Index) {
+        return Get(Index);
+    }
+
+    FORCEINLINE const T& Front() const {
+        return Get(0);
+    }
+    FORCEINLINE T& Front() {
+        return Get(0);
+    }
+    FORCEINLINE const T& Back() const {
+        return Get(Count - 1);
+    }
+    FORCEINLINE T& Back() {
+        return Get(Count - 1);
+    }
+
+    FORCEINLINE void Clear() {
+        Start = 0;
+        Count = 0;
+    }
+    FORCEINLINE bool IsFull() const {
+        return Count == WindowSize;
+    }
+    FORCEINLINE bool IsEmpty() const {
+        return Count == 0;
+    }
+
+    // Iteration (from oldest to newest)
+    template <typename Func> void ForEach(Func&& Fn) const {
+        for (int32 i = 0; i < Count; ++i)
+            Fn(Get(i));
+    }
+
+    // ---- Analytics ----
+
+    // Sum (assumes T supports operator+)
+    T Sum() const {
+        check(Count > 0);
+        T Total = Get(0);
+        for (int32 i = 1; i < Count; ++i)
+            Total = Total + Get(i);
+        return Total;
+    }
+
+    // Mean (average)
+    T Mean() const {
+        check(Count > 0);
+        return Sum() / static_cast<float>(Count);
+    }
+
+    // Min/Max (assumes T supports < and >)
+    T Min() const {
+        check(Count > 0);
+        T Result = Get(0);
+        for (int32 i = 1; i < Count; ++i)
+            if (Get(i) < Result)
+                Result = Get(i);
+        return Result;
+    }
+    T Max() const {
+        check(Count > 0);
+        T Result = Get(0);
+        for (int32 i = 1; i < Count; ++i)
+            if (Get(i) > Result)
+                Result = Get(i);
+        return Result;
+    }
+
+    // Range (max - min)
+    T Range() const {
+        return Max() - Min();
+    }
+
+    // Standard deviation (assumes T is float or supports operator- and powf)
+    float StdDev() const {
+        check(Count > 1);
+        float MeanVal = static_cast<float>(Mean());
+        float SumSq = 0.0f;
+        for (int32 i = 0; i < Count; ++i) {
+            float Delta = static_cast<float>(Get(i)) - MeanVal;
+            SumSq += Delta * Delta;
+        }
+        return FMath::Sqrt(SumSq / (Count - 1));
+    }
+
+    // Get earliest value >= timestamp (if using TStampedValue)
+    const T* GetAtOrAfter(float TimeStamp) const {
+        for (int32 i = 0; i < Count; ++i) {
+            if constexpr (std::is_same<T, TStampedValue<typename T::ValueType>>::value) {
+                if (Get(i).TimeStamp >= TimeStamp)
+                    return &Get(i);
+            }
+        }
         return nullptr;
-    int32 Index = (Start + Num - 1 - N + Capacity) % Capacity;
-    return &Data[Index];
-}
-
-// Iteration (from oldest to newest)
-template <typename Func> void ForEach(Func&& Fn) const {
-    for (int32 i = 0; i < Num; ++i)
-        Fn(Data[GetIndex(i)]);
-}
+    }
 };
 
 /**
@@ -5497,7 +5616,7 @@ template <typename T> TArray<T> FilterArray(const TArray<T>& Source, TFunctionRe
     }
     return Result;
 }
-}
+} // namespace OHSafeMapUtils
 
 template <typename TKey, typename TValue, typename TPredicate>
 TArray<TValue> FilterMapValues(const TMap<TKey, TValue>& Map, TPredicate&& Predicate) {

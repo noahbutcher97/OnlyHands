@@ -488,24 +488,13 @@ class ONLYHANDS_API UOHCollisionUtils : public UBlueprintFunctionLibrary {
 
 #pragma endregion
 
-    < < < < < < < HEAD
 #pragma region MovementPush
-                      UFUNCTION(BlueprintCallable, Category = "OnlyHands|Collision|Movement") static FVector
-        CalculateElasticCollisionResponse(const FVector& Velocity1, const FVector& Velocity2, float Mass1, float Mass2,
-                                          const FVector& CollisionNormal, float Restitution = 0.5f);
+    UFUNCTION(BlueprintCallable, Category = "OnlyHands|Collision|Movement")
+    static FVector CalculateElasticCollisionResponse(const FVector& Velocity1, const FVector& Velocity2, float Mass1,
+                                                     float Mass2, const FVector& CollisionNormal,
+                                                     float Restitution = 0.5f);
 
     UFUNCTION(BlueprintCallable, Category = "OnlyHands|Collision|Movement")
     static void ResolveCharacterCollision(ACharacter* Character1, ACharacter* Character2, float PushStrength = 1.0f);
-    == == ==
-        =
-
-#pragma region MovementPush
-            UFUNCTION(BlueprintCallable, Category = "OnlyHands|Collision|Movement") static FVector
-            CalculateElasticCollisionResponse(const FVector& Velocity1, const FVector& Velocity2, float Mass1,
-                                              float Mass2, const FVector& CollisionNormal, float Restitution = 0.5f);
-
-    UFUNCTION(BlueprintCallable, Category = "OnlyHands|Collision|Movement")
-    static void ResolveCharacterCollision(ACharacter* Character1, ACharacter* Character2, float PushStrength = 1.0f);
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
 #pragma endregion
 };

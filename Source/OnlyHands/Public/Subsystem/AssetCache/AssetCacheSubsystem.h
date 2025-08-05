@@ -10,61 +10,42 @@
 DECLARE_DELEGATE_OneParam(FOnAssetLoadedNative, UObject*);
 
 UCLASS()
-<<<<<<< HEAD
 class ONLYHANDS_API UAssetCacheSubsystem : public UGameInstanceSubsystem {
     GENERATED_BODY()
 
   public:
-    == == == = class ONLYHANDS_API UAssetCacheSubsystem : public UGameInstanceSubsystem {
-        GENERATED_BODY()
+    // Request by PrimaryAssetId
+    void RequestAsset(FPrimaryAssetId AssetId, FOnAssetLoadedNative OnLoaded);
 
-      public:
+    // Request by SoftObjectPtr
+    void RequestAsset(TSoftObjectPtr<UObject> AssetRef, FOnAssetLoadedNative OnLoaded);
 
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-        // Request by PrimaryAssetId
-        void RequestAsset(FPrimaryAssetId AssetId, FOnAssetLoadedNative OnLoaded);
+    // Manual unload
+    void UnloadAssetByKey(const FString& Key);
 
-        // Request by SoftObjectPtr
-        void RequestAsset(TSoftObjectPtr<UObject> AssetRef, FOnAssetLoadedNative OnLoaded);
+    UFUNCTION(BlueprintCallable, Category = "Asset Cache")
+    void UnloadAssetByPrimaryId(FPrimaryAssetId AssetId);
 
-        // Manual unload
-        void UnloadAssetByKey(const FString& Key);
+    UFUNCTION(BlueprintCallable, Category = "Asset Cache")
+    void UnloadAssetBySoftPtr(TSoftObjectPtr<UObject> AssetRef);
 
-        UFUNCTION(BlueprintCallable, Category = "Asset Cache")
-        void UnloadAssetByPrimaryId(FPrimaryAssetId AssetId);
+    UFUNCTION(BlueprintCallable, Category = "Asset Cache")
+    void UnloadAllAssets();
 
-        UFUNCTION(BlueprintCallable, Category = "Asset Cache")
-        void UnloadAssetBySoftPtr(TSoftObjectPtr<UObject> AssetRef);
+    // Used internally by async nodes, not exposed to BP
+    bool IsAssetCachedByKey(const FString& Key) const;
 
-        UFUNCTION(BlueprintCallable, Category = "Asset Cache")
-        void UnloadAllAssets();
+    //    UObject* GetCachedAsset(const FString& Key) const;
 
-        // Used internally by async nodes, not exposed to BP
-        bool IsAssetCachedByKey(const FString& Key) const;
+  protected:
+    TMap<FString, UObject*> CachedAssets;
+    FStreamableManager StreamableManager;
 
-<<<<<<< HEAD
-        //    UObject* GetCachedAsset(const FString& Key) const;
+    // Active loads in progress
+    TMap<FString, TArray<FOnAssetLoadedNative>> PendingLoads;
 
-      protected:
-      == == == =
-                   //    UObject* GetCachedAsset(const FString& Key) const;
+    // Optional: Reference-counted cache
+    TMap<FString, int32> AssetRefCounts;
 
-          protected :
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-          TMap<FString, UObject*>
-              CachedAssets;
-        FStreamableManager StreamableManager;
-
-        // Active loads in progress
-        TMap<FString, TArray<FOnAssetLoadedNative>> PendingLoads;
-
-        // Optional: Reference-counted cache
-        TMap<FString, int32> AssetRefCounts;
-
-        void LoadAssetInternal(const FString& Key, const FSoftObjectPath& AssetPath,
-                               const FOnAssetLoadedNative& OnLoaded);
-<<<<<<< HEAD
-        == == == =
-
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-    };
+    void LoadAssetInternal(const FString& Key, const FSoftObjectPath& AssetPath, const FOnAssetLoadedNative& OnLoaded);
+};

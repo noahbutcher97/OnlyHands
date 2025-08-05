@@ -7,19 +7,13 @@
 class UAnimationAsset;
 
 UCLASS(BlueprintType)
-<<<<<<< HEAD
 class ONLYHANDS_API UPDA_CharCinematicData : public UPrimaryDataAsset {
     GENERATED_BODY()
 
   public:
-    == == == = class ONLYHANDS_API UPDA_CharCinematicData : public UPrimaryDataAsset {
-        GENERATED_BODY()
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UAnimationAsset* Intro;
 
-      public:
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-        UPROPERTY(EditAnywhere, BlueprintReadWrite)
-        UAnimationAsset* Intro;
-
-        UPROPERTY(EditAnywhere, BlueprintReadWrite)
-        UAnimationAsset* WinPose;
-    };
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    UAnimationAsset* WinPose;
+};

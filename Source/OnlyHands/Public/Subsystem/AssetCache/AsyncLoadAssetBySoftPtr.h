@@ -7,7 +7,6 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSoftAssetLoaded, UObject*, LoadedAsset);
 
 UCLASS()
-<<<<<<< HEAD
 class ONLYHANDS_API UAsyncLoadAssetBySoftPtr : public UBlueprintAsyncActionBase {
     GENERATED_BODY()
 
@@ -17,30 +16,15 @@ class ONLYHANDS_API UAsyncLoadAssetBySoftPtr : public UBlueprintAsyncActionBase 
 
     UFUNCTION(BlueprintCallable, Category = "Asset Loading",
               meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject"))
-    == == == = class ONLYHANDS_API UAsyncLoadAssetBySoftPtr : public UBlueprintAsyncActionBase {
-        GENERATED_BODY()
+    static UAsyncLoadAssetBySoftPtr* LoadSoftAssetAsync(UObject* WorldContextObject, TSoftObjectPtr<UObject> AssetRef);
 
-      public:
-        UPROPERTY(BlueprintAssignable)
-        FOnSoftAssetLoaded OnLoaded;
+    virtual void Activate() override;
 
-        UFUNCTION(BlueprintCallable, Category = "Asset Loading",
-                  meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject"))
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-        static UAsyncLoadAssetBySoftPtr* LoadSoftAssetAsync(UObject* WorldContextObject,
-                                                            TSoftObjectPtr<UObject> AssetRef);
+  private:
+    UPROPERTY()
+    UObject* WorldContextObject;
 
-        virtual void Activate() override;
+    TSoftObjectPtr<UObject> RequestedAsset;
 
-<<<<<<< HEAD
-
-      private:
-      == == == = private :
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-          UPROPERTY() UObject *
-          WorldContextObject;
-
-        TSoftObjectPtr<UObject> RequestedAsset;
-
-        void OnAssetLoadedInternal(UObject* Loaded);
-    };
+    void OnAssetLoadedInternal(UObject* Loaded);
+};

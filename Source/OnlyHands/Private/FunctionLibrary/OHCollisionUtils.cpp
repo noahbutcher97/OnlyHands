@@ -2639,9 +2639,9 @@ bool UOHCollisionUtils::SweepBoneChainWithMetrics(USkeletalMeshComponent* MeshCo
 #pragma endregion
 
 #pragma region MovementPush
-<<<<<<< HEAD FVector UOHCollisionUtils::CalculateElasticCollisionResponse(const FVector& Velocity1, const FVector& Velocity2,
-                                                               float Mass1, float Mass2, const FVector& CollisionNormal,
-                                                               float Restitution) {
+FVector UOHCollisionUtils::CalculateElasticCollisionResponse(const FVector& Velocity1, const FVector& Velocity2,
+                                                             float Mass1, float Mass2, const FVector& CollisionNormal,
+                                                             float Restitution) {
     // Calculate relative velocity
     FVector RelativeVelocity = Velocity1 - Velocity2;
 
@@ -2674,78 +2674,25 @@ void UOHCollisionUtils::ResolveCharacterCollision(ACharacter* Character1, AChara
     if (!MoveComp1 || !MoveComp2)
         return;
 
-    == == == = FVector UOHCollisionUtils::CalculateElasticCollisionResponse(
-                 const FVector& Velocity1, const FVector& Velocity2, float Mass1, float Mass2,
-                 const FVector& CollisionNormal, float Restitution) {
-        // Calculate relative velocity
-        FVector RelativeVelocity = Velocity1 - Velocity2;
+    // Calculate collision normal (from char1 to char2)
+    FVector Pos1 = Character1->GetActorLocation();
+    FVector Pos2 = Character2->GetActorLocation();
+    FVector CollisionNormal = (Pos2 - Pos1).GetSafeNormal2D();
 
-        // Calculate relative velocity along collision normal
-        float VelocityAlongNormal = FVector::DotProduct(RelativeVelocity, CollisionNormal);
+    // Get velocities and masses
+    FVector Vel1 = Character1->GetVelocity();
+    FVector Vel2 = Character2->GetVelocity();
+    float Mass1 = MoveComp1->MovementConfig.CharacterMass;
+    float Mass2 = MoveComp2->MovementConfig.CharacterMass;
 
-        // Don't resolve if velocities are separating
-        if (VelocityAlongNormal > 0)
-            return FVector::ZeroVector;
+    // Calculate elastic collision response
+    FVector Response1 = CalculateElasticCollisionResponse(Vel1, Vel2, Mass1, Mass2, CollisionNormal, 0.3f);
 
-        // Calculate impulse scalar
-        float ImpulseScalar = -(1 + Restitution) * VelocityAlongNormal;
-        ImpulseScalar /= (1 / Mass1 + 1 / Mass2);
+    FVector Response2 = CalculateElasticCollisionResponse(Vel2, Vel1, Mass2, Mass1, -CollisionNormal, 0.3f);
 
-        // Apply impulse to get new velocity
-        FVector Impulse = ImpulseScalar * CollisionNormal;
-        FVector NewVelocity1 = Velocity1 + (Impulse / Mass1);
-
-        return NewVelocity1 - Velocity1; // Return velocity change
-    }
-
-    void UOHCollisionUtils::ResolveCharacterCollision(ACharacter * Character1, ACharacter * Character2,
-                                                      float PushStrength) {
-        if (!Character1 || !Character2)
-            return;
-
-        // Get movement components
-        UOHMovementComponent* MoveComp1 = Character1->FindComponentByClass<UOHMovementComponent>();
-        UOHMovementComponent* MoveComp2 = Character2->FindComponentByClass<UOHMovementComponent>();
-
-        if (!MoveComp1 || !MoveComp2)
-            return;
-    
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-        // Calculate collision normal (from char1 to char2)
-        FVector Pos1 = Character1->GetActorLocation();
-        FVector Pos2 = Character2->GetActorLocation();
-        FVector CollisionNormal = (Pos2 - Pos1).GetSafeNormal2D();
-<<<<<<< HEAD
-
-        == == == =
-    
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-                     // Get velocities and masses
-            FVector Vel1 = Character1->GetVelocity();
-        FVector Vel2 = Character2->GetVelocity();
-        float Mass1 = MoveComp1->MovementConfig.CharacterMass;
-        float Mass2 = MoveComp2->MovementConfig.CharacterMass;
-<<<<<<< HEAD
-
-        // Calculate elastic collision response
-        FVector Response1 = CalculateElasticCollisionResponse(Vel1, Vel2, Mass1, Mass2, CollisionNormal, 0.3f);
-
-        FVector Response2 = CalculateElasticCollisionResponse(Vel2, Vel1, Mass2, Mass1, -CollisionNormal, 0.3f);
-
-        // Apply responses
-        // MoveComp1->ApplyCollisionPushback(Response1 * PushStrength);
-        // MoveComp2->ApplyCollisionPushback(Response2 * PushStrength);
-        == == == =
-
-                     // Calculate elastic collision response
-            FVector Response1 = CalculateElasticCollisionResponse(Vel1, Vel2, Mass1, Mass2, CollisionNormal, 0.3f);
-
-        FVector Response2 = CalculateElasticCollisionResponse(Vel2, Vel1, Mass2, Mass1, -CollisionNormal, 0.3f);
-
-        // Apply responses
-        // MoveComp1->ApplyCollisionPushback(Response1 * PushStrength);
-        // MoveComp2->ApplyCollisionPushback(Response2 * PushStrength);
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-    }
+    // Apply responses
+    // MoveComp1->ApplyCollisionPushback(Response1 * PushStrength);
+    // MoveComp2->ApplyCollisionPushback(Response2 * PushStrength);
+}
 
 #pragma endregion

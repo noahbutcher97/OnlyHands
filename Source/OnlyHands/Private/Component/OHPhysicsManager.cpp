@@ -638,19 +638,11 @@ void UOHPhysicsManager::PlayPhysicsHitReaction_Internal(FName& BoneName, const F
         }
     }
 
-<<<<<<< HEAD
     // Skip if already blending and fully held
     if (FActivePhysicsBlend* Existing = ActiveBlends.Find(BoneName)) {
         if (Existing->Phase == EOHBlendPhases::Hold && Existing->BlendAlpha >= 0.99f)
             return;
     }
-    == == == =
-                 // Skip if already blending and fully held
-        if (FActivePhysicsBlend* Existing = ActiveBlends.Find(BoneName)) {
-        if (Existing->Phase == EOHBlendPhases::Hold && Existing->BlendAlpha >= 0.99f)
-            return;
-    }
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
 
     const float StartAlpha = FMath::Clamp(GetBlendAlpha(BoneName), 0.f, 1.f);
 
@@ -2065,7 +2057,6 @@ void UOHPhysicsManager::DrawSimBlendDebugOverlay() const {
             const FTransform BoneTransform = SkeletalMesh->GetSocketTransform(Bone, ERelativeTransformSpace::RTS_World);
             const FVector Location = BoneTransform.GetLocation();
 
-<<<<<<< HEAD
             // Determine phase color
             FColor PhaseColor;
             switch (Blend.Phase) {
@@ -2082,24 +2073,6 @@ void UOHPhysicsManager::DrawSimBlendDebugOverlay() const {
                 PhaseColor = FColor::White;
                 break;
             }
-            == == == =
-                         // Determine phase color
-                FColor PhaseColor;
-            switch (Blend.Phase) {
-            case EOHBlendPhases::BlendIn:
-                PhaseColor = FColor::Yellow;
-                break;
-            case EOHBlendPhases::Hold:
-                PhaseColor = FColor::Green;
-                break;
-            case EOHBlendPhases::BlendOut:
-                PhaseColor = FColor::Red;
-                break;
-            default:
-                PhaseColor = FColor::White;
-                break;
-            }
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
 
             const float ScaledAlpha = FMath::Clamp(Blend.BlendAlpha, 0.0f, 1.0f);
             const FLinearColor LinearColor = FLinearColor(PhaseColor) * ScaledAlpha;
@@ -2707,8 +2680,8 @@ float UOHPhysicsManager::GetPoseRotationError(FName Bone) const {
 
 #pragma region BlendState
 
-<<<<<<< HEAD FActivePhysicsBlend UOHPhysicsManager::CreatePhysicsBlendState(FName RootBone, float StartAlpha, float BlendIn,
-                                                                 float Hold, float BlendOut, FName ReactionTag) {
+FActivePhysicsBlend UOHPhysicsManager::CreatePhysicsBlendState(FName RootBone, float StartAlpha, float BlendIn,
+                                                               float Hold, float BlendOut, FName ReactionTag) {
     FActivePhysicsBlend Blend;
     Blend.RootBone = RootBone;
     Blend.BlendAlpha = StartAlpha;
@@ -2721,639 +2694,474 @@ float UOHPhysicsManager::GetPoseRotationError(FName Bone) const {
     Blend.TotalBlendTime = BlendIn + Hold + BlendOut;
     Blend.ReactionTag = ReactionTag;
     return Blend;
-    == == == = FActivePhysicsBlend UOHPhysicsManager::CreatePhysicsBlendState(
-                 FName RootBone, float StartAlpha, float BlendIn, float Hold, float BlendOut, FName ReactionTag) {
-        FActivePhysicsBlend Blend;
-        Blend.RootBone = RootBone;
-        Blend.BlendAlpha = StartAlpha;
-        Blend.StartAlpha = StartAlpha; // <-- Set this
-        Blend.Phase = EOHBlendPhases::BlendIn;
-        Blend.Elapsed = 0.0f;
-        Blend.BlendInDuration = BlendIn;
-        Blend.HoldDuration = Hold;
-        Blend.BlendOutDuration = BlendOut;
-        Blend.TotalBlendTime = BlendIn + Hold + BlendOut;
-        Blend.ReactionTag = ReactionTag;
-        return Blend;
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-    }
+}
 
-    void UOHPhysicsManager::UpdateBlendState(FActivePhysicsBlend & Blend, float DeltaTime) {
-        if (Blend.IsPaused())
-            return;
+void UOHPhysicsManager::UpdateBlendState(FActivePhysicsBlend& Blend, float DeltaTime) {
+    if (Blend.IsPaused())
+        return;
 
-        Blend.Elapsed += DeltaTime;
+    Blend.Elapsed += DeltaTime;
 
-<<<<<<< HEAD
-        auto AdvancePhase = [&Blend](EOHBlendPhases NewPhase) {
-            Blend.Phase = NewPhase;
-            Blend.Elapsed = 0.f;
-        };
+    auto AdvancePhase = [&Blend](EOHBlendPhases NewPhase) {
+        Blend.Phase = NewPhase;
+        Blend.Elapsed = 0.f;
+    };
 
-        switch (Blend.Phase) {
-        case EOHBlendPhases::BlendIn:
-            if (Blend.BlendInDuration <= KINDA_SMALL_NUMBER) {
-                AdvancePhase(EOHBlendPhases::Hold);
-                Blend.BlendAlpha = 1.f;
-                break;
-            }
-            == == == = auto AdvancePhase = [&Blend](EOHBlendPhases NewPhase) {
-                Blend.Phase = NewPhase;
-                Blend.Elapsed = 0.f;
-            };
-
-            switch (Blend.Phase) {
-            case EOHBlendPhases::BlendIn:
-                if (Blend.BlendInDuration <= KINDA_SMALL_NUMBER) {
-                    AdvancePhase(EOHBlendPhases::Hold);
-                    Blend.BlendAlpha = 1.f;
-                    break;
-                }
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-
-                {
-                    float Progress = Blend.Elapsed / FMath::Max(Blend.BlendInDuration, KINDA_SMALL_NUMBER);
-                    Blend.BlendAlpha = FMath::Clamp(Progress, 0.f, 1.f);
-
-<<<<<<< HEAD
-                    if (Progress >= 1.f) {
-                        AdvancePhase(EOHBlendPhases::Hold);
-                    }
-                    break;
-                }
-
-            case EOHBlendPhases::Hold:
-                if (Blend.HoldDuration <= KINDA_SMALL_NUMBER) {
-                    AdvancePhase(EOHBlendPhases::BlendOut);
-                    break;
-                }
-                == == == = if (Progress >= 1.f) {
-                    AdvancePhase(EOHBlendPhases::Hold);
-                }
-                break;
-            }
-
-        case EOHBlendPhases::Hold:
-            if (Blend.HoldDuration <= KINDA_SMALL_NUMBER) {
-                AdvancePhase(EOHBlendPhases::BlendOut);
-                break;
-            }
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-
+    switch (Blend.Phase) {
+    case EOHBlendPhases::BlendIn:
+        if (Blend.BlendInDuration <= KINDA_SMALL_NUMBER) {
+            AdvancePhase(EOHBlendPhases::Hold);
             Blend.BlendAlpha = 1.f;
+            break;
+        }
 
-<<<<<<< HEAD
-            if (Blend.Elapsed >= Blend.HoldDuration) {
-                AdvancePhase(EOHBlendPhases::BlendOut);
+        {
+            float Progress = Blend.Elapsed / FMath::Max(Blend.BlendInDuration, KINDA_SMALL_NUMBER);
+            Blend.BlendAlpha = FMath::Clamp(Progress, 0.f, 1.f);
+
+            if (Progress >= 1.f) {
+                AdvancePhase(EOHBlendPhases::Hold);
             }
             break;
+        }
 
-        case EOHBlendPhases::BlendOut:
-            if (Blend.BlendOutDuration <= KINDA_SMALL_NUMBER) {
-                Blend.BlendAlpha = 0.f;
-                break;
-            }
-            == == == = if (Blend.Elapsed >= Blend.HoldDuration) {
-                AdvancePhase(EOHBlendPhases::BlendOut);
-            }
+    case EOHBlendPhases::Hold:
+        if (Blend.HoldDuration <= KINDA_SMALL_NUMBER) {
+            AdvancePhase(EOHBlendPhases::BlendOut);
             break;
+        }
 
+        Blend.BlendAlpha = 1.f;
+
+        if (Blend.Elapsed >= Blend.HoldDuration) {
+            AdvancePhase(EOHBlendPhases::BlendOut);
+        }
+        break;
+
+    case EOHBlendPhases::BlendOut:
+        if (Blend.BlendOutDuration <= KINDA_SMALL_NUMBER) {
+            Blend.BlendAlpha = 0.f;
+            break;
+        }
+
+        {
+            float Progress = Blend.Elapsed / FMath::Max(Blend.BlendOutDuration, KINDA_SMALL_NUMBER);
+            Blend.BlendAlpha = 1.f - FMath::Clamp(Progress, 0.f, 1.f);
+            break;
+        }
+
+    default:
+        ensureMsgf(false, TEXT("[OH] Invalid blend phase"));
+        break;
+    }
+}
+
+void UOHPhysicsManager::ProcessBlendPhases(float DeltaTime) {
+    TArray<FName> CompletedRootBones;
+
+    for (auto& Elem : ActiveBlends) {
+        FActivePhysicsBlend& Blend = Elem.Value;
+
+        // Use centralized update logic
+        UpdateBlendState(Blend, DeltaTime);
+
+        // Mark for cleanup if complete
+        if (IsBlendComplete(Blend)) {
+            CompletedRootBones.Add(Blend.RootBone);
+        }
+
+        // Apply BlendAlpha to full bone chain
+        TArray<FName> BoneNames;
+        SkeletalMesh->GetBoneNames(BoneNames);
+
+        for (const FName& Bone : BoneNames) {
+            if (!IsBoneValidForChain(Bone, Blend.RootBone))
+                continue;
+
+            if (FBodyInstance* Body = SkeletalMesh->GetBodyInstance(Bone)) {
+                Body->PhysicsBlendWeight = Blend.BlendAlpha;
+            }
+        }
+    }
+
+    // Finalize completed blends
+    for (const FName& RootBone : CompletedRootBones) {
+        FinalizeBlend(RootBone);
+    }
+}
+
+void UOHPhysicsManager::PauseBlend(FName Bone) {
+    if (FActivePhysicsBlend* Blend = ActiveBlends.Find(Bone)) {
+        Blend->PauseCount++;
+        if (Blend->PauseCount == 1) {
+            UE_LOG(LogTemp, Log, TEXT("[OH] Paused blend on %s"), *Bone.ToString());
+        }
+    }
+}
+
+void UOHPhysicsManager::ResumeBlend(FName Bone) {
+    if (FActivePhysicsBlend* Blend = ActiveBlends.Find(Bone)) {
+        if (Blend->PauseCount > 0) {
+            Blend->PauseCount--;
+            if (Blend->PauseCount == 0) {
+                UE_LOG(LogTemp, Log, TEXT("[OH] Resumed blend on %s"), *Bone.ToString());
+            }
+        }
+    }
+}
+void UOHPhysicsManager::PauseAllBlends() {
+    for (const auto& Elem : ActiveBlends) {
+        PauseBlend(Elem.Key);
+    }
+}
+
+void UOHPhysicsManager::ResumeAllBlends() {
+    for (const auto& Elem : ActiveBlends) {
+        ResumeBlend(Elem.Key);
+    }
+}
+
+void UOHPhysicsManager::ForceUnpause(FName Bone) {
+    if (FActivePhysicsBlend* Blend = ActiveBlends.Find(Bone)) {
+        if (Blend->PauseCount > 0) {
+            Blend->PauseCount = 0;
+            UE_LOG(LogTemp, Log, TEXT("[OH] Force-unpaused blend on %s"), *Bone.ToString());
+        }
+    }
+}
+
+bool UOHPhysicsManager::IsBoneBlending(FName BoneName) const {
+    return ActiveBlends.Contains(BoneName);
+}
+
+EOHBlendPhases UOHPhysicsManager::GetCurrentBlendPhase(FName BoneName) const {
+    const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
+    return Blend ? Blend->Phase : EOHBlendPhases::BlendOut; // default = not blending / fallback state
+}
+
+float UOHPhysicsManager::GetBlendAlpha(FName BoneName) const {
+    const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
+    return Blend ? Blend->BlendAlpha : 0.f;
+}
+
+FName UOHPhysicsManager::GetActiveReactionTag(FName BoneName) const {
+    const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
+    return Blend ? Blend->ReactionTag : NAME_None;
+}
+
+TArray<FName> UOHPhysicsManager::GetSimulatedBones() const {
+    TArray<FName> OutBones;
+    ActiveBlends.GetKeys(OutBones);
+    return OutBones;
+}
+
+float UOHPhysicsManager::GetRemainingBlendTime(FName BoneName) const {
+    const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
+    if (!Blend)
+        return 0.f;
+
+    return FMath::Max(0.f, Blend->TotalBlendTime - Blend->Elapsed);
+}
+
+float UOHPhysicsManager::GetCurrentPhaseProgress(FName BoneName) const {
+    const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
+    if (!Blend)
+        return 0.f;
+
+    const float PhaseDuration = [Blend]() -> float {
+        switch (Blend->Phase) {
+        case EOHBlendPhases::BlendIn:
+            return FMath::Max(Blend->BlendInDuration, KINDA_SMALL_NUMBER);
+        case EOHBlendPhases::Hold:
+            return FMath::Max(Blend->HoldDuration, KINDA_SMALL_NUMBER);
         case EOHBlendPhases::BlendOut:
-            if (Blend.BlendOutDuration <= KINDA_SMALL_NUMBER) {
-                Blend.BlendAlpha = 0.f;
-                break;
-            }
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-
-            {
-                float Progress = Blend.Elapsed / FMath::Max(Blend.BlendOutDuration, KINDA_SMALL_NUMBER);
-                Blend.BlendAlpha = 1.f - FMath::Clamp(Progress, 0.f, 1.f);
-                break;
-            }
-
+            return FMath::Max(Blend->BlendOutDuration, KINDA_SMALL_NUMBER);
         default:
-            ensureMsgf(false, TEXT("[OH] Invalid blend phase"));
-            break;
+            return 1.f; // fallback duration avoids divide by 0
+        }
+    }();
+
+    return FMath::Clamp(Blend->Elapsed / PhaseDuration, 0.f, 1.f);
+}
+
+float UOHPhysicsManager::GetPhaseDuration(FName BoneName, EOHBlendPhases Phase) const {
+    const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
+    if (!Blend)
+        return 0.f;
+
+    switch (Phase) {
+    case EOHBlendPhases::BlendIn:
+        return Blend->BlendInDuration;
+    case EOHBlendPhases::Hold:
+        return Blend->HoldDuration;
+    case EOHBlendPhases::BlendOut:
+        return Blend->BlendOutDuration;
+    default:
+        return 0.f;
+    }
+}
+
+void UOHPhysicsManager::ApplyBlendAlphaToBone(FName Bone, float BlendAlpha) {
+    if (FBodyInstance* Body = SkeletalMesh->GetBodyInstance(Bone)) {
+        Body->PhysicsBlendWeight = BlendAlpha;
+    }
+}
+
+bool UOHPhysicsManager::IsBlendComplete(const FActivePhysicsBlend& Blend) {
+    return Blend.Phase == EOHBlendPhases::BlendOut && Blend.Elapsed >= Blend.BlendOutDuration;
+}
+
+void UOHPhysicsManager::FinalizeBlend(FName RootBone) {
+    ActiveBlends.Remove(RootBone);
+
+    // Collect bones in the chain
+    TArray<FName> BoneNames;
+    SkeletalMesh->GetBoneNames(BoneNames);
+
+    for (const FName& Bone : BoneNames) {
+        if (!IsBoneValidForChain(Bone, RootBone))
+            continue;
+
+        if (int32* RefCountPtr = BoneSimBlendRefCount.Find(Bone)) {
+            (*RefCountPtr)--;
+
+            if (*RefCountPtr <= 0) {
+                BoneSimBlendRefCount.Remove(Bone);
+                ClearPhysicsStateForBone(Bone); // Also clears PAC + tracking
+            }
+        } else {
+            // This bone was never activated — clean PAC if it got applied
+            ClearPhysicsStateForBone(Bone);
         }
     }
 
-    void UOHPhysicsManager::ProcessBlendPhases(float DeltaTime) {
-        TArray<FName> CompletedRootBones;
+    OnHitReactionComplete.Broadcast(RootBone);
+}
 
-        for (auto& Elem : ActiveBlends) {
-            FActivePhysicsBlend& Blend = Elem.Value;
+void UOHPhysicsManager::FinalizeAllBlends() {
+    if (!SkeletalMesh)
+        return;
 
-            // Use centralized update logic
-            UpdateBlendState(Blend, DeltaTime);
+    TArray<FName> Roots;
+    ActiveBlends.GetKeys(Roots);
 
-            // Mark for cleanup if complete
-            if (IsBlendComplete(Blend)) {
-                CompletedRootBones.Add(Blend.RootBone);
-            }
-
-            // Apply BlendAlpha to full bone chain
-            TArray<FName> BoneNames;
-            SkeletalMesh->GetBoneNames(BoneNames);
-
-            for (const FName& Bone : BoneNames) {
-                if (!IsBoneValidForChain(Bone, Blend.RootBone))
-                    continue;
-
-                if (FBodyInstance* Body = SkeletalMesh->GetBodyInstance(Bone)) {
-                    Body->PhysicsBlendWeight = Blend.BlendAlpha;
-                }
-            }
-        }
-
-        // Finalize completed blends
-        for (const FName& RootBone : CompletedRootBones) {
-            FinalizeBlend(RootBone);
-        }
+    for (const FName& RootBone : Roots) {
+        FinalizeBlend(RootBone);
     }
 
-    void UOHPhysicsManager::PauseBlend(FName Bone) {
-        if (FActivePhysicsBlend* Blend = ActiveBlends.Find(Bone)) {
-            Blend->PauseCount++;
-            if (Blend->PauseCount == 1) {
-                UE_LOG(LogTemp, Log, TEXT("[OH] Paused blend on %s"), *Bone.ToString());
-            }
-        }
-    }
-
-    void UOHPhysicsManager::ResumeBlend(FName Bone) {
-        if (FActivePhysicsBlend* Blend = ActiveBlends.Find(Bone)) {
-            if (Blend->PauseCount > 0) {
-                Blend->PauseCount--;
-                if (Blend->PauseCount == 0) {
-                    UE_LOG(LogTemp, Log, TEXT("[OH] Resumed blend on %s"), *Bone.ToString());
-                }
-            }
-        }
-    }
-    void UOHPhysicsManager::PauseAllBlends() {
-        for (const auto& Elem : ActiveBlends) {
-            PauseBlend(Elem.Key);
-        }
-    }
-
-    void UOHPhysicsManager::ResumeAllBlends() {
-        for (const auto& Elem : ActiveBlends) {
-            ResumeBlend(Elem.Key);
-        }
-    }
-
-    void UOHPhysicsManager::ForceUnpause(FName Bone) {
-        if (FActivePhysicsBlend* Blend = ActiveBlends.Find(Bone)) {
-            if (Blend->PauseCount > 0) {
-                Blend->PauseCount = 0;
-                UE_LOG(LogTemp, Log, TEXT("[OH] Force-unpaused blend on %s"), *Bone.ToString());
-            }
-        }
-    }
-
-    bool UOHPhysicsManager::IsBoneBlending(FName BoneName) const {
-        return ActiveBlends.Contains(BoneName);
-    }
-
-<<<<<<< HEAD
-    EOHBlendPhases UOHPhysicsManager::GetCurrentBlendPhase(FName BoneName) const {
-        const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
-        return Blend ? Blend->Phase : EOHBlendPhases::BlendOut; // default = not blending / fallback state
-        == == == =
-
-                     EOHBlendPhases UOHPhysicsManager::GetCurrentBlendPhase(FName BoneName) const {
-            const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
-            return Blend ? Blend->Phase : EOHBlendPhases::BlendOut; // default = not blending / fallback state
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-        }
-
-        float UOHPhysicsManager::GetBlendAlpha(FName BoneName) const {
-            const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
-            return Blend ? Blend->BlendAlpha : 0.f;
-        }
-
-        FName UOHPhysicsManager::GetActiveReactionTag(FName BoneName) const {
-            const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
-            return Blend ? Blend->ReactionTag : NAME_None;
-        }
-
-        TArray<FName> UOHPhysicsManager::GetSimulatedBones() const {
-            TArray<FName> OutBones;
-            ActiveBlends.GetKeys(OutBones);
-            return OutBones;
-        }
-
-        float UOHPhysicsManager::GetRemainingBlendTime(FName BoneName) const {
-            const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
-            if (!Blend)
-                return 0.f;
-
-            return FMath::Max(0.f, Blend->TotalBlendTime - Blend->Elapsed);
-        }
-
-        float UOHPhysicsManager::GetCurrentPhaseProgress(FName BoneName) const {
-            const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
-            if (!Blend)
-                return 0.f;
-
-<<<<<<< HEAD
-            const float PhaseDuration = [Blend]() -> float {
-                switch (Blend->Phase) {
-                case EOHBlendPhases::BlendIn:
-                    return FMath::Max(Blend->BlendInDuration, KINDA_SMALL_NUMBER);
-                case EOHBlendPhases::Hold:
-                    return FMath::Max(Blend->HoldDuration, KINDA_SMALL_NUMBER);
-                case EOHBlendPhases::BlendOut:
-                    return FMath::Max(Blend->BlendOutDuration, KINDA_SMALL_NUMBER);
-                default:
-                    return 1.f; // fallback duration avoids divide by 0
-                }
-            }();
-            == == == = const float PhaseDuration = [Blend]() -> float {
-                switch (Blend->Phase) {
-                case EOHBlendPhases::BlendIn:
-                    return FMath::Max(Blend->BlendInDuration, KINDA_SMALL_NUMBER);
-                case EOHBlendPhases::Hold:
-                    return FMath::Max(Blend->HoldDuration, KINDA_SMALL_NUMBER);
-                case EOHBlendPhases::BlendOut:
-                    return FMath::Max(Blend->BlendOutDuration, KINDA_SMALL_NUMBER);
-                default:
-                    return 1.f; // fallback duration avoids divide by 0
-                }
-            }();
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-
-            return FMath::Clamp(Blend->Elapsed / PhaseDuration, 0.f, 1.f);
-        }
-
-<<<<<<< HEAD
-        float UOHPhysicsManager::GetPhaseDuration(FName BoneName, EOHBlendPhases Phase) const {
-            const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
-            if (!Blend)
-                return 0.f;
-
-            switch (Phase) {
-            case EOHBlendPhases::BlendIn:
-                return Blend->BlendInDuration;
-            case EOHBlendPhases::Hold:
-                return Blend->HoldDuration;
-            case EOHBlendPhases::BlendOut:
-                return Blend->BlendOutDuration;
-            default:
-                return 0.f;
-            }
-            == == == =
-
-                         float UOHPhysicsManager::GetPhaseDuration(FName BoneName, EOHBlendPhases Phase) const {
-                const FActivePhysicsBlend* Blend = ActiveBlends.Find(BoneName);
-                if (!Blend)
-                    return 0.f;
-
-                switch (Phase) {
-                case EOHBlendPhases::BlendIn:
-                    return Blend->BlendInDuration;
-                case EOHBlendPhases::Hold:
-                    return Blend->HoldDuration;
-                case EOHBlendPhases::BlendOut:
-                    return Blend->BlendOutDuration;
-                default:
-                    return 0.f;
-                }
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-            }
-
-            void UOHPhysicsManager::ApplyBlendAlphaToBone(FName Bone, float BlendAlpha) {
-                if (FBodyInstance* Body = SkeletalMesh->GetBodyInstance(Bone)) {
-                    Body->PhysicsBlendWeight = BlendAlpha;
-                }
-            }
-
-<<<<<<< HEAD
-            bool UOHPhysicsManager::IsBlendComplete(const FActivePhysicsBlend& Blend) {
-                return Blend.Phase == EOHBlendPhases::BlendOut && Blend.Elapsed >= Blend.BlendOutDuration;
-                == == == =
-
-                             bool UOHPhysicsManager::IsBlendComplete(const FActivePhysicsBlend& Blend) {
-                    return Blend.Phase == EOHBlendPhases::BlendOut && Blend.Elapsed >= Blend.BlendOutDuration;
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-                }
-
-                void UOHPhysicsManager::FinalizeBlend(FName RootBone) {
-                    ActiveBlends.Remove(RootBone);
-
-                    // Collect bones in the chain
-                    TArray<FName> BoneNames;
-                    SkeletalMesh->GetBoneNames(BoneNames);
-
-                    for (const FName& Bone : BoneNames) {
-                        if (!IsBoneValidForChain(Bone, RootBone))
-                            continue;
-
-                        if (int32* RefCountPtr = BoneSimBlendRefCount.Find(Bone)) {
-                            (*RefCountPtr)--;
-
-                            if (*RefCountPtr <= 0) {
-                                BoneSimBlendRefCount.Remove(Bone);
-                                ClearPhysicsStateForBone(Bone); // Also clears PAC + tracking
-                            }
-                        } else {
-                            // This bone was never activated — clean PAC if it got applied
-                            ClearPhysicsStateForBone(Bone);
-                        }
-                    }
-
-                    OnHitReactionComplete.Broadcast(RootBone);
-                }
-
-                void UOHPhysicsManager::FinalizeAllBlends() {
-                    if (!SkeletalMesh)
-                        return;
-
-                    TArray<FName> Roots;
-                    ActiveBlends.GetKeys(Roots);
-
-                    for (const FName& RootBone : Roots) {
-                        FinalizeBlend(RootBone);
-                    }
-
-                    UE_LOG(LogTemp, Log, TEXT("[OH] Finalized %d active blends"), Roots.Num());
-                }
+    UE_LOG(LogTemp, Log, TEXT("[OH] Finalized %d active blends"), Roots.Num());
+}
 
 #pragma endregion
 
-                < < < < < < < HEAD == == == =
-
-#pragma region Experimental
-
-#pragma region BodyPartStatus
-
-                                                void UOHPhysicsManager::ApplyDamageToBone(FName Bone, float Damage) {
-                    if (FOHBodyPartStatus* Status = BoneStatusMap.Find(Bone)) {
-                        Status->ApplyDamage(Damage);
-                        if (Status->IsDestroyed()) {
-                            FinalizeBlend(Bone);
-                            UE_LOG(LogTemp, Warning, TEXT("[OH] Bone %s destroyed"), *Bone.ToString());
-                        }
-                    }
-                }
-
-                bool UOHPhysicsManager::IsBoneDestroyed(FName Bone) const {
-                    if (const FOHBodyPartStatus* Status = BoneStatusMap.Find(Bone)) {
-                        return Status->IsDestroyed();
-                    }
-                    return false;
-                }
-
-                float UOHPhysicsManager::GetBoneHealth(FName Bone) const {
-                    if (const FOHBodyPartStatus* Status = BoneStatusMap.Find(Bone)) {
-                        return Status->CurrentHealth;
-                    }
-                    return -1.f;
-                }
-
-                void UOHPhysicsManager::ResetBoneStatus(FName Bone) {
-                    if (FOHBodyPartStatus* Status = BoneStatusMap.Find(Bone)) {
-                        Status->Reset();
-                    }
-                }
-
-                TArray<FName> UOHPhysicsManager::GetSkeletalBonesInBodyPart(EOHBodyPart Part) const {
-                    return UOHSkeletalPhysicsUtils::GetPrimaryBoneNamesFromBodyPart(Part);
-                }
-
-                bool UOHPhysicsManager::IsBodyPartFullyDestroyed(EOHBodyPart Part) const {
-                    for (const auto& Elem : BoneStatusMap) {
-                        if (Elem.Value.BodyPart == Part && !Elem.Value.IsDestroyed()) {
-                            return false;
-                        }
-                    }
-                    return true;
-                }
-#pragma endregion
-
-                >>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
 #pragma region SkeletalAssetValidation
 
-                    bool
-                    UOHPhysicsManager::ValidateBoneMappings(bool bLogResults) {
-                    if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshAsset()) {
-                        UE_LOG(LogTemp, Error, TEXT("[OHPhysicsManager] ValidateBoneMappings: No skeletal mesh"));
-                        return false;
-                    }
+bool UOHPhysicsManager::ValidateBoneMappings(bool bLogResults) {
+    if (!SkeletalMesh || !SkeletalMesh->GetSkeletalMeshAsset()) {
+        UE_LOG(LogTemp, Error, TEXT("[OHPhysicsManager] ValidateBoneMappings: No skeletal mesh"));
+        return false;
+    }
 
-                    ResolvedBoneData.Empty();
-                    SimulatableBones.Empty();
+    ResolvedBoneData.Empty();
+    SimulatableBones.Empty();
 
-                    const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetSkeletalMeshAsset()->GetRefSkeleton();
+    const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetSkeletalMeshAsset()->GetRefSkeleton();
 
-                    TArray<FName> ActualBoneNames;
-                    for (int32 i = 0; i < RefSkeleton.GetNum(); ++i) {
-                        ActualBoneNames.Add(RefSkeleton.GetBoneName(i));
-                    }
+    TArray<FName> ActualBoneNames;
+    for (int32 i = 0; i < RefSkeleton.GetNum(); ++i) {
+        ActualBoneNames.Add(RefSkeleton.GetBoneName(i));
+    }
 
-                    int32 ValidCount = 0;
+    int32 ValidCount = 0;
 
-                    for (const FName& ExpectedBone : TrackedBoneDefinitions) {
-                        FOHResolvedBoneData Data;
-                        Data.ResolvedBone = NAME_None;
-                        Data.MatchResult = UOHAlgoUtils::FindBestNameMatchAutoStrategy(ExpectedBone, ActualBoneNames);
-                        Data.ResolvedBone = FName(Data.MatchResult.Candidate);
-                        Data.bResolved = ActualBoneNames.Contains(Data.ResolvedBone);
+    for (const FName& ExpectedBone : TrackedBoneDefinitions) {
+        FOHResolvedBoneData Data;
+        Data.ResolvedBone = NAME_None;
+        Data.MatchResult = UOHAlgoUtils::FindBestNameMatchAutoStrategy(ExpectedBone, ActualBoneNames);
+        Data.ResolvedBone = FName(Data.MatchResult.Candidate);
+        Data.bResolved = ActualBoneNames.Contains(Data.ResolvedBone);
 
-                        if (Data.bResolved) {
-                            ++ValidCount;
-                        }
+        if (Data.bResolved) {
+            ++ValidCount;
+        }
 
-                        // Infer skeletal enums if possible
-                        Data.LogicalBone = UOHSkeletalPhysicsUtils::ResolveSkeletalBoneFromNameSmart(
-                            Data.ResolvedBone, SkeletalMesh, 0.75f);
-                        Data.BodyPart = UOHSkeletalPhysicsUtils::GetBodyPartFromBone(Data.LogicalBone);
-                        Data.BodyZone = UOHSkeletalPhysicsUtils::GetBodyZoneFromBone(Data.LogicalBone);
-                        Data.FunctionalGroup = UOHSkeletalPhysicsUtils::GetFunctionalGroupFromBone(Data.LogicalBone);
+        // Infer skeletal enums if possible
+        Data.LogicalBone =
+            UOHSkeletalPhysicsUtils::ResolveSkeletalBoneFromNameSmart(Data.ResolvedBone, SkeletalMesh, 0.75f);
+        Data.BodyPart = UOHSkeletalPhysicsUtils::GetBodyPartFromBone(Data.LogicalBone);
+        Data.BodyZone = UOHSkeletalPhysicsUtils::GetBodyZoneFromBone(Data.LogicalBone);
+        Data.FunctionalGroup = UOHSkeletalPhysicsUtils::GetFunctionalGroupFromBone(Data.LogicalBone);
 
-                        ResolvedBoneData.Add(ExpectedBone, Data);
+        ResolvedBoneData.Add(ExpectedBone, Data);
 
-                        if (bLogResults && !Data.bResolved && Data.MatchResult.Candidate != "") {
-                            UE_LOG(LogTemp, Warning,
-                                   TEXT("[OHPhysicsManager] Bone '%s' not found. Did you mean '%s'? (Score: %.2f)"),
-                                   *ExpectedBone.ToString(), *Data.MatchResult.Candidate, Data.MatchResult.Score);
-                        }
-                    }
+        if (bLogResults && !Data.bResolved && Data.MatchResult.Candidate != "") {
+            UE_LOG(LogTemp, Warning, TEXT("[OHPhysicsManager] Bone '%s' not found. Did you mean '%s'? (Score: %.2f)"),
+                   *ExpectedBone.ToString(), *Data.MatchResult.Candidate, Data.MatchResult.Score);
+        }
+    }
 
-                    // Filter simulatable bones
-                    for (const TPair<FName, FOHResolvedBoneData>& Pair : ResolvedBoneData) {
-                        const FName& ActualBone = Pair.Value.ResolvedBone;
-                        if (Pair.Value.bResolved && !SimExclusionBoneSet.Contains(ActualBone) &&
-                            HasPhysicsBody(ActualBone)) {
-                            SimulatableBones.Add(ActualBone);
-                        }
-                    }
+    // Filter simulatable bones
+    for (const TPair<FName, FOHResolvedBoneData>& Pair : ResolvedBoneData) {
+        const FName& ActualBone = Pair.Value.ResolvedBone;
+        if (Pair.Value.bResolved && !SimExclusionBoneSet.Contains(ActualBone) && HasPhysicsBody(ActualBone)) {
+            SimulatableBones.Add(ActualBone);
+        }
+    }
 
-                    if (bLogResults) {
-                        UE_LOG(LogTemp, Log,
-                               TEXT("[OHPhysicsManager] Validation complete: %d/%d bones valid, %d simulatable"),
-                               ValidCount, TrackedBoneDefinitions.Num(), SimulatableBones.Num());
-                    }
+    if (bLogResults) {
+        UE_LOG(LogTemp, Log, TEXT("[OHPhysicsManager] Validation complete: %d/%d bones valid, %d simulatable"),
+               ValidCount, TrackedBoneDefinitions.Num(), SimulatableBones.Num());
+    }
 
-                    return ValidCount == TrackedBoneDefinitions.Num();
-                }
+    return ValidCount == TrackedBoneDefinitions.Num();
+}
 
-                TArray<FString> UOHPhysicsManager::GetMissingBones() const {
-                    TArray<FString> Result;
-                    for (const auto& Pair : ResolvedBoneData) {
-                        if (!Pair.Value.bResolved) {
-                            Result.Add(Pair.Key.ToString());
-                        }
-                    }
-                    return Result;
-                }
+TArray<FString> UOHPhysicsManager::GetMissingBones() const {
+    TArray<FString> Result;
+    for (const auto& Pair : ResolvedBoneData) {
+        if (!Pair.Value.bResolved) {
+            Result.Add(Pair.Key.ToString());
+        }
+    }
+    return Result;
+}
 
-                TMap<FName, FName> UOHPhysicsManager::GetBoneSuggestions() const {
-                    TMap<FName, FName> Result;
-                    for (const auto& Pair : ResolvedBoneData) {
-                        if (!Pair.Value.bResolved && !Pair.Value.MatchResult.Candidate.IsEmpty()) {
-                            Result.Add(Pair.Key, FName(Pair.Value.MatchResult.Candidate));
-                        }
-                    }
-                    return Result;
-                }
+TMap<FName, FName> UOHPhysicsManager::GetBoneSuggestions() const {
+    TMap<FName, FName> Result;
+    for (const auto& Pair : ResolvedBoneData) {
+        if (!Pair.Value.bResolved && !Pair.Value.MatchResult.Candidate.IsEmpty()) {
+            Result.Add(Pair.Key, FName(Pair.Value.MatchResult.Candidate));
+        }
+    }
+    return Result;
+}
 
 #pragma endregion
 
 #pragma region PhysicsGraph
 
-                void UOHPhysicsManager::ValidateAndRepairGraph() {
-                    if (!SkeletalMesh || !CachedPhysicsAsset) {
-                        UE_LOG(LogTemp, Warning,
-                               TEXT("[OHPhysicsManager] ValidateAndRepairGraph aborted — missing components."));
-                        return;
-                    }
+void UOHPhysicsManager::ValidateAndRepairGraph() {
+    if (!SkeletalMesh || !CachedPhysicsAsset) {
+        UE_LOG(LogTemp, Warning, TEXT("[OHPhysicsManager] ValidateAndRepairGraph aborted — missing components."));
+        return;
+    }
 
-                    InvalidBodies.Reset();
-                    InvalidConstraints.Reset();
+    InvalidBodies.Reset();
+    InvalidConstraints.Reset();
 
-                    PerformValidationPass();
+    PerformValidationPass();
 
-                    if (InvalidBodies.Num() > 0 || InvalidConstraints.Num() > 0) {
-                        UE_LOG(LogTemp, Warning,
-                               TEXT("[OHPhysicsManager] Found %d invalid bodies and %d invalid constraints."),
-                               InvalidBodies.Num(), InvalidConstraints.Num());
+    if (InvalidBodies.Num() > 0 || InvalidConstraints.Num() > 0) {
+        UE_LOG(LogTemp, Warning, TEXT("[OHPhysicsManager] Found %d invalid bodies and %d invalid constraints."),
+               InvalidBodies.Num(), InvalidConstraints.Num());
 
-                        PerformRepairPass();
+        PerformRepairPass();
 
-                        if (InvalidBodies.Num() > 0 || InvalidConstraints.Num() > 0) {
-                            UE_LOG(LogTemp, Error,
-                                   TEXT("[OHPhysicsManager] Repair incomplete. Consider full physics reset."));
-                            // Optional: RecreatePhysicsState() or trigger rebuild here
-                        }
-                    }
-                }
+        if (InvalidBodies.Num() > 0 || InvalidConstraints.Num() > 0) {
+            UE_LOG(LogTemp, Error, TEXT("[OHPhysicsManager] Repair incomplete. Consider full physics reset."));
+            // Optional: RecreatePhysicsState() or trigger rebuild here
+        }
+    }
+}
 
-                void UOHPhysicsManager::PerformValidationPass() {
-                    for (auto& Pair : TrackedBoneDataMap) {
-                        const FName& BoneName = Pair.Key;
-                        FOHBoneData& BoneData = Pair.Value;
+void UOHPhysicsManager::PerformValidationPass() {
+    for (auto& Pair : TrackedBoneDataMap) {
+        const FName& BoneName = Pair.Key;
+        FOHBoneData& BoneData = Pair.Value;
 
-                        FBodyInstance* BodyInstance = BoneData.GetBodyInstance();
-                        if (!IsBodyInstanceValid(BodyInstance)) {
-                            InvalidBodies.Add(BoneName);
-                            continue;
-                        }
+        FBodyInstance* BodyInstance = BoneData.GetBodyInstance();
+        if (!IsBodyInstanceValid(BodyInstance)) {
+            InvalidBodies.Add(BoneName);
+            continue;
+        }
 
-                        FConstraintInstance* ConstraintInstance = BoneData.GetParentConstraintInstance();
-                        if (!IsConstraintInstanceValid(ConstraintInstance)) {
-                            InvalidConstraints.Add(BoneName);
-                        }
-                    }
-                }
+        FConstraintInstance* ConstraintInstance = BoneData.GetParentConstraintInstance();
+        if (!IsConstraintInstanceValid(ConstraintInstance)) {
+            InvalidConstraints.Add(BoneName);
+        }
+    }
+}
 
-                void UOHPhysicsManager::PerformRepairPass() {
-                    for (const FName& BoneName : InvalidBodies) {
-                        if (TryRecreateBodyInstance(BoneName)) {
-                            InvalidBodies.Remove(BoneName);
-                        } else {
-                            UE_LOG(LogTemp, Error,
-                                   TEXT("[OHPhysicsManager] Failed to recreate body instance for bone %s"),
-                                   *BoneName.ToString());
-                        }
-                    }
+void UOHPhysicsManager::PerformRepairPass() {
+    for (const FName& BoneName : InvalidBodies) {
+        if (TryRecreateBodyInstance(BoneName)) {
+            InvalidBodies.Remove(BoneName);
+        } else {
+            UE_LOG(LogTemp, Error, TEXT("[OHPhysicsManager] Failed to recreate body instance for bone %s"),
+                   *BoneName.ToString());
+        }
+    }
 
-                    for (const FName& BoneName : InvalidConstraints) {
-                        FOHBoneData* BoneData = TrackedBoneDataMap.Find(BoneName);
-                        if (!BoneData)
-                            continue;
+    for (const FName& BoneName : InvalidConstraints) {
+        FOHBoneData* BoneData = TrackedBoneDataMap.Find(BoneName);
+        if (!BoneData)
+            continue;
 
-                        FName ParentBone = BoneData->GetParentBone();
-                        if (TryRecreateConstraint(ParentBone, BoneName)) {
-                            InvalidConstraints.Remove(BoneName);
-                        } else {
-                            UE_LOG(LogTemp, Error, TEXT("[OHPhysicsManager] Failed to recreate constraint for bone %s"),
-                                   *BoneName.ToString());
-                        }
-                    }
-                }
+        FName ParentBone = BoneData->GetParentBone();
+        if (TryRecreateConstraint(ParentBone, BoneName)) {
+            InvalidConstraints.Remove(BoneName);
+        } else {
+            UE_LOG(LogTemp, Error, TEXT("[OHPhysicsManager] Failed to recreate constraint for bone %s"),
+                   *BoneName.ToString());
+        }
+    }
+}
 
-                bool UOHPhysicsManager::TryRecreateBodyInstance(const FName& BoneName) {
-                    if (!SkeletalMesh || BoneName.IsNone())
-                        return false;
+bool UOHPhysicsManager::TryRecreateBodyInstance(const FName& BoneName) {
+    if (!SkeletalMesh || BoneName.IsNone())
+        return false;
 
-                    FBodyInstance* BodyInstance = SkeletalMesh->GetBodyInstance(BoneName);
-                    if (IsBodyInstanceValid(BodyInstance)) {
-                        return true; // Already valid
-                    }
+    FBodyInstance* BodyInstance = SkeletalMesh->GetBodyInstance(BoneName);
+    if (IsBodyInstanceValid(BodyInstance)) {
+        return true; // Already valid
+    }
 
-                    // Recreate physics state for the skeletal mesh — this refreshes all bodies and constraints
-                    SkeletalMesh->RecreatePhysicsState();
+    // Recreate physics state for the skeletal mesh — this refreshes all bodies and constraints
+    SkeletalMesh->RecreatePhysicsState();
 
-                    BodyInstance = SkeletalMesh->GetBodyInstance(BoneName);
-                    return IsBodyInstanceValid(BodyInstance);
-                }
+    BodyInstance = SkeletalMesh->GetBodyInstance(BoneName);
+    return IsBodyInstanceValid(BodyInstance);
+}
 
-                bool UOHPhysicsManager::TryRecreateConstraint(const FName& ParentBone, const FName& ChildBone) {
-                    if (!SkeletalMesh || ParentBone.IsNone() || ChildBone.IsNone())
-                        return false;
+bool UOHPhysicsManager::TryRecreateConstraint(const FName& ParentBone, const FName& ChildBone) {
+    if (!SkeletalMesh || ParentBone.IsNone() || ChildBone.IsNone())
+        return false;
 
-                    // Usually, constraints are created with physics state recreation
-                    SkeletalMesh->RecreatePhysicsState();
+    // Usually, constraints are created with physics state recreation
+    SkeletalMesh->RecreatePhysicsState();
 
-                    FOHBoneData* ChildBoneData = TrackedBoneDataMap.Find(ChildBone);
-                    if (!ChildBoneData)
-                        return false;
+    FOHBoneData* ChildBoneData = TrackedBoneDataMap.Find(ChildBone);
+    if (!ChildBoneData)
+        return false;
 
-                    FConstraintInstance* ConstraintInstance = ChildBoneData->GetParentConstraintInstance();
-                    return IsConstraintInstanceValid(ConstraintInstance);
-                }
+    FConstraintInstance* ConstraintInstance = ChildBoneData->GetParentConstraintInstance();
+    return IsConstraintInstanceValid(ConstraintInstance);
+}
 
-                bool UOHPhysicsManager::IsBodyInstanceValid(const FBodyInstance* BodyInstance) {
-                    return BodyInstance && BodyInstance->IsValidBodyInstance();
-                }
+bool UOHPhysicsManager::IsBodyInstanceValid(const FBodyInstance* BodyInstance) {
+    return BodyInstance && BodyInstance->IsValidBodyInstance();
+}
 
-                bool UOHPhysicsManager::IsConstraintInstanceValid(const FConstraintInstance* ConstraintInstance) {
-                    // You may want to add more detailed validity checks here if needed
-                    return ConstraintInstance != nullptr;
-                }
+bool UOHPhysicsManager::IsConstraintInstanceValid(const FConstraintInstance* ConstraintInstance) {
+    // You may want to add more detailed validity checks here if needed
+    return ConstraintInstance != nullptr;
+}
 
-                /////////////////////////////////////////////////
-                void UOHPhysicsManager::OnSkeletalMeshChanged() {
-                    bPhysicsGraphDirty = true;
-                    ++PhysicsGraphVersion;
-                }
+/////////////////////////////////////////////////
+void UOHPhysicsManager::OnSkeletalMeshChanged() {
+    bPhysicsGraphDirty = true;
+    ++PhysicsGraphVersion;
+}
 
-                void UOHPhysicsManager::OnPhysicsAssetChanged() {
-                    bPhysicsGraphDirty = true;
-                    ++PhysicsGraphVersion;
-                }
+void UOHPhysicsManager::OnPhysicsAssetChanged() {
+    bPhysicsGraphDirty = true;
+    ++PhysicsGraphVersion;
+}
 
-                // Example: if you hot-reload, or reconfigure bones:
-                void UOHPhysicsManager::OnGraphRelevantSettingsChanged() {
-                    bPhysicsGraphDirty = true;
-                    ++PhysicsGraphVersion;
-                }
+// Example: if you hot-reload, or reconfigure bones:
+void UOHPhysicsManager::OnGraphRelevantSettingsChanged() {
+    bPhysicsGraphDirty = true;
+    ++PhysicsGraphVersion;
+}
 //////////////////////////////////////////////////
-<<<<<<< HEAD
 #pragma endregion
-                == == == =
-#pragma endregion
-
-#pragma endregion
-                             >>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9

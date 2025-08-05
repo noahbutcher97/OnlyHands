@@ -63,22 +63,9 @@ class ONLYHANDS_API UOHGraphUtils : public UBlueprintFunctionLibrary {
                               const TArray<FOHConstraintInstanceData>& Constraints,
                               const FString& ContextTag = TEXT("PhysicsGraph"));
 
-
-<<<<<<< HEAD
-    static void ClearPhysicsGraph(FOHPhysicsGraphNode& Graph);
-    static bool RefreshBonesOnlyFromComponent(USkeletalMeshComponent* SkeletalMeshComp, FOHPhysicsGraphNode& Graph,
-                                              const FString& ContextTag, bool bRebindOwnerComponent);
-    static bool RefreshConstraintsOnlyFromComponent(USkeletalMeshComponent* SkeletalMeshComp,
-                                                    FOHPhysicsGraphNode& Graph, const FString& ContextTag,
-                                                    bool bRebuildFullConstraintList, bool bRebindOwnerComponent);
-    static bool RefreshGraphFromComponent(USkeletalMeshComponent* SkeletalMeshComp, FOHPhysicsGraphNode& Graph,
-                                          const FString& ContextTag, bool bRefreshBones, bool bRefreshConstraints,
-                                          bool bRebindOwnerComponent, bool bFullConstraintRebuild);
-    == == == =
-                 /** Validates that every path from root to leaf contains only valid, simulated bones */
-        static bool ValidateAllChainsStable(const TMap<FName, FOHBoneData>& BoneMap,
-                                            const TArray<FOHConstraintInstanceData>& Constraints, int32 MaxDepth = 16);
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
+    /** Validates that every path from root to leaf contains only valid, simulated bones */
+    static bool ValidateAllChainsStable(const TMap<FName, FOHBoneData>& BoneMap,
+                                        const TArray<FOHConstraintInstanceData>& Constraints, int32 MaxDepth = 16);
 
     // Build full graph
     static bool BuildPhysicsGraphFromComponent(USkeletalMeshComponent* SkeletalMeshComp, FOHPhysicsGraphNode& OutGraph,
@@ -92,9 +79,9 @@ class ONLYHANDS_API UOHGraphUtils : public UBlueprintFunctionLibrary {
     static bool RefreshConstraintsOnlyFromComponent(USkeletalMeshComponent* SkeletalMeshComp,
                                                     FOHPhysicsGraphNode& Graph, const FString& ContextTag,
                                                     bool bRebuildFullConstraintList, bool bRebindOwnerComponent);
-    bool RefreshGraphFromComponent(USkeletalMeshComponent* SkeletalMeshComp, FOHPhysicsGraphNode& Graph,
-                                   const FString& ContextTag, bool bRefreshBones, bool bRefreshConstraints,
-                                   bool bRebindOwnerComponent, bool bFullConstraintRebuild);
+    static bool RefreshGraphFromComponent(USkeletalMeshComponent* SkeletalMeshComp, FOHPhysicsGraphNode& Graph,
+                                          const FString& ContextTag, bool bRefreshBones, bool bRefreshConstraints,
+                                          bool bRebindOwnerComponent, bool bFullConstraintRebuild);
 
     // Resets the graph cleanly and logs state.
     static void ResetGraph(FOHPhysicsGraphNode& Graph);

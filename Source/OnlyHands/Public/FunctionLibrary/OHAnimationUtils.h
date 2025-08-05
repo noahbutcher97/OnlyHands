@@ -17,7 +17,6 @@ UCLASS()
 class ONLYHANDS_API UOHAnimationUtils : public UBlueprintFunctionLibrary {
     GENERATED_BODY()
 
-<<<<<<< HEAD
   public:
     /**
      * Finds the contiguous bone chain below a root, stopping at any branch or the tip.
@@ -28,51 +27,6 @@ class ONLYHANDS_API UOHAnimationUtils : public UBlueprintFunctionLibrary {
      */
     static bool GetContiguousBoneChain(const USkeletalMeshComponent* SkeletalMeshComp, FName RootBone,
                                        TArray<FName>& OutChain);
-
-    /**
-     * Given a tip bone, finds the contiguous bone chain toward the root,
-     * stopping at the first branch or root. The chain is ordered root-to-tip.
-     * @param SkeletalMeshComp - The skeletal mesh component.
-     * @param TipBone          - The bone at the tip of the chain (e.g., "hand_l").
-     * @param OutChain         - Output array of bone names, root-to-tip order.
-     * @return true if a valid chain (length >= 2) was found, false otherwise.
-     */
-    static bool GetContiguousBoneChainToRoot(const USkeletalMeshComponent* SkeletalMeshComp, FName TipBone,
-                                             TArray<FName>& OutChain);
-
-    /**
-     * Measures the total length of a bone chain in the reference pose.
-     * @param SkeletalMeshComp   - The mesh component whose reference pose to use
-     * @param BoneChain          - Ordered array of bone names (from chain root to tip)
-     * @return Total length (cm) along the bone chain in reference pose, or 0 on error
-     */
-
-    UFUNCTION(BlueprintPure, Category = "OnlyHands|Animation")
-    static float CalculateChainLengthInReferencePose(const USkeletalMeshComponent* SkeletalMeshComp,
-                                                     const TArray<FName>& BoneChain);
-
-    /**
-     * Measures the maximum possible length of a bone chain by summing rest-pose local translations.
-     * (Does not depend on actual arm/leg orientation in the ref pose—gives "fully straightened" length.)
-     */
-    static float CalculateChainRestLength(const USkeletalMeshComponent* SkeletalMeshComp,
-                                          const TArray<FName>& BoneChain);
-
-    /** Sample current animation transform for a given bone (component space) */
-    UFUNCTION(BlueprintPure, Category = "OnlyHands|Animation")
-    static FTransform GetCurrentAnimPoseTransform(USkeletalMeshComponent* Mesh, FName BoneName);
-  == == == = public :
->>>>>>> 0627b7d296554ee97d27b39fb5f7c959d6da32c9
-
-      /**
-       * Finds the contiguous bone chain below a root, stopping at any branch or the tip.
-       * @param SkeletalMeshComp - Skeletal mesh component to query.
-       * @param RootBone         - Root bone name (e.g., "clavicle_l" or "thigh_r").
-       * @param OutChain         - Receives chain from root (inclusive) to tip.
-       * @return true if a valid chain was found (length >= 2), false otherwise.
-       */
-      static bool
-      GetContiguousBoneChain(const USkeletalMeshComponent* SkeletalMeshComp, FName RootBone, TArray<FName>& OutChain);
 
     /**
      * Given a tip bone, finds the contiguous bone chain toward the root,
